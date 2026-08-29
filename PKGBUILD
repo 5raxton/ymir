@@ -64,7 +64,9 @@ build() {
     # --locked: Cargo.lock is committed and pins pipewire/libspa-sys >= 0.10.1,
     # which fixes missing libspa_rs linker symbols seen with 0.10.0 + newer spa
     # headers (e.g. Arch's pipewire 1.6.x).
-    cargo build --release --locked
+    # -p ymir: build only the compositor binary. The workspace also contains
+    # ymir-visual-tests, which needs gtk4/libadwaita and is dev-only.
+    cargo build --release --locked -p ymir
 }
 
 package() {

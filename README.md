@@ -65,9 +65,9 @@ Tabbed and normal (scrollable) column displays remain fully supported, and you c
 The full instructions are in the [Getting Started](docs/wiki/Getting-Started.md) wiki page.
 ymir by itself is not a complete desktop environment: grab a status bar like [waybar], and adjust the config to spawn your own terminal and launcher — the default config expects [alacritty] and [fuzzel].
 
-### Arch Linux
+### Linux
 
-ymir ships an Arch PKGBUILD and installer scripts that clone the latest `main`, install the dependencies, and build with `makepkg -si`:
+ymir ships a multi-distro installer script that detects your distro (Arch, Fedora, Debian/Ubuntu, openSUSE), installs the required build/runtime dependencies, clones the latest `main`, and builds & installs the compositor:
 
 ```sh
 # bash/zsh
@@ -77,7 +77,9 @@ curl -sL https://raw.githubusercontent.com/5raxton/ymir/main/scripts/install.sh 
 curl -sL https://raw.githubusercontent.com/5raxton/ymir/main/scripts/install.fish | fish
 ```
 
-The package installs a `ymir-session` binary and a `ymir.desktop` session entry into `/usr/share/wayland-sessions`, so "Ymir" will appear as a selectable session in your login manager (GDM, SDDM, ...). From a bare TTY you can start it directly with `ymir-session`.
+On Arch it builds with `makepkg` from the PKGBUILD; on other distros it builds with `cargo` and installs into `/usr/local`. The installer seeds `~/.config/ymir/config.kdl` with the dwindle example config if absent, and installs the `ymir.desktop` session entry automatically so "Ymir" appears in your login manager (GDM, SDDM, ...). From a bare TTY you can start it directly with `ymir-session`.
+
+Re-running the installer pulls the latest `main`, cleans stale build artifacts, and rebuilds — so it also works as a full update to the bleeding edge.
 
 ### From source
 

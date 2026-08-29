@@ -551,6 +551,17 @@ binds {
     // Expel the bottom window from the focused column to the right.
     Mod+Period { expel-window-from-column; }
 
+    // Dwindle-mode actions. These only affect columns in the dwindle display mode.
+    // Toggle the split orientation of the container holding the focused window.
+    Mod+Space { toggle-split; }
+    // Pre-select the direction in which the next window opened in this column will split.
+    Mod+Ctrl+Space { preselect "bottom"; }
+    // Move the focused window to the head (leftmost) position of the dwindle tree.
+    Mod+Shift+Home { promote-window; }
+
+    // Get into and out of dwindle mode (same key toggles between normal and dwindle).
+    // Mod+D { set-column-display dwindle; }
+
     // Cycle through widths set in preset-column-widths.
     Mod+R { switch-preset-column-width; }
     // Cycling through the presets in reverse order is also possible.

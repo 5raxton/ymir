@@ -1229,10 +1229,26 @@ impl<W: LayoutElement> ScrollingSpace<W> {
             }
         }
 
-        column.reorder_tiles_by_dfs();
-
-        // The tree tracks the active leaf; after reordering its value is the tile index.
-        column.active_tile_idx = *column.dwindle_tree.active_value().unwrap();
+        // expel() collapses the tree but leaves the remaining leaf values stale (they still hold
+        // their pre-removal tile indices) and, when the active leaf's container collapses, may
+        // have moved its path so the tree's `active` no longer resolves. Restore both invariants:
+        // renumber the leaves in DFS order so that value == position, then point the tree's active
+        // leaf at the window that keeps focus (mirroring the non-dwindle focus-after-delete logic).
+        column.dwindle_tree.reindex(|value, i| *value = i);
+        let post_len = column.tiles.len();
+        if tile_idx < column.active_tile_idx {
+            // A tile above the focused one was removed; the focused tile keeps focus.
+            column.active_tile_idx -= 1;
+        } else if tile_idx == column.active_tile_idx {
+            if tile_idx == post_len {
+                // The bottom tile was removed and it was focused; keep the remaining index valid.
+                column.active_tile_idx = tile_idx - 1;
+            } else {
+                column.active_tile_idx = tile_idx;
+            }
+        }
+        let paths = column.dwindle_tree.leaf_paths();
+        column.dwindle_tree.set_active(&paths[column.active_tile_idx]);
         column.tiles[column.active_tile_idx].ensure_alpha_animates_to_1();
 
         let was_normal = column.sizing_mode().is_normal();
@@ -1290,6 +1306,19 @@ impl<W: LayoutElement> ScrollingSpace<W> {
         }
 
         Some(&self.columns[self.active_column_idx])
+    }
+
+    /// Returns the index of the active column if it is in dwindle display mode.
+    ///
+    /// New windows open into the focused dwindle column's split tree (splitting
+    /// off the focused window) rather than spawning a brand new column, so this
+    /// is used to route that insertion.
+    pub fn active_dwindle_column_idx(&self) -> Option<usize> {
+        if self.columns.is_empty() || !self.columns[self.active_column_idx].is_dwindle() {
+            return None;
+        }
+
+        Some(self.active_column_idx)
     }
 
     pub fn remove_active_column(&mut self) -> Option<Column<W>> {

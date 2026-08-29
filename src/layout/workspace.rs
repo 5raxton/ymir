@@ -632,6 +632,15 @@ impl<W: LayoutElement> Workspace<W> {
                     if activate || self.scrolling.is_empty() {
                         self.floating_is_active = FloatingActive::Yes;
                     }
+                } else if let Some(col_idx) = self.scrolling.active_dwindle_column_idx() {
+                    // In dwindle display mode, new windows split off the focused window in the
+                    // active column instead of opening as a new column to the right.
+                    self.scrolling
+                        .add_tile_to_column(col_idx, None, tile, activate);
+
+                    if activate {
+                        self.floating_is_active = FloatingActive::No;
+                    }
                 } else {
                     self.scrolling
                         .add_tile(None, tile, activate, width, is_full_width, anim);

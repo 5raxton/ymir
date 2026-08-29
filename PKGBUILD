@@ -57,7 +57,10 @@ sha256sums=('SKIP')
 
 build() {
     cd "$pkgname"
-    cargo build --release
+    # --locked: Cargo.lock is committed and pins pipewire/libspa-sys >= 0.10.1,
+    # which fixes missing libspa_rs linker symbols seen with 0.10.0 + newer spa
+    # headers (e.g. Arch's pipewire 1.6.x).
+    cargo build --release --locked
 }
 
 package() {

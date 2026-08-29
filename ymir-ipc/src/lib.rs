@@ -442,6 +442,16 @@ pub enum Action {
     ConsumeWindowIntoColumn {},
     /// Expel the bottom window from the focused column.
     ExpelWindowFromColumn {},
+    /// Toggle the split orientation of the container holding the focused window.
+    ToggleSplit {},
+    /// Set a one-time directional override for the next window spawned in the focused column.
+    Preselect {
+        /// Direction for the next split.
+        #[cfg_attr(feature = "clap", arg())]
+        direction: SplitDirection,
+    },
+    /// Move the focused window to the head of its dwindle column.
+    PromoteWindow {},
     /// Swap focused window with one to the right.
     SwapWindowRight {},
     /// Swap focused window with one to the left.
@@ -1005,6 +1015,22 @@ pub enum ColumnDisplay {
     Normal,
     /// Windows are in tabs.
     Tabbed,
+    /// Windows are arranged in a recursive binary-split (dwindle) tree.
+    Dwindle,
+}
+
+/// Direction of a pending dwindle split (preselection).
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
+pub enum SplitDirection {
+    /// New window is placed above the focused window.
+    Top,
+    /// New window is placed below the focused window.
+    Bottom,
+    /// New window is placed to the left of the focused window.
+    Left,
+    /// New window is placed to the right of the focused window.
+    Right,
 }
 
 /// Output actions that ymir can perform.
@@ -1876,7 +1902,22 @@ impl FromStr for ColumnDisplay {
         match s {
             "normal" => Ok(Self::Normal),
             "tabbed" => Ok(Self::Tabbed),
-            _ => Err(r#"invalid column display, can be "normal" or "tabbed""#),
+            "dwindle" => Ok(Self::Dwindle),
+            _ => Err(r#"invalid column display, can be "normal", "tabbed" or "dwindle""#),
+        }
+    }
+}
+
+impl FromStr for SplitDirection {
+    type Err = &'static str;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "top" => Ok(Self::Top),
+            "bottom" => Ok(Self::Bottom),
+            "left" => Ok(Self::Left),
+            "right" => Ok(Self::Right),
+            _ => Err(r#"invalid split direction, can be "top", "bottom", "left" or "right""#),
         }
     }
 }

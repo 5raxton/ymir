@@ -7,7 +7,8 @@ use bitflags::bitflags;
 use knuffel::errors::DecodeError;
 use miette::miette;
 use ymir_ipc::{
-    ColumnDisplay, LayoutSwitchTarget, PositionChange, SizeChange, WorkspaceReferenceArg,
+    ColumnDisplay, LayoutSwitchTarget, PositionChange, SizeChange, SplitDirection,
+    WorkspaceReferenceArg,
 };
 use smithay::input::keyboard::keysyms::KEY_NoSymbol;
 use smithay::input::keyboard::xkb::{keysym_from_name, KEYSYM_CASE_INSENSITIVE, KEYSYM_NO_FLAGS};
@@ -15,6 +16,51 @@ use smithay::input::keyboard::Keysym;
 
 use crate::recent_windows::{MruDirection, MruFilter, MruScope};
 use crate::utils::{expect_only_children, MergeWith};
+
+/// Direction of a dwindle split (used for the `preselect` action).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Direction {
+    Top,
+    Bottom,
+    Left,
+    Right,
+}
+
+impl FromStr for Direction {
+    type Err = &'static str;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "top" => Ok(Self::Top),
+            "bottom" => Ok(Self::Bottom),
+            "left" => Ok(Self::Left),
+            "right" => Ok(Self::Right),
+            _ => Err(r#"invalid direction, can be "top", "bottom", "left" or "right""#),
+        }
+    }
+}
+
+impl From<SplitDirection> for Direction {
+    fn from(dir: SplitDirection) -> Self {
+        match dir {
+            SplitDirection::Top => Self::Top,
+            SplitDirection::Bottom => Self::Bottom,
+            SplitDirection::Left => Self::Left,
+            SplitDirection::Right => Self::Right,
+        }
+    }
+}
+
+impl From<Direction> for SplitDirection {
+    fn from(dir: Direction) -> Self {
+        match dir {
+            Direction::Top => Self::Top,
+            Direction::Bottom => Self::Bottom,
+            Direction::Left => Self::Left,
+            Direction::Right => Self::Right,
+        }
+    }
+}
 
 #[derive(Debug, Default, PartialEq)]
 pub struct Binds(pub Vec<Bind>);
@@ -207,6 +253,9 @@ pub enum Action {
     ConsumeOrExpelWindowRightById(u64),
     ConsumeWindowIntoColumn,
     ExpelWindowFromColumn,
+    ToggleSplit,
+    Preselect(#[knuffel(argument, str)] Direction),
+    PromoteWindow,
     SwapWindowLeft,
     SwapWindowRight,
     ToggleColumnTabbedDisplay,
@@ -499,6 +548,11 @@ impl From<ymir_ipc::Action> for Action {
             }
             ymir_ipc::Action::ConsumeWindowIntoColumn {} => Self::ConsumeWindowIntoColumn,
             ymir_ipc::Action::ExpelWindowFromColumn {} => Self::ExpelWindowFromColumn,
+            ymir_ipc::Action::ToggleSplit {} => Self::ToggleSplit,
+            ymir_ipc::Action::Preselect { direction } => {
+                Self::Preselect(Direction::from(direction))
+            }
+            ymir_ipc::Action::PromoteWindow {} => Self::PromoteWindow,
             ymir_ipc::Action::SwapWindowRight {} => Self::SwapWindowRight,
             ymir_ipc::Action::SwapWindowLeft {} => Self::SwapWindowLeft,
             ymir_ipc::Action::ToggleColumnTabbedDisplay {} => Self::ToggleColumnTabbedDisplay,

@@ -624,9 +624,10 @@ fn split_rect(
 ) {
     match axis {
         SplitAxis::Horizontal => {
-            let usable = rect.size.h - gaps;
-            let first_h = usable * ratio;
-            let second_h = (usable - first_h).max(0.);
+            // Clamp so a region smaller than the seam can't produce a negative split size.
+            let usable = (rect.size.h - gaps).max(0.);
+            let first_h = (usable * ratio).clamp(0., usable);
+            let second_h = usable - first_h;
             let first = Rectangle::new(rect.loc, Size::from((rect.size.w, first_h)));
             let second = Rectangle::new(
                 Point::from((rect.loc.x, rect.loc.y + first_h + gaps)),
@@ -635,9 +636,9 @@ fn split_rect(
             (first, second)
         }
         SplitAxis::Vertical => {
-            let usable = rect.size.w - gaps;
-            let first_w = usable * ratio;
-            let second_w = (usable - first_w).max(0.);
+            let usable = (rect.size.w - gaps).max(0.);
+            let first_w = (usable * ratio).clamp(0., usable);
+            let second_w = usable - first_w;
             let first = Rectangle::new(rect.loc, Size::from((first_w, rect.size.h)));
             let second = Rectangle::new(
                 Point::from((rect.loc.x + first_w + gaps, rect.loc.y)),
@@ -649,11 +650,13 @@ fn split_rect(
 }
 
 /// Picks the default slice side for a region of the given size: wide regions split side-by-side
-/// (new window on the left), while tall or square regions stack (new window at the bottom), which
-/// keeps the familiar vertical-stack chain for narrow columns.
+/// (new window on the right), while tall or square regions stack (new window at the bottom).
+///
+/// The focused window always keeps the `First` (top-left) half and shrinks into its corner, while
+/// the newly opened window takes the freed-up half, mirroring Hyprland's dwindle (force_split 2).
 fn default_side_for_aspect(size: Size<f64, Logical>) -> SplitSide {
     if size.w > size.h {
-        SplitSide::Left
+        SplitSide::Right
     } else {
         SplitSide::Bottom
     }
@@ -1147,16 +1150,18 @@ mod tests {
     #[test]
     fn aspect_based_splitting_mixes_axes() {
         // Using aspect-based default sides, the region of the active leaf grows wide after the
-        // first split, so the second window splits side-by-side instead of stacking:
-        // open_new on square regions produces H{0, V{2, H{3, 1}}} plus one more split.
+        // first split, so the second window splits side-by-side instead of stacking; the new
+        // window always takes the right/bottom half, so DFS order is insertion order:
+        // open_new on square regions produces H{0, V{1, H{2, 3}}}.
         let mut tree = DwindleTree::new();
         tree.open_new(0, square());
         tree.open_new(1, square());
         tree.open_new(2, square());
         tree.open_new(3, square());
-        assert_eq!(tree.leaves().copied().collect::<Vec<_>>(), vec![0, 2, 3, 1]);
+        assert_eq!(tree.leaves().copied().collect::<Vec<_>>(), vec![0, 1, 2, 3]);
         assert_axis(&tree, &[Child::First], SplitAxis::Horizontal);
         assert_axis(&tree, &[Child::Second, Child::First], SplitAxis::Vertical);
+        assert_axis(&tree, &[Child::Second, Child::Second, Child::First], SplitAxis::Horizontal);
     }
 
     #[test]
@@ -1176,9 +1181,9 @@ mod tests {
         let mut tree = DwindleTree::single(1);
         tree.open_new(2, wide());
         assert_axis(&tree, &[Child::First], SplitAxis::Vertical);
-        // New window takes the first (left) child.
-        assert_eq!(tree.leaf(&LeafPath(vec![Child::First])), Some(&2));
-        assert_eq!(tree.leaf(&LeafPath(vec![Child::Second])), Some(&1));
+        // The focused window keeps the first (left) child, the new window takes the right half.
+        assert_eq!(tree.leaf(&LeafPath(vec![Child::First])), Some(&1));
+        assert_eq!(tree.leaf(&LeafPath(vec![Child::Second])), Some(&2));
     }
 
     #[test]

@@ -1269,8 +1269,12 @@ impl<W: LayoutElement> ScrollingSpace<W> {
         column.update_tile_sizes_with_transaction(true, transaction);
 
         // Animate the remaining tiles according to the offset changes.
-        for ((tile, offset), prev) in zip(column.tiles_mut(), prev_offsets) {
-            let delta = prev - offset;
+        let new_offsets: Vec<_> = column.tile_offsets().take(column.tiles.len()).collect();
+        for (idx, (tile, new_offset)) in column.tiles.iter_mut().zip(new_offsets).enumerate() {
+            // The tiles keep their relative DFS order after the splice: the tile now at position
+            // `idx` was at old position `idx` before the removed one, or `idx + 1` after it.
+            let old_idx = if idx < tile_idx { idx } else { idx + 1 };
+            let delta = prev_offsets[old_idx] - new_offset;
             if delta != Point::default() {
                 tile.animate_move_from(delta);
             }
@@ -4200,6 +4204,18 @@ impl<W: LayoutElement> Column<W> {
             .iter()
             .position(|preset| width == ColumnWidth::from(*preset));
 
+        let mut width = width;
+        let mut is_full_width = is_full_width;
+        let mut preset_width_idx = preset_width_idx;
+
+        // Dwindle columns span the whole work area so the split tree partitions the entire screen
+        // (Hyprland-style), rather than being confined to a narrow scrolling column.
+        if display_mode == ColumnDisplay::Dwindle {
+            width = ColumnWidth::Proportion(1.);
+            is_full_width = true;
+            preset_width_idx = None;
+        }
+
         let mut rv = Self {
             tiles: vec![],
             data: vec![],
@@ -4672,7 +4688,7 @@ impl<W: LayoutElement> Column<W> {
         tile: Tile<W>,
         prev_offsets: Vec<Point<f64, Logical>>,
     ) -> usize {
-        let value = self.tiles.len();
+        let old_len = self.tiles.len();
 
         // The tree decides the new window's region; the region only matters for computing the
         // default split side based on the active leaf's aspect ratio.
@@ -4680,8 +4696,8 @@ impl<W: LayoutElement> Column<W> {
 
         self.data.push(TileData::new(&tile, WindowHeight::auto_1()));
         self.tiles.push(tile);
-        self.dwindle_tree.open_new(value, region);
-        self.reorder_tiles_by_dfs();
+        self.dwindle_tree.open_new(old_len, region);
+        let order = self.reorder_tiles_by_dfs();
 
         // open_new() made the new leaf active; its value is now its DFS position.
         self.active_tile_idx = *self.dwindle_tree.active_value().unwrap();
@@ -4691,11 +4707,14 @@ impl<W: LayoutElement> Column<W> {
 
         let new_offsets: Vec<_> = self.tile_offsets().take(self.tiles.len()).collect();
         for (i, (tile, new_offset)) in self.tiles.iter_mut().zip(new_offsets).enumerate() {
-            if i == self.active_tile_idx {
+            // `order` maps new position -> old position (== old leaf value). The new tile is the
+            // one with old position == old_len; its appearance is animated by the open window
+            // animation instead.
+            if order[i] == old_len {
                 continue;
             }
 
-            let delta = prev_offsets[i] - new_offset;
+            let delta = prev_offsets[order[i]] - new_offset;
             if delta != Point::default() {
                 tile.animate_move_from(delta);
             }
@@ -5228,9 +5247,11 @@ impl<W: LayoutElement> Column<W> {
         let new_offsets: Vec<Point<f64, Logical>> =
             self.tile_offsets().take(self.tiles.len()).collect();
 
-        // Animate the two swapped tiles between their previous and new offsets.
-        self.tiles[idx].animate_move_from(prev_offsets[idx] - new_offsets[neighbor]);
-        self.tiles[neighbor].animate_move_from(prev_offsets[neighbor] - new_offsets[idx]);
+        // Animate the two swapped tiles between their previous and new offsets. After the swap
+        // and re-sort, the focused tile (old position `idx`) now sits at `neighbor` and the
+        // neighbor tile (old position `neighbor`) now sits at `idx`.
+        self.tiles[neighbor].animate_move_from(prev_offsets[idx] - new_offsets[neighbor]);
+        self.tiles[idx].animate_move_from(prev_offsets[neighbor] - new_offsets[idx]);
 
         true
     }
@@ -5575,6 +5596,8 @@ impl<W: LayoutElement> Column<W> {
         } else if self.is_dwindle() && display != ColumnDisplay::Dwindle {
             // Leaving dwindle: the tree is dropped and normal/tabbed geometry takes over.
             self.dwindle_tree = DwindleTree::single(0);
+            // Dwindle made the column full-width; hand the width back to the stored value.
+            self.is_full_width = false;
         }
 
         self.display_mode = display;
@@ -5628,6 +5651,11 @@ impl<W: LayoutElement> Column<W> {
         }
 
         self.dwindle_tree = tree;
+
+        // Dwindle columns span the whole work area, like a Hyprland workspace tree. The stored
+        // width is kept so switching back to the scrollable layout restores it.
+        self.is_full_width = true;
+        self.preset_width_idx = None;
     }
 
 /// Reorders a vector in place so that `out[i] == old[order[i]]`. `order` must be a permutation.
@@ -5738,7 +5766,12 @@ fn apply_permutation<T>(out: &mut Vec<T>, order: &[usize]) {
     /// The outer region that the dwindle tree partitions between its leaves.
     fn dwindle_content_rect(&self) -> Rectangle<f64, Logical> {
         let height = self.working_area.size.h - self.options.layout.gaps * 2.;
-        let size = Size::from((self.width(), height));
+        let width = if self.is_full_width {
+            self.resolve_column_width(ColumnWidth::Proportion(1.))
+        } else {
+            self.resolve_column_width(self.width)
+        };
+        let size = Size::from((width, height));
         Rectangle::new(self.tiles_origin(), size)
     }
 
@@ -5758,12 +5791,18 @@ fn apply_permutation<T>(out: &mut Vec<T>, order: &[usize]) {
 
     /// Re-sorts `tiles`/`data` to match the tree's depth-first leaf order, then re-numbers leaf
     /// values so that value == position.
-    fn reorder_tiles_by_dfs(&mut self) {
+    ///
+    /// Returns the permutation that was applied: after this call, the tile at position `i` is the
+    /// tile that was at position `order[i]` before (with the newly opened leaf valued
+    /// `len - 1` being the last pre-sort entry). Callers use it to pair up pre-sort offsets with
+    /// the tiles that moved to different positions.
+    fn reorder_tiles_by_dfs(&mut self) -> Vec<usize> {
         let order: Vec<usize> = self.dwindle_tree.leaves().copied().collect();
         debug_assert_eq!(order.len(), self.tiles.len());
         Self::apply_permutation(&mut self.tiles, &order);
         Self::apply_permutation(&mut self.data, &order);
         self.dwindle_tree.reindex(|value, i| *value = i);
+        order
     }
 
     /// Flips the split orientation of the container holding the focused window. Only meaningful in

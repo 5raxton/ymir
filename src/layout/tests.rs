@@ -1802,6 +1802,64 @@ fn open_first_window_in_dwindle_column() {
 }
 
 #[test]
+fn dwindle_columns_span_the_full_work_area() {
+    let options = Options {
+        layout: ymir_config::Layout {
+            default_column_display: ymir_ipc::ColumnDisplay::Dwindle,
+            default_column_width: Some(ymir_config::PresetSize::Proportion(0.5)),
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+
+    let layout = check_ops_with_options(
+        options,
+        [
+            Op::AddOutput(0),
+            Op::AddWindow { params: TestWindowParams::new(0) },
+            Op::AddWindow { params: TestWindowParams::new(1) },
+            Op::AddWindow { params: TestWindowParams::new(2) },
+            Op::AddWindow { params: TestWindowParams::new(3) },
+        ],
+    );
+
+    let requested: Vec<_> = layout
+        .windows()
+        .map(|(_, win)| win.requested_size().unwrap())
+        .collect();
+
+    // `default_column_width` (0.5) is ignored: the dwindle tree partitions the whole work
+    // area, so windows tile the full 1280x720 output (minus 2x16px gaps).
+    // The first (wide) window is split side-by-side, giving its right half to the next window...
+    assert_eq!(requested[0], Size::from((616, 688)));
+    // ...that right half is tall, so the next window stacks below it,
+    assert_eq!(requested[1], Size::from((616, 336)));
+    // and the bottom half is wide, so each remaining window splits side-by-side again.
+    assert_eq!(requested[2], Size::from((300, 336)));
+    assert_eq!(requested[3], Size::from((300, 336)));
+}
+
+#[test]
+fn dwindle_many_windows_do_not_crash() {
+    let options = Options {
+        layout: ymir_config::Layout {
+            default_column_display: ymir_ipc::ColumnDisplay::Dwindle,
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+
+    let mut ops = vec![Op::AddOutput(0)];
+    for i in 0..15 {
+        ops.push(Op::AddWindow {
+            params: TestWindowParams::new(i),
+        });
+        ops.push(Op::Communicate(i));
+    }
+    check_ops_with_options(options, ops);
+}
+
+#[test]
 fn operations_from_starting_state_dont_panic() {
     if std::env::var_os("RUN_SLOW_TESTS").is_none() {
         eprintln!("ignoring slow test");

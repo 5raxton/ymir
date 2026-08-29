@@ -113,9 +113,10 @@ layout {
     // Set gaps around windows in logical pixels.
     gaps 16
 
-    // Dwindle mode: a configurable split-tree layout, opt in per column. New windows
-    // split off the focused window, forming a binary tree. Toggle to "normal" or
-    // "tabbed" per-column, or totally disable it here (comment this line out).
+    // Dwindle mode is the default: a configurable split-tree layout. New windows
+    // split off the focused window, forming a binary tree. Switch back to
+    // "normal" (scrollable) or "tabbed" per-column at runtime with Mod+Shift+D, or
+    // change the default here.
     default-column-display "dwindle"
 
     // When to center a column when changing focus, options are:
@@ -564,8 +565,8 @@ binds {
     // Move the focused window to the head (leftmost) position of the dwindle tree.
     Mod+Shift+Home { promote-window; }
 
-    // Get into and out of dwindle mode (same key toggles between normal and dwindle).
-    // Mod+D { set-column-display dwindle; }
+    // Switch the focused column between dwindle and scrollable (normal) layout.
+    Mod+Shift+D { switch-column-display; }
 
     // Cycle through widths set in preset-column-widths.
     Mod+R { switch-preset-column-width; }

@@ -1145,6 +1145,13 @@ impl<W: LayoutElement> Workspace<W> {
         self.scrolling.toggle_column_tabbed_display();
     }
 
+    pub fn switch_column_display(&mut self) {
+        if self.floating_is_active.get() {
+            return;
+        }
+        self.scrolling.switch_column_display();
+    }
+
     pub fn toggle_column_split(&mut self) {
         if self.floating_is_active.get() {
             return;

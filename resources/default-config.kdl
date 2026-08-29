@@ -113,6 +113,13 @@ layout {
     // Set gaps around windows in logical pixels.
     gaps 16
 
+    // Dwindle is the default layout mode: new windows split off the focused
+    // window into a resizable binary tree. Set this to "normal" (scrollable
+    // columns) or "tabbed" if you prefer. You can switch modes per-column at
+    // runtime with Mod+Shift+D (switch-column-display, bound below), and still use
+    // "tabbed" via set-column-display per column.
+    default-column-display "dwindle"
+
     // When to center a column when changing focus, options are:
     // - "never", default behavior, focusing an off-screen column will keep at the left
     //   or right edge of the screen.
@@ -559,8 +566,9 @@ binds {
     // Move the focused window to the head (leftmost) position of the dwindle tree.
     Mod+Shift+Home { promote-window; }
 
-    // Get into and out of dwindle mode (same key toggles between normal and dwindle).
-    // Mod+D { set-column-display dwindle; }
+    // Switch the focused column between dwindle and scrollable (normal) layout.
+    // Dwindle is on by default; Mod+Shift+D toggles a column back to scrollable tiling.
+    Mod+Shift+D { switch-column-display; }
 
     // Cycle through widths set in preset-column-widths.
     Mod+R { switch-preset-column-width; }

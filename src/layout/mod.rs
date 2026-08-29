@@ -2264,6 +2264,14 @@ pub fn toggle_column_tabbed_display(&mut self) {
         workspace.toggle_column_tabbed_display();
     }
 
+    pub fn switch_column_display(&mut self) {
+        let Some(workspace) = self.active_workspace_mut() else {
+            return;
+        };
+
+        workspace.switch_column_display();
+    }
+
     pub fn toggle_column_split(&mut self) {
         let Some(workspace) = self.active_workspace_mut() else {
             return;

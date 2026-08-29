@@ -2511,6 +2511,9 @@ mod tests {
 
         -                0.6666666666666666,
         +                0.66667,
+
+        -        default_column_display: Normal,
+        +        default_column_display: Dwindle,
         "#,
         );
     }

@@ -2322,6 +2322,21 @@ impl<W: LayoutElement> ScrollingSpace<W> {
         self.set_column_display(display);
     }
 
+    pub fn switch_column_display(&mut self) {
+        if self.columns.is_empty() {
+            return;
+        }
+
+        let col = &mut self.columns[self.active_column_idx];
+        let display = match col.display_mode {
+            ColumnDisplay::Dwindle => ColumnDisplay::Normal,
+            ColumnDisplay::Normal => ColumnDisplay::Dwindle,
+            ColumnDisplay::Tabbed => ColumnDisplay::Dwindle,
+        };
+
+        self.set_column_display(display);
+    }
+
     pub fn set_column_display(&mut self, display: ColumnDisplay) {
         if self.columns.is_empty() {
             return;

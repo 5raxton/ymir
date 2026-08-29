@@ -66,7 +66,10 @@ end
 echo ">>> Building and installing ymir (release build, this takes a while)"
 set OLD_DIR (pwd)
 cd "$YMIR_REPO_DIR"
-makepkg -si --noconfirm --needed
+# Force a clean build (-C): the Cargo target/ dir left over inside the
+# makepkg srcdir by previous runs can poison the final link (stale libspa-sys
+# artifacts / missing libspa_rs symbols). A from-scratch build always links.
+makepkg -sCci --noconfirm --needed
 or exit 1
 cd "$OLD_DIR"
 
@@ -95,6 +98,7 @@ echo "     (The session entry is installed at /usr/share/wayland-sessions/ymir.d
 echo "  2. Or, from a TTY, log in and run: ymir-session"
 echo
 echo "Dwindle test bindings (see the config for details):"
+echo "  Mod+Shift+D      switch-column-display (dwindle <-> scrollable)"
 echo "  Mod+Space        toggle-split"
 echo "  Mod+Ctrl+Space   preselect \"bottom\""
 echo "  Mod+Shift+Home   promote-window"

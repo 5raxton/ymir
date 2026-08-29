@@ -458,6 +458,8 @@ pub enum Action {
     SwapWindowLeft {},
     /// Toggle the focused column between normal and tabbed display.
     ToggleColumnTabbedDisplay {},
+    /// Switch the focused column's layout mode: dwindle, normal (scrollable), tabbed.
+    SwitchColumnDisplay {},
     /// Set the display mode of the focused column.
     SetColumnDisplay {
         /// Display mode to set.

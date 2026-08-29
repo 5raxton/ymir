@@ -39,17 +39,11 @@ When a monitor disconnects, its workspaces will move to another monitor, but upo
 
 ### Dwindle column mode
 
-On top of the scrollable layout, ymir adds an opt-in **Dwindle** column display: a binary-split, resizable tiling layout inside the scrollable tiling paradigm (inspired by Hyprland's dwindle layout).
+On top of the scrollable layout, ymir ships **Dwindle** as its default layout mode: a binary-split, resizable tiling layout inside the scrollable tiling paradigm (inspired by Hyprland's dwindle layout).
 
-Enable it by setting a default column display in your layout config:
+Dwindle is on by default. New windows split off the focused window into a resizable binary tree.
 
-```kdl
-layout {
-    default-column-display "dwindle"
-}
-```
-
-A ready-made config is provided at [resources/dwindle-config.kdl](resources/dwindle-config.kdl) — copy it to `~/.config/ymir/config.kdl` to try it.
+Dwindle and classic scrollable tiling are fully switchable at runtime: press `Mod+Shift+D` to toggle the focused column between the two layout modes. A ready-made config is also provided at [resources/dwindle-config.kdl](resources/dwindle-config.kdl).
 
 Once in dwindle mode, windows split the current window into two periodically: the focused node keeps half its size and shrinks into its corner, while the newly opened window takes the freed-up half.
 
@@ -57,13 +51,14 @@ Key bindings (see the example config for the full list):
 
 | Key combo | Action |
 | --- | --- |
+| `Mod+Shift+D` | switch-column-display: toggle the focused column between dwindle and scrollable layout |
 | `Mod+Space` | toggle-split: cycle the split direction of the active window (right/up) |
 | `Mod+Ctrl+Space` | preselect the split side where the next window will open |
 | `Mod+Shift+Home` | promote-window: swap the active node with its sibling's position |
 | `Mod+Comma` | consume-window-into-column |
 | `Mod+Period` | expel-window-from-column |
 
-Tabbed and normal (scrollable) column displays remain fully supported, and you can switch a column between them at any time.
+Tabbed and normal (scrollable) column displays remain fully supported, and you can switch a column between them at any time with `set-column-display` / `toggle-column-tabbed-display`.
 
 ## Getting Started
 
@@ -94,7 +89,7 @@ cargo build --release
 
 On the first start ymir will create a config at `~/.config/ymir/config.kdl` based on the default config. Start it with `target/release/ymir --session` from an unlocked TTY.
 
-You can also copy [resources/dwindle-config.kdl](resources/dwindle-config.kdl) instead to start with Dwindle enabled.
+The default config enables Dwindle layout out of the box. Set `default-column-display "normal"` in the `layout` section to switch to classic scrollable tiling, or toggle it live with `Mod+Shift+D`.
 
 ## Documentation
 

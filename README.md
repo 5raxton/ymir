@@ -1,20 +1,13 @@
-<h1 align="center"><img alt="ymir" src="https://github.com/user-attachments/assets/07d05cd0-d5dc-4a28-9a35-51bae8f119a0"></h1>
+<h1 align="center">ymir</h1>
 <p align="center">A scrollable-tiling Wayland compositor.</p>
 <p align="center">
-    <a href="https://matrix.to/#/#ymir:matrix.org"><img alt="Matrix" src="https://img.shields.io/badge/matrix-%23ymir-blue?logo=matrix"></a>
-    <a href="https://github.com/ymir-wm/ymir/blob/main/LICENSE"><img alt="GitHub License" src="https://img.shields.io/github/license/ymir-wm/ymir"></a>
-    <a href="https://github.com/ymir-wm/ymir/releases"><img alt="GitHub Release" src="https://img.shields.io/github/v/release/ymir-wm/ymir?logo=github"></a>
+    <a href="https://github.com/5raxton/ymir/blob/main/LICENSE"><img alt="GitHub License" src="https://img.shields.io/github/license/5raxton/ymir"></a>
+    <a href="https://github.com/5raxton/ymir/releases"><img alt="GitHub Release" src="https://img.shields.io/github/v/release/5raxton/ymir?logo=github"></a>
 </p>
-
-<p align="center">
-    <a href="https://ymir-wm.github.io/ymir/Getting-Started.html">Getting Started</a> | <a href="https://ymir-wm.github.io/ymir/Configuration%3A-Introduction.html">Configuration</a> | <a href="https://github.com/ymir-wm/ymir/discussions/325">Setup&nbsp;Showcase</a>
-</p>
-
-<img width="1280" height="720" alt="ymir with a few windows open" src="https://github.com/user-attachments/assets/dea5909e-1859-4aaa-9d88-d37f9663e00b" />
 
 ## About
 
-Windows are arranged in columns on an infinite strip going to the right.
+ymir arranges windows in columns on an infinite strip going to the right.
 Opening a new window never causes existing windows to resize.
 
 Every monitor has its own separate window strip.
@@ -29,82 +22,108 @@ When a monitor disconnects, its workspaces will move to another monitor, but upo
 ## Features
 
 - Built from the ground up for scrollable tiling
-- [Dynamic workspaces](https://ymir-wm.github.io/ymir/Workspaces.html) like in GNOME
-- An [Overview](https://github.com/user-attachments/assets/379a5d1f-acdb-4c11-b36c-e85fd91f0995) that zooms out workspaces and windows
+- [Dynamic workspaces](docs/wiki/Workspaces.md) like in GNOME
+- An [Overview](docs/wiki/Overview.md) that zooms out workspaces and windows
 - Built-in screenshot UI
 - Monitor and window screencasting through xdg-desktop-portal-gnome
-    - You can [block out](https://ymir-wm.github.io/ymir/Configuration%3A-Window-Rules.html#block-out-from) sensitive windows from screencasts
-    - [Dynamic cast target](https://ymir-wm.github.io/ymir/Screencasting.html#dynamic-screencast-target) that can change what it shows on the go
-- [Touchpad](https://github.com/ymir-wm/ymir/assets/1794388/946a910e-9bec-4cd1-a923-4a9421707515) and [mouse](https://github.com/ymir-wm/ymir/assets/1794388/8464e65d-4bf2-44fa-8c8e-5883355bd000) gestures
-- Group windows into [tabs](https://ymir-wm.github.io/ymir/Tabs.html)
+    - You can [block out](docs/wiki/Configuration:-Window-Rules.md) sensitive windows from screencasts
+    - [Dynamic cast target](docs/wiki/Screencasting.md) that can change what it shows on the go
+- Touchpad and mouse gestures: overview, workspace switch, move-column-to-workspace, resize-column, and column-swipe
+- Group windows into [tabs](docs/wiki/Tabs.md)
 - Configurable layout: gaps, borders, struts, window sizes
-- [Gradient borders](https://ymir-wm.github.io/ymir/Configuration%3A-Layout.html#gradients) with Oklab and Oklch support
-- [Background blur](https://ymir-wm.github.io/ymir/Window-Effects.html) for windows and layer-shell surfaces
-- [Animations](https://github.com/ymir-wm/ymir/assets/1794388/ce178da2-af9e-4c51-876f-8709c241d95e) with support for [custom shaders](https://github.com/ymir-wm/ymir/assets/1794388/27a238d6-0a22-4692-b794-30dc7a626fad)
+- [Gradient borders](docs/wiki/Configuration:-Layout.md) with Oklab and Oklch support
+- [Background blur](docs/wiki/Window-Effects.md) for windows and layer-shell surfaces
+- [Animations](docs/wiki/Configuration:-Animations.md) with support for custom shaders
 - Live-reloading config
-- Works with [screen readers](https://ymir-wm.github.io/ymir/Accessibility.html)
+- Works with [screen readers](docs/wiki/Accessibility.md)
 
-## Video Demo
+### Dwindle column mode
 
-https://github.com/ymir-wm/ymir/assets/1794388/bce834b0-f205-434e-a027-b373495f9729
+On top of the scrollable layout, ymir adds an opt-in **Dwindle** column display: a binary-split, resizable tiling layout inside the scrollable tiling paradigm (inspired by Hyprland's dwindle layout).
 
-Also check out these videos that showcase a lot of the ymir functionality:
+Enable it by setting a default column display in your layout config:
 
-- [Ymir Is My New Favorite Wayland Compositor](https://www.youtube.com/watch?v=DeYx2exm04M) by Brodie Robertson
-- [How Is ymir This Good? Live Demo + Config](https://www.youtube.com/watch?v=7XmD5UyyhZQ) by Nick Janetakis
+```kdl
+layout {
+    default-column-display "dwindle"
+}
+```
+
+A ready-made config is provided at [resources/dwindle-config.kdl](resources/dwindle-config.kdl) — copy it to `~/.config/ymir/config.kdl` to try it.
+
+Once in dwindle mode, windows split the current window into two periodically: the focused node keeps half its size and shrinks into its corner, while the newly opened window takes the freed-up half.
+
+Key bindings (see the example config for the full list):
+
+| Key combo | Action |
+| --- | --- |
+| `Mod+Space` | toggle-split: cycle the split direction of the active window (right/up) |
+| `Mod+Ctrl+Space` | preselect the split side where the next window will open |
+| `Mod+Shift+Home` | promote-window: swap the active node with its sibling's position |
+| `Mod+Comma` | consume-window-into-column |
+| `Mod+Period` | expel-window-from-column |
+
+Tabbed and normal (scrollable) column displays remain fully supported, and you can switch a column between them at any time.
+
+## Getting Started
+
+The full instructions are in the [Getting Started](docs/wiki/Getting-Started.md) wiki page.
+ymir by itself is not a complete desktop environment: grab a status bar like [waybar], and adjust the config to spawn your own terminal and launcher — the default config expects [alacritty] and [fuzzel].
+
+### Arch Linux
+
+ymir ships an Arch PKGBUILD and installer scripts that clone the latest `main`, install the dependencies, and build with `makepkg -si`:
+
+```sh
+# bash/zsh
+curl -sL https://raw.githubusercontent.com/5raxton/ymir/main/scripts/install.sh | bash
+
+# fish
+curl -sL https://raw.githubusercontent.com/5raxton/ymir/main/scripts/install.fish | fish
+```
+
+The package installs a `ymir-session` binary and a `ymir.desktop` session entry into `/usr/share/wayland-sessions`, so "Ymir" will appear as a selectable session in your login manager (GDM, SDDM, ...). From a bare TTY you can start it directly with `ymir-session`.
+
+### From source
+
+Build with cargo:
+
+```sh
+cargo build --release
+```
+
+On the first start ymir will create a config at `~/.config/ymir/config.kdl` based on the default config. Start it with `target/release/ymir --session` from an unlocked TTY.
+
+You can also copy [resources/dwindle-config.kdl](resources/dwindle-config.kdl) instead to start with Dwindle enabled.
+
+## Documentation
+
+The wiki contains detailed documentation on configuration, key bindings, window effects, IPC, and development:
+
+- [Configuration introduction](docs/wiki/Configuration:-Introduction.md)
+- [Key bindings](docs/wiki/Configuration:-Key-Bindings.md)
+- [Layout configuration](docs/wiki/Configuration:-Layout.md)
+- [Window rules](docs/wiki/Configuration:-Window-Rules.md)
+- [IPC](docs/wiki/IPC.md)
+- [FAQ](docs/wiki/FAQ.md)
 
 ## Status
 
-Ymir is stable for day-to-day use and does most things expected of a Wayland compositor.
-Many people are daily-driving ymir, and are happy to help in our [Matrix channel].
-
-Give it a try!
-Follow the instructions on the [Getting Started](https://ymir-wm.github.io/ymir/Getting-Started.html) page.
-Grab a desktop shell like [DankMaterialShell] or [Noctalia] (or build a more traditional setup): ymir by itself is not a complete desktop environment.
-Also check out [awesome-ymir], a list of ymir-related links and projects.
+ymir is stable for day-to-day use and does most things expected of a Wayland compositor.
 
 Here are some points you may have questions about:
 
 - **Multi-monitor**: yes, a core part of the design from the very start. Mixed DPI works.
 - **Fractional scaling**: yes, plus all ymir UI stays pixel-perfect.
-- **NVIDIA**: seems to work fine.
-- **Floating windows**: yes, starting from ymir 25.01.
-- **Input devices**: ymir supports tablets, touchpads, and touchscreens.
-You can map the tablet to a specific monitor, or use [OpenTabletDriver].
-We have touchpad gestures, but no touchscreen gestures yet.
-- **Wlr protocols**: yes, we have most of the important ones like layer-shell, gamma-control, screencopy.
-You can check on [wayland.app](https://wayland.app) at the bottom of each protocol's page.
-- **Performance**: while I run ymir on beefy machines, I try to stay conscious of performance.
-I've seen someone use it fine on an Eee PC 900 from 2008, of all things.
-- **Xwayland**: [integrated](https://ymir-wm.github.io/ymir/Xwayland.html#using-xwayland-satellite) via xwayland-satellite starting from ymir 25.08.
-
-## Media
-
-[ymir: Making a Wayland compositor in Rust](https://youtu.be/Kmz8ODolnDg?list=PLRdS-n5seLRqrmWDQY4KDqtRMfIwU0U3T) · *December 2024*
-
-My talk from the 2024 Moscow RustCon about ymir, and how I do randomized property testing and profiling, and measure input latency.
-The talk is in Russian, but I prepared full English subtitles that you can find in YouTube's subtitle language selector.
-
-[An interview with Ivan, the developer behind Ymir](https://www.trommelspeicher.de/podcast/special_the_developer_behind_ymir) · *June 2025*
-
-An interview by a German tech podcast Das Triumvirat (in English).
-We talk about ymir development and history, and my experience building and maintaining ymir.
-
-[A tour of the ymir scrolling-tiling Wayland compositor](https://lwn.net/Articles/1025866/) · *July 2025*
-
-An LWN article with a nice overview and introduction to ymir.
-
-## Contributing
-
-If you'd like to help with ymir, there are plenty of both coding- and non-coding-related ways to do so.
-See [CONTRIBUTING.md](https://github.com/ymir-wm/ymir/blob/main/CONTRIBUTING.md) for an overview.
+- **NVIDIA**: seems to work fine. See [Nvidia.md](docs/wiki/Nvidia.md) for setup.
+- **Floating windows**: yes.
+- **Input devices**: ymir supports tablets, touchpads, and touchscreens. You can map the tablet to a specific monitor, or use [OpenTabletDriver]. There are touchpad gestures, but no touchscreen gestures yet.
+- **Wlr protocols**: yes, most of the important ones are implemented, like layer-shell, gamma-control, and screencopy.
+- **Performance**: development stays conscious of performance; runtime and compile budgets are both kept reasonable.
 
 ## Inspiration
 
-Ymir is heavily inspired by [PaperWM] which implements scrollable tiling on top of GNOME Shell.
-
-One of the reasons that prompted me to try writing my own compositor is being able to properly separate the monitors.
-Being a GNOME Shell extension, PaperWM has to work against Shell's global window coordinate space to prevent windows from overflowing.
+The scrollable-tiling concept comes from [PaperWM], which implements it on top of GNOME Shell.
 
 ## Tile Scrollably Elsewhere
 
@@ -113,24 +132,24 @@ Here are some other projects which implement a similar workflow:
 - [PaperWM]: scrollable tiling on top of GNOME Shell.
 - [karousel]: scrollable tiling on top of KDE.
 - [scroll](https://github.com/dawsers/scroll) and [papersway]: scrollable tiling on top of sway/i3.
-- Hyprland has a built-in [scrolling layout](https://wiki.hypr.land/Configuring/Layouts/Scrolling-Layout/).
+- Hyprland has a built-in [scrolling layout](https://wiki.hypr.land/Configuring/Layouts/Scrolling-Layout/) and a dwindle layout with the split behavior ymir's dwindle mode is inspired by.
 - [Paneru] and [PaperWM.spoon]: scrollable tiling on top of macOS.
 
-## Contact
+## Contributing
 
-Our main communication channel is a Matrix chat, feel free to join and ask a question: https://matrix.to/#/#ymir:matrix.org
+If you'd like to help with ymir, there are plenty of both coding- and non-coding-related ways to do so.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for an overview.
 
-We also have a community Discord server: https://discord.gg/vT8Sfjy7sx
+## License
+
+ymir is distributed under the GPL-3.0-or-later license. See [LICENSE](LICENSE).
 
 [PaperWM]: https://github.com/paperwm/PaperWM
 [waybar]: https://github.com/Alexays/Waybar
+[alacritty]: https://github.com/alacritty/alacritty
 [fuzzel]: https://codeberg.org/dnkl/fuzzel
-[awesome-ymir]: https://github.com/ymir-wm/awesome-ymir
 [karousel]: https://github.com/peterfajdiga/karousel
 [papersway]: https://spwhitton.name/tech/code/papersway/
 [Paneru]: https://github.com/karinushka/paneru
 [PaperWM.spoon]: https://github.com/mogenson/PaperWM.spoon
-[Matrix channel]: https://matrix.to/#/#ymir:matrix.org
 [OpenTabletDriver]: https://opentabletdriver.net/
-[DankMaterialShell]: https://danklinux.com/
-[Noctalia]: https://noctalia.dev/

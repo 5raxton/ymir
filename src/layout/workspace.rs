@@ -111,6 +111,13 @@ pub struct Workspace<W: LayoutElement> {
     /// Layout config overrides for this workspace.
     layout_config: Option<ymir_config::LayoutPart>,
 
+    /// The column display mode last chosen by the user for this workspace during this session.
+    ///
+    /// When set, newly created columns in this workspace use this mode instead of the configured
+    /// default, so that toggling a workspace between dwindle and scrolling tiling sticks until the
+    /// compositor (or config) is reloaded.
+    runtime_column_display: Option<ColumnDisplay>,
+
     /// Unique ID of this workspace.
     id: WorkspaceId,
 }
@@ -272,6 +279,7 @@ impl<W: LayoutElement> Workspace<W> {
             options,
             name: config.map(|c| c.name.0),
             layout_config,
+            runtime_column_display: None,
             id: WorkspaceId::next(),
         }
     }
@@ -336,6 +344,7 @@ impl<W: LayoutElement> Workspace<W> {
             options,
             name: config.map(|c| c.name.0),
             layout_config,
+            runtime_column_display: None,
             id: WorkspaceId::next(),
         }
     }
@@ -438,6 +447,10 @@ impl<W: LayoutElement> Workspace<W> {
         }
 
         self.layout_config = layout_config;
+
+        // The layout changed, so forget any session-level column display override.
+        self.runtime_column_display = None;
+
         self.update_config(self.base_options.clone());
     }
 
@@ -642,8 +655,20 @@ impl<W: LayoutElement> Workspace<W> {
                         self.floating_is_active = FloatingActive::No;
                     }
                 } else {
+                    let new_col_idx = if self.scrolling.is_empty() {
+                        0
+                    } else {
+                        self.scrolling.active_column_index() + 1
+                    };
+
                     self.scrolling
                         .add_tile(None, tile, activate, width, is_full_width, anim);
+
+                    // Apply a session-level column display override (e.g. the user toggled this
+                    // workspace to scrolling) to the newly created column.
+                    if let Some(display) = self.runtime_column_display {
+                        self.scrolling.set_column_display_at(new_col_idx, display);
+                    }
 
                     if activate {
                         self.floating_is_active = FloatingActive::No;
@@ -1159,6 +1184,9 @@ impl<W: LayoutElement> Workspace<W> {
             return;
         }
         self.scrolling.switch_column_display();
+        // Remember the chosen mode for the rest of the session so that new windows (and any new
+        // columns created in this workspace) keep following the user's last toggle.
+        self.runtime_column_display = self.scrolling.active_column_display();
     }
 
     pub fn toggle_column_split(&mut self) {
@@ -1187,6 +1215,7 @@ impl<W: LayoutElement> Workspace<W> {
             return;
         }
         self.scrolling.set_column_display(display);
+        self.runtime_column_display = self.scrolling.active_column_display();
     }
 
     pub fn center_column(&mut self) {

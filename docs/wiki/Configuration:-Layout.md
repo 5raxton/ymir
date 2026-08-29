@@ -170,6 +170,11 @@ You can switch between dwindle and scrollable layout at runtime with the
 and per-column display modes via `set-column-display` or
 `toggle-column-tabbed-display`.
 
+The `switch-column-display` toggle is remembered per workspace for the rest of
+the session: any new windows (and any further columns) you open in that
+workspace keep following the chosen layout until you toggle it again (or a
+per-workspace `layout` config is applied).
+
 ```kdl
 // Make all new columns tabbed by default.
 layout {

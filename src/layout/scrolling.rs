@@ -11,7 +11,7 @@ use smithay::backend::renderer::gles::GlesRenderer;
 use smithay::utils::{Logical, Point, Rectangle, Scale, Serial, Size};
 
 use super::closing_window::{ClosingWindow, ClosingWindowRenderElement};
-use super::dwindle::{DwindleTree, SplitSide};
+use super::dwindle::{DwindleTree, SpatialDir, SplitSide};
 use super::monitor::InsertPosition;
 use super::tab_indicator::{TabIndicator, TabIndicatorRenderElement, TabInfo};
 use super::tile::{Tile, TileRenderElement, TileRenderSnapshot};
@@ -1312,6 +1312,10 @@ impl<W: LayoutElement> ScrollingSpace<W> {
         Some(&self.columns[self.active_column_idx])
     }
 
+    pub fn active_column_index(&self) -> usize {
+        self.active_column_idx
+    }
+
     /// Returns the index of the active column if it is in dwindle display mode.
     ///
     /// New windows open into the focused dwindle column's split tree (splitting
@@ -1323,6 +1327,11 @@ impl<W: LayoutElement> ScrollingSpace<W> {
         }
 
         Some(self.active_column_idx)
+    }
+
+    /// Returns the display mode of the active column, if any.
+    pub fn active_column_display(&self) -> Option<ColumnDisplay> {
+        self.columns.get(self.active_column_idx).map(|col| col.display_mode)
     }
 
     pub fn remove_active_column(&mut self) -> Option<Column<W>> {
@@ -1723,6 +1732,14 @@ impl<W: LayoutElement> ScrollingSpace<W> {
     }
 
     pub fn focus_left(&mut self) -> bool {
+        // In a dwindle column, left/right navigate within the split tree first and only fall
+        // back to the adjacent column when there is no leaf in that direction.
+        if self.active_column_idx < self.columns.len()
+            && self.columns[self.active_column_idx].focus_dwindle_direction(SpatialDir::Left)
+        {
+            return true;
+        }
+
         if self.active_column_idx == 0 {
             return false;
         }
@@ -1731,6 +1748,12 @@ impl<W: LayoutElement> ScrollingSpace<W> {
     }
 
     pub fn focus_right(&mut self) -> bool {
+        if self.active_column_idx < self.columns.len()
+            && self.columns[self.active_column_idx].focus_dwindle_direction(SpatialDir::Right)
+        {
+            return true;
+        }
+
         if self.active_column_idx + 1 >= self.columns.len() {
             return false;
         }
@@ -1889,6 +1912,12 @@ impl<W: LayoutElement> ScrollingSpace<W> {
     }
 
     pub fn move_left(&mut self) -> bool {
+        if self.active_column_idx < self.columns.len()
+            && self.columns[self.active_column_idx].move_dwindle_direction(SpatialDir::Left)
+        {
+            return true;
+        }
+
         if self.active_column_idx == 0 {
             return false;
         }
@@ -1898,6 +1927,12 @@ impl<W: LayoutElement> ScrollingSpace<W> {
     }
 
     pub fn move_right(&mut self) -> bool {
+        if self.active_column_idx < self.columns.len()
+            && self.columns[self.active_column_idx].move_dwindle_direction(SpatialDir::Right)
+        {
+            return true;
+        }
+
         let new_idx = self.active_column_idx + 1;
         if new_idx >= self.columns.len() {
             return false;
@@ -2375,7 +2410,17 @@ impl<W: LayoutElement> ScrollingSpace<W> {
             return;
         }
 
-        let col = &mut self.columns[self.active_column_idx];
+        self.set_column_display_at(self.active_column_idx, display);
+    }
+
+    /// Sets the display mode of the column at `col_idx` (e.g. to apply a session-level default to
+    /// a newly created column regardless of whether it is focused).
+    pub fn set_column_display_at(&mut self, col_idx: usize, display: ColumnDisplay) {
+        if col_idx >= self.columns.len() {
+            return;
+        }
+
+        let col = &mut self.columns[col_idx];
         if col.display_mode == display {
             return;
         }
@@ -2384,7 +2429,7 @@ impl<W: LayoutElement> ScrollingSpace<W> {
         col.set_column_display(display);
 
         // With place_within_column, the tab indicator changes the column size immediately.
-        self.data[self.active_column_idx].update(col);
+        self.data[col_idx].update(col);
         col.update_tile_sizes(true);
 
         // Disable fullscreen if needed.
@@ -5145,11 +5190,40 @@ impl<W: LayoutElement> Column<W> {
     }
 
     fn focus_up(&mut self) -> bool {
+        if self.is_dwindle() {
+            return self.focus_dwindle_direction(SpatialDir::Up);
+        }
+
         self.activate_idx(self.active_tile_idx.saturating_sub(1))
     }
 
     fn focus_down(&mut self) -> bool {
+        if self.is_dwindle() {
+            return self.focus_dwindle_direction(SpatialDir::Down);
+        }
+
         self.activate_idx(min(self.active_tile_idx + 1, self.tiles.len() - 1))
+    }
+
+    /// Focuses the spatially adjacent dwindle leaf in `dir`, if any. Returns true on success.
+    fn focus_dwindle_direction(&mut self, dir: SpatialDir) -> bool {
+        if !self.is_dwindle() || self.tiles.len() < 2 {
+            return false;
+        }
+
+        let paths = self.dwindle_tree.leaf_paths();
+        let active = paths[self.active_tile_idx].clone();
+        let gaps = self.options.layout.gaps;
+        let Some(neighbor) =
+            self.dwindle_tree
+                .spatial_neighbor(&active, dir, self.dwindle_content_rect(), gaps)
+        else {
+            return false;
+        };
+        let Some(idx) = paths.iter().position(|p| p == &neighbor) else {
+            return false;
+        };
+        self.activate_idx(idx)
     }
 
     fn focus_top(&mut self) {
@@ -5162,7 +5236,7 @@ impl<W: LayoutElement> Column<W> {
 
     fn move_up(&mut self) -> bool {
         if self.is_dwindle() {
-            return self.dwindle_move_up();
+            return self.move_dwindle_direction(SpatialDir::Up);
         }
 
         let new_idx = self.active_tile_idx.saturating_sub(1);
@@ -5189,7 +5263,7 @@ impl<W: LayoutElement> Column<W> {
 
     fn move_down(&mut self) -> bool {
         if self.is_dwindle() {
-            return self.dwindle_move_down();
+            return self.move_dwindle_direction(SpatialDir::Down);
         }
 
         let new_idx = min(self.active_tile_idx + 1, self.tiles.len() - 1);
@@ -5214,31 +5288,40 @@ impl<W: LayoutElement> Column<W> {
         true
     }
 
-    fn dwindle_move_up(&mut self) -> bool {
-        self.dwindle_move(self.active_tile_idx.saturating_sub(1))
-    }
-
-    fn dwindle_move_down(&mut self) -> bool {
-        self.dwindle_move(min(self.active_tile_idx + 1, self.tiles.len() - 1))
-    }
-
-    /// Swaps the focused leaf in the dwindle tree with its DFS neighbor, re-sorting the tiles.
-    fn dwindle_move(&mut self, neighbor: usize) -> bool {
+    /// Swaps the focused leaf in the dwindle tree with its spatially adjacent leaf in `dir`,
+    /// re-sorting the tiles. Returns true on success.
+    fn move_dwindle_direction(&mut self, dir: SpatialDir) -> bool {
         let idx = self.active_tile_idx;
-        if neighbor == idx {
+        if !self.is_dwindle() || self.tiles.len() < 2 {
+            return false;
+        }
+
+        let paths = self.dwindle_tree.leaf_paths();
+        let active = paths[idx].clone();
+        let gaps = self.options.layout.gaps;
+        let Some(neighbor) = self
+            .dwindle_tree
+            .spatial_neighbor(&active, dir, self.dwindle_content_rect(), gaps)
+        else {
+            return false;
+        };
+        let Some(neighbor_idx) = paths.iter().position(|p| p == &neighbor) else {
+            return false;
+        };
+        if neighbor_idx == idx {
             return false;
         }
 
         let prev_offsets: Vec<Point<f64, Logical>> =
             self.tile_offsets().take(self.tiles.len()).collect();
 
-        let paths = self.dwindle_tree.leaf_paths();
-        self.dwindle_tree.swap_leaves(&paths[idx], &paths[neighbor]);
+        self.dwindle_tree
+            .swap_leaves(&paths[idx], &paths[neighbor_idx]);
 
         self.reorder_tiles_by_dfs();
 
         // The focused window now sits at the neighbor's DFS position; follow it.
-        let path = self.dwindle_tree.leaf_paths()[neighbor].clone();
+        let path = self.dwindle_tree.leaf_paths()[neighbor_idx].clone();
         self.dwindle_tree.set_active(&path);
         self.active_tile_idx = *self.dwindle_tree.active_value().unwrap();
 
@@ -5248,10 +5331,11 @@ impl<W: LayoutElement> Column<W> {
             self.tile_offsets().take(self.tiles.len()).collect();
 
         // Animate the two swapped tiles between their previous and new offsets. After the swap
-        // and re-sort, the focused tile (old position `idx`) now sits at `neighbor` and the
-        // neighbor tile (old position `neighbor`) now sits at `idx`.
-        self.tiles[neighbor].animate_move_from(prev_offsets[idx] - new_offsets[neighbor]);
-        self.tiles[idx].animate_move_from(prev_offsets[neighbor] - new_offsets[idx]);
+        // and re-sort, the focused tile (old position `idx`) now sits at `neighbor_idx` and the
+        // neighbor tile (old position `neighbor_idx`) now sits at `idx`.
+        self.tiles[neighbor_idx]
+            .animate_move_from(prev_offsets[idx] - new_offsets[neighbor_idx]);
+        self.tiles[idx].animate_move_from(prev_offsets[neighbor_idx] - new_offsets[idx]);
 
         true
     }

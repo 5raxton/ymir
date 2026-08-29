@@ -1860,6 +1860,94 @@ fn dwindle_many_windows_do_not_crash() {
 }
 
 #[test]
+fn dwindle_spatial_focus_directions() {
+    // Directional focus within a dwindle tree should follow the spatial layout of the
+    // windows rather than navigating between columns.
+    let options = Options {
+        layout: ymir_config::Layout {
+            default_column_display: ymir_ipc::ColumnDisplay::Dwindle,
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+
+    let mut layout = check_ops_with_options(
+        options,
+        [
+            Op::AddOutput(0),
+            Op::AddWindow { params: TestWindowParams::new(0) },
+            Op::AddWindow { params: TestWindowParams::new(1) },
+            Op::AddWindow { params: TestWindowParams::new(2) },
+            Op::AddWindow { params: TestWindowParams::new(3) },
+            Op::FocusWindow(0),
+        ],
+    );
+
+    let focus_column = |layout: &Layout<TestWindow>, expect: usize| {
+        assert_eq!(layout.focus().unwrap().0.id, expect);
+    };
+
+    // Spatial layout of this dwindle tree (matches observed geometry):
+    //   tree = H{0, V{ H{1,3}, 2 } }  -- 0 is a tall left column; 1/3 sit above 2 on the right.
+    Op::FocusWindow(0).apply(&mut layout);
+    Op::FocusColumnRight.apply(&mut layout);
+    focus_column(&layout, 2);
+    Op::FocusWindow(0).apply(&mut layout);
+    Op::FocusWindowUp.apply(&mut layout);
+    focus_column(&layout, 1);
+
+    Op::FocusWindow(1).apply(&mut layout);
+    Op::FocusWindowDown.apply(&mut layout);
+    focus_column(&layout, 0);
+    Op::FocusWindow(1).apply(&mut layout);
+    Op::FocusColumnRight.apply(&mut layout);
+    focus_column(&layout, 3);
+
+    Op::FocusWindow(2).apply(&mut layout);
+    Op::FocusWindowUp.apply(&mut layout);
+    focus_column(&layout, 0);
+    Op::FocusWindow(2).apply(&mut layout);
+    Op::FocusColumnRight.apply(&mut layout);
+    focus_column(&layout, 1);
+
+    Op::FocusWindow(3).apply(&mut layout);
+    Op::FocusColumnLeft.apply(&mut layout);
+    focus_column(&layout, 1);
+}
+#[test]
+fn dwindle_spatial_move_single_window() {
+    // Moving a single window directionally inside a dwindle column swaps it with its
+    // spatial neighbor without touching the rest of the tree.
+    let options = Options {
+        layout: ymir_config::Layout {
+            default_column_display: ymir_ipc::ColumnDisplay::Dwindle,
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+
+    let mut layout = check_ops_with_options(
+        options,
+        [
+            Op::AddOutput(0),
+            Op::AddWindow { params: TestWindowParams::new(0) },
+            Op::AddWindow { params: TestWindowParams::new(1) },
+            Op::AddWindow { params: TestWindowParams::new(2) },
+            Op::AddWindow { params: TestWindowParams::new(3) },
+            Op::FocusWindow(0),
+        ],
+    );
+
+    Op::FocusWindow(0).apply(&mut layout);
+    Op::MoveColumnRight.apply(&mut layout);
+
+    // Window 0 was the far-left root; moving it right swaps it with its spatial
+    // neighbor (2), so 2 now sits to its left.
+    Op::FocusColumnLeft.apply(&mut layout);
+    assert_eq!(layout.focus().unwrap().0.id, 2);
+}
+
+#[test]
 fn operations_from_starting_state_dont_panic() {
     if std::env::var_os("RUN_SLOW_TESTS").is_none() {
         eprintln!("ignoring slow test");

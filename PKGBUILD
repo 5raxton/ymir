@@ -26,12 +26,12 @@ depends=(
     'libdisplay-info'
     'libglvnd'
     'libinput'
-    'libseat'
     'libxcb'
     'libxkbcommon'
     'mesa'
     'pango'
     'pipewire'
+    'seatd'
     'wayland'
 )
 makedepends=(
@@ -57,7 +57,7 @@ sha256sums=('SKIP')
 
 build() {
     cd "$pkgname"
-    cargo build --release --locked
+    cargo build --release
 }
 
 package() {

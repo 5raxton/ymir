@@ -33,7 +33,6 @@ set DEPS \
     libdisplay-info \
     libglvnd \
     libinput \
-    libseat \
     libxcb \
     libxkbcommon \
     mesa \
@@ -41,11 +40,13 @@ set DEPS \
     pkgconf \
     pipewire \
     rust \
+    seatd \
     wayland \
     wayland-protocols
 
 echo ">>> Installing build/runtime dependencies"
 sudo pacman -S --needed --noconfirm $DEPS
+or exit 1
 
 mkdir -p (dirname "$YMIR_REPO_DIR")
 if test -d "$YMIR_REPO_DIR/.git"
@@ -53,17 +54,28 @@ if test -d "$YMIR_REPO_DIR/.git"
     # makepkg rewrites the PKGBUILD's pkgver line when building, so throw any
     # such local edits away before pulling.
     git -C "$YMIR_REPO_DIR" fetch origin "$YMIR_BRANCH"
+    or exit 1
     git -C "$YMIR_REPO_DIR" reset --hard "origin/$YMIR_BRANCH"
+    or exit 1
 else
     echo ">>> Cloning ymir into $YMIR_REPO_DIR"
     git clone --branch "$YMIR_BRANCH" "$REPO_URL" "$YMIR_REPO_DIR"
+    or exit 1
 end
 
 echo ">>> Building and installing ymir (release build, this takes a while)"
 set OLD_DIR (pwd)
 cd "$YMIR_REPO_DIR"
 makepkg -si --noconfirm --needed
+or exit 1
 cd "$OLD_DIR"
+
+# The session .desktop file is what makes "Ymir" show up in the greeter
+# (GDM/SDDM/...), so make sure the package really got installed.
+if not test -f /usr/share/wayland-sessions/ymir.desktop
+    echo "error: ymir.desktop is missing from /usr/share/wayland-sessions; the install appears to have failed." >&2
+    exit 1
+end
 
 set CONFIG_DIR "$HOME/.config/ymir"
 if set -q XDG_CONFIG_HOME

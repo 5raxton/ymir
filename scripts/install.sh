@@ -36,7 +36,6 @@ DEPS=(
     libdisplay-info
     libglvnd
     libinput
-    libseat
     libxcb
     libxkbcommon
     mesa
@@ -44,6 +43,7 @@ DEPS=(
     pkgconf
     pipewire
     rust
+    seatd
     wayland
     wayland-protocols
 )
@@ -67,6 +67,13 @@ echo ">>> Building and installing ymir (release build, this takes a while)"
 pushd "$REPO_DIR" >/dev/null
 makepkg -si --noconfirm --needed
 popd >/dev/null
+
+# The session .desktop file is what makes "Ymir" show up in the greeter
+# (GDM/SDDM/...), so make sure the package really got installed.
+if [[ ! -f /usr/share/wayland-sessions/ymir.desktop ]]; then
+    echo "error: ymir.desktop is missing from /usr/share/wayland-sessions; the install appears to have failed." >&2
+    exit 1
+fi
 
 CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/ymir"
 CONFIG_FILE="$CONFIG_DIR/config.kdl"

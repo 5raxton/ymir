@@ -1,0 +1,7 @@
+type               = process
+command            = ymir --session
+restart            = false
+working-dir        = $HOME
+ready-notification = pipevar:NOTIFY_FD
+logfile            = $HOME/.local/share/ymir/ymir.log
+depends-on:        dbus

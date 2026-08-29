@@ -1,0 +1,6 @@
+[Desktop Entry]
+Name=Ymir
+Comment=A scrollable-tiling Wayland compositor
+Exec=ymir-session
+Type=Application
+DesktopNames=ymir

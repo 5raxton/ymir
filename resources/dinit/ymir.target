@@ -1,0 +1,6 @@
+type           = internal
+restart        = false
+depends-on:    ymir
+waits-for.d:   $XDG_CONFIG_HOME/dinit.d/ymir.d/
+waits-for.d:   $HOME/.config/dinit.d/ymir.d/
+waits-for.d:   /etc/dinit.d/user/ymir.d/

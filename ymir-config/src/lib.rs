@@ -642,6 +642,17 @@ mod tests {
     }
 
     #[test]
+    fn can_create_dwindle_config() {
+        // The dwindle example config is a valid variant of the default config.
+        let source = include_str!("../../resources/dwindle-config.kdl");
+        let config = Config::parse_mem(source).unwrap();
+        assert_eq!(
+            config.layout.default_column_display,
+            ymir_ipc::ColumnDisplay::Dwindle,
+        );
+    }
+
+    #[test]
     fn default_repeat_params() {
         let config = Config::parse_mem("").unwrap();
         assert_eq!(config.input.keyboard.repeat_delay, 600);

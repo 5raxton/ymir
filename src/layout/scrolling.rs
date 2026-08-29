@@ -4607,7 +4607,9 @@ impl<W: LayoutElement> Column<W> {
         // Inserting a tile pushes down all tiles below it, but also in always-centering mode it
         // will affect the X position of all tiles in the column.
         let mut prev_offsets = Vec::with_capacity(self.tiles.len() + 1);
-        prev_offsets.extend(self.tile_offsets().take(self.tiles.len()));
+        if !self.tiles.is_empty() {
+            prev_offsets.extend(self.tile_offsets().take(self.tiles.len()));
+        }
 
         if self.is_dwindle() {
             return self.add_tile_to_dwindle(tile, prev_offsets);
@@ -5079,7 +5081,7 @@ impl<W: LayoutElement> Column<W> {
             .map(|data| NotNan::new(data.size.w).unwrap())
             .max()
             .map(NotNan::into_inner)
-            .unwrap();
+            .unwrap_or(0.);
 
         if self.display_mode == ColumnDisplay::Tabbed && self.sizing_mode().is_normal() {
             let extra_size = self.tab_indicator.extra_size(self.tiles.len(), self.scale);

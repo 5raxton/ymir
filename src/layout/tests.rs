@@ -1769,6 +1769,39 @@ fn operations_dont_panic() {
 }
 
 #[test]
+fn open_first_window_in_dwindle_column() {
+    let options = Options {
+        layout: ymir_config::Layout {
+            default_column_display: ymir_ipc::ColumnDisplay::Dwindle,
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+
+    check_ops_with_options(
+        options,
+        [
+            Op::AddWindow {
+                params: TestWindowParams::new(0),
+            },
+            Op::AddWindow {
+                params: TestWindowParams::new(1),
+            },
+            Op::AddWindow {
+                params: TestWindowParams::new(2),
+            },
+            Op::CloseWindow(1),
+            Op::AddWindow {
+                params: TestWindowParams::new(3),
+            },
+            Op::Communicate(0),
+            Op::Communicate(2),
+            Op::Communicate(3),
+        ],
+    );
+}
+
+#[test]
 fn operations_from_starting_state_dont_panic() {
     if std::env::var_os("RUN_SLOW_TESTS").is_none() {
         eprintln!("ignoring slow test");

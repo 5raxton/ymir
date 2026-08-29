@@ -2,7 +2,7 @@
 # Preview: makepkg --printsrcinfo
 
 pkgname=ymir
-pkgdesc="A scrollable-tiling Wayland compositor, fork of niri with dwindle column mode"
+pkgdesc="A scrollable-tiling Wayland compositor with dwindle column mode"
 # Placeholder; the pkgver() function below overrides it with the git version at build time.
 pkgver=26.4.0
 pkgver() {
@@ -16,6 +16,10 @@ pkgver() {
 pkgrel=1
 arch=('x86_64')
 url="https://github.com/5raxton/ymir"
+# !lto: Arch's default CFLAGS add -flto, which makes cc compile the libspa-sys
+# static libspa-rs-reexports archive with LTO; rustc then fails to resolve its
+# symbols at link time (undefined libspa_rs_* / *_libspa_rs).
+options=('!lto')
 license=('GPL-3.0-or-later')
 depends=(
     'cairo'

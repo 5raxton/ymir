@@ -88,7 +88,7 @@ See the [window effects](./Window-Effects.md) wiki page.
 Not yet, follow/upvote [this issue](https://github.com/ymir-wm/ymir/issues/932).
 
 You can emulate this with a script that uses the ymir IPC.
-For example, [nirius](https://git.sr.ht/~tsdh/nirius) seems to have this feature (`toggle-follow-mode`).
+For example, a status-bar tool with a `toggle-follow-mode` feature can do this (see [issue #932](https://github.com/ymir-wm/ymir/issues/932)).
 
 ### How do I make the Bitwarden window in Firefox open as floating?
 

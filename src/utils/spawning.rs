@@ -88,7 +88,6 @@ pub fn spawn<T: AsRef<OsStr> + Send + 'static>(command: Vec<T>, token: Option<Xd
 /// We hardcode `sh -c`, consistent with other compositors:
 ///
 /// - https://github.com/swaywm/sway/blob/b3dcde8d69c3f1304b076968a7a64f54d0c958be/sway/commands/exec_always.c#L64
-/// - https://github.com/hyprwm/Hyprland/blob/1ac1ff457ab8ef1ae6a8f2ab17ee7965adfa729f/src/managers/KeybindManager.cpp#L987
 pub fn spawn_sh(command: String, token: Option<XdgActivationToken>) {
     spawn(vec![String::from("sh"), String::from("-c"), command], token);
 }

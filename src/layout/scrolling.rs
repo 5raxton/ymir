@@ -2150,7 +2150,7 @@ impl<W: LayoutElement> ScrollingSpace<W> {
             return;
         }
 
-        // In dwindle mode, expel the focused window (like Hyprland); otherwise, the bottom-most one.
+        // In dwindle mode, expel the focused window; otherwise, the bottom-most one.
         let source_tile_idx = if source_column.is_dwindle() {
             source_column.active_tile_idx
         } else {

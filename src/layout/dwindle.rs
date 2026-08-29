@@ -2,7 +2,7 @@
 //!
 //! This module implements the Ymir *Dwindle* column model: instead of a rigid linear stack of
 //! windows inside each column on the infinite horizontal tape, every column slot is a recursive
-//! binary-split container in the style of Hyprland's ancient dwindle layout.
+//! binary-split container. New windows split the focused window instead of stacking linearly.
 //!
 //! The core data structure is a binary tree of [`Split`] nodes whose leaves are windows. Each
 //! `Split` divides its region either horizontally (children stacked top-to-bottom) or vertically
@@ -649,8 +649,8 @@ fn split_rect(
 }
 
 /// Picks the default slice side for a region of the given size: wide regions split side-by-side
-/// (new window on the left, Hyprland-style), while tall or square regions stack (new window at the
-/// bottom), which keeps the familiar vertical-stack chain for narrow columns.
+/// (new window on the left), while tall or square regions stack (new window at the bottom), which
+/// keeps the familiar vertical-stack chain for narrow columns.
 fn default_side_for_aspect(size: Size<f64, Logical>) -> SplitSide {
     if size.w > size.h {
         SplitSide::Left

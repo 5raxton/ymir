@@ -39,7 +39,7 @@ When a monitor disconnects, its workspaces will move to another monitor, but upo
 
 ### Dwindle column mode
 
-On top of the scrollable layout, ymir ships **Dwindle** as its default layout mode: a binary-split, resizable tiling layout inside the scrollable tiling paradigm (inspired by Hyprland's dwindle layout).
+On top of the scrollable layout, ymir ships **Dwindle** as its default layout mode: a binary-split, resizable tiling layout inside the scrollable tiling paradigm.
 
 Dwindle is on by default. New windows split off the focused window into a resizable binary tree.
 
@@ -127,7 +127,6 @@ Here are some other projects which implement a similar workflow:
 - [PaperWM]: scrollable tiling on top of GNOME Shell.
 - [karousel]: scrollable tiling on top of KDE.
 - [scroll](https://github.com/dawsers/scroll) and [papersway]: scrollable tiling on top of sway/i3.
-- Hyprland has a built-in [scrolling layout](https://wiki.hypr.land/Configuring/Layouts/Scrolling-Layout/) and a dwindle layout with the split behavior ymir's dwindle mode is inspired by.
 - [Paneru] and [PaperWM.spoon]: scrollable tiling on top of macOS.
 
 ## Contributing

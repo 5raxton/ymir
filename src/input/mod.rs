@@ -1589,6 +1589,22 @@ impl State {
                 // FIXME: granular
                 self.ymir.queue_redraw_all();
             }
+            Action::ToggleSplit => {
+                self.ymir.layout.toggle_column_split();
+                self.maybe_warp_cursor_to_focus();
+                // FIXME: granular
+                self.ymir.queue_redraw_all();
+            }
+            Action::Preselect(direction) => {
+                self.ymir.layout.preselect_in_column(ymir_ipc::SplitDirection::from(direction));
+                self.ymir.queue_redraw_all();
+            }
+            Action::PromoteWindow => {
+                self.ymir.layout.promote_window_in_column();
+                self.maybe_warp_cursor_to_focus();
+                // FIXME: granular
+                self.ymir.queue_redraw_all();
+            }
             Action::SwapWindowRight => {
                 self.ymir
                     .layout

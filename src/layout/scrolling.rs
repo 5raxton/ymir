@@ -11,6 +11,7 @@ use smithay::backend::renderer::gles::GlesRenderer;
 use smithay::utils::{Logical, Point, Rectangle, Scale, Serial, Size};
 
 use super::closing_window::{ClosingWindow, ClosingWindowRenderElement};
+use super::dwindle::{DwindleTree, SplitSide};
 use super::monitor::InsertPosition;
 use super::tab_indicator::{TabIndicator, TabIndicatorRenderElement, TabInfo};
 use super::tile::{Tile, TileRenderElement, TileRenderSnapshot};
@@ -211,6 +212,12 @@ pub struct Column<W: LayoutElement> {
 
     /// Tab indicator for the tabbed display mode.
     tab_indicator: TabIndicator,
+
+    /// Dwindle binary-split tree for the dwindle display mode.
+    ///
+    /// Leaf values are tile indices (into [`Self::tiles`]). Whenever the tree mutates,
+    /// [`Self::reorder_tiles_by_dfs`] re-sorts `tiles`/`data` so that value == position.
+    dwindle_tree: DwindleTree<usize>,
 
     /// Animation of the render offset during window swapping.
     move_x_animation: Option<MoveAnimation>,
@@ -922,32 +929,42 @@ impl<W: LayoutElement> ScrollingSpace<W> {
         self.add_column(col_idx, column, activate, anim);
     }
 
+    /// Adds a tile to the given column, returning the index of the added tile.
     pub fn add_tile_to_column(
         &mut self,
         col_idx: usize,
         tile_idx: Option<usize>,
         tile: Tile<W>,
         activate: bool,
-    ) {
+    ) -> usize {
         let prev_next_x = self.column_x(col_idx + 1);
 
         let target_column = &mut self.columns[col_idx];
         let tile_idx = tile_idx.unwrap_or(target_column.tiles.len());
-        let mut prev_active_tile_idx = target_column.active_tile_idx;
+        let prev_active_tile_idx = target_column.active_tile_idx;
 
-        target_column.add_tile_at(tile_idx, tile);
+        let is_dwindle = target_column.is_dwindle();
+        let new_tile_idx = target_column.add_tile_at(tile_idx, tile);
         self.data[col_idx].update(target_column);
 
-        if tile_idx <= prev_active_tile_idx {
-            target_column.active_tile_idx += 1;
-            prev_active_tile_idx += 1;
+        if is_dwindle {
+            // add_tile_at() already made the new leaf active; if we're not activating it, keep the
+            // previously focused window focused.
+            if !activate {
+                target_column.activate_idx(prev_active_tile_idx);
+            }
+        } else {
+            if tile_idx <= prev_active_tile_idx {
+                target_column.active_tile_idx += 1;
+            }
+
+            if activate {
+                target_column.activate_idx(tile_idx);
+            }
         }
 
-        if activate {
-            target_column.activate_idx(tile_idx);
-            if self.active_column_idx != col_idx {
-                self.activate_column(col_idx);
-            }
+        if activate && self.active_column_idx != col_idx {
+            self.activate_column(col_idx);
         }
 
         let target_column = &mut self.columns[col_idx];
@@ -975,6 +992,8 @@ impl<W: LayoutElement> ScrollingSpace<W> {
                 col.animate_move_x_from(offset);
             }
         }
+
+        new_tile_idx
     }
 
     pub fn add_tile_right_of(
@@ -1094,6 +1113,15 @@ impl<W: LayoutElement> ScrollingSpace<W> {
 
         let movement_config = anim_config.unwrap_or(self.options.animations.window_movement.0);
 
+        if column.is_dwindle() {
+            return self.remove_tile_from_dwindle(
+                column_idx,
+                tile_idx,
+                transaction,
+                movement_config,
+            );
+        }
+
         // Animate movement of other tiles.
         // FIXME: tiles can move by X too, in a centered or resizing layout with one window smaller
         // than the others.
@@ -1156,6 +1184,89 @@ impl<W: LayoutElement> ScrollingSpace<W> {
         }
 
         column.update_tile_sizes_with_transaction(true, transaction);
+        self.data[column_idx].update(column);
+        let offset = prev_width - column.width();
+
+        // Animate movement of the other columns.
+        if self.active_column_idx <= column_idx {
+            for col in &mut self.columns[column_idx + 1..] {
+                col.animate_move_x_from_with_config(offset, movement_config);
+            }
+        } else {
+            for col in &mut self.columns[..=column_idx] {
+                col.animate_move_x_from_with_config(-offset, movement_config);
+            }
+        }
+
+        tile
+    }
+
+    fn remove_tile_from_dwindle(
+        &mut self,
+        column_idx: usize,
+        tile_idx: usize,
+        transaction: Transaction,
+        movement_config: ymir_config::Animation,
+    ) -> RemovedTile<W> {
+        let prev_width = self.data[column_idx].width;
+        let column = &mut self.columns[column_idx];
+
+        // Capture animated positions of all tiles for the movement animation.
+        let prev_offsets: Vec<Point<f64, Logical>> =
+            column.tile_offsets().take(column.tiles.len()).collect();
+
+        let path = column.dwindle_tree.leaf_paths()[tile_idx].clone();
+        let removed_value = column.dwindle_tree.expel(&path).unwrap();
+        debug_assert_eq!(removed_value, tile_idx);
+
+        let tile = column.tiles.remove(tile_idx);
+        column.data.remove(tile_idx);
+
+        // If one window is left, reset its weight to 1.
+        if column.data.len() == 1 {
+            if let WindowHeight::Auto { weight } = &mut column.data[0].height {
+                *weight = 1.;
+            }
+        }
+
+        column.reorder_tiles_by_dfs();
+
+        // The tree tracks the active leaf; after reordering its value is the tile index.
+        column.active_tile_idx = *column.dwindle_tree.active_value().unwrap();
+        column.tiles[column.active_tile_idx].ensure_alpha_animates_to_1();
+
+        let was_normal = column.sizing_mode().is_normal();
+        if column_idx == self.active_column_idx
+            && !was_normal
+            && column.sizing_mode().is_normal()
+        {
+            self.view_offset_to_restore = None;
+        }
+
+        // Stop interactive resize.
+        if let Some(resize) = &self.interactive_resize {
+            if tile.window().id() == &resize.window {
+                self.interactive_resize = None;
+            }
+        }
+
+        column.update_tile_sizes_with_transaction(true, transaction);
+
+        // Animate the remaining tiles according to the offset changes.
+        for ((tile, offset), prev) in zip(column.tiles_mut(), prev_offsets) {
+            let delta = prev - offset;
+            if delta != Point::default() {
+                tile.animate_move_from(delta);
+            }
+        }
+
+        let tile = RemovedTile {
+            tile,
+            width: column.width,
+            is_full_width: column.is_full_width,
+            is_floating: false,
+        };
+
         self.data[column_idx].update(column);
         let offset = prev_width - column.width();
 
@@ -1857,13 +1968,18 @@ impl<W: LayoutElement> ScrollingSpace<W> {
                 Transaction::new(),
                 Some(self.options.animations.window_movement.0),
             );
-            self.add_tile_to_column(target_column_idx, None, tile, source_tile_was_active);
+            let new_tile_idx = self.add_tile_to_column(
+                target_column_idx,
+                None,
+                tile,
+                source_tile_was_active,
+            );
 
             let target_column = &mut self.columns[target_column_idx];
             offset -= target_column.render_offset();
-            offset += prev_off - target_column.tile_offset(target_column.tiles.len() - 1);
+            offset += prev_off - target_column.tile_offset(new_tile_idx);
 
-            let new_tile = target_column.tiles.last_mut().unwrap();
+            let new_tile = &mut target_column.tiles[new_tile_idx];
             new_tile.animate_move_from(offset);
         } else {
             // Move out of column.
@@ -2010,13 +2126,13 @@ impl<W: LayoutElement> ScrollingSpace<W> {
         let prev_off = self.columns[source_column_idx].tile_offset(0);
 
         let removed = self.remove_tile_by_idx(source_column_idx, 0, Transaction::new(), None);
-        self.add_tile_to_column(target_column_idx, None, removed.tile, false);
+        let new_tile_idx = self.add_tile_to_column(target_column_idx, None, removed.tile, false);
 
         let target_column = &mut self.columns[target_column_idx];
-        offset += prev_off - target_column.tile_offset(target_column.tiles.len() - 1);
+        offset += prev_off - target_column.tile_offset(new_tile_idx);
         offset -= target_column.render_offset();
 
-        let new_tile = target_column.tiles.last_mut().unwrap();
+        let new_tile = &mut target_column.tiles[new_tile_idx];
         new_tile.animate_move_from(offset);
     }
 
@@ -2034,7 +2150,12 @@ impl<W: LayoutElement> ScrollingSpace<W> {
             return;
         }
 
-        let source_tile_idx = source_column.tiles.len() - 1;
+        // In dwindle mode, expel the focused window (like Hyprland); otherwise, the bottom-most one.
+        let source_tile_idx = if source_column.is_dwindle() {
+            source_column.active_tile_idx
+        } else {
+            source_column.tiles.len() - 1
+        };
 
         let mut offset = source_column.render_offset();
         let prev_off = source_column.tile_offset(source_tile_idx);
@@ -2195,6 +2316,7 @@ impl<W: LayoutElement> ScrollingSpace<W> {
         let display = match col.display_mode {
             ColumnDisplay::Normal => ColumnDisplay::Tabbed,
             ColumnDisplay::Tabbed => ColumnDisplay::Normal,
+            ColumnDisplay::Dwindle => ColumnDisplay::Normal,
         };
 
         self.set_column_display(display);
@@ -2218,11 +2340,44 @@ impl<W: LayoutElement> ScrollingSpace<W> {
         col.update_tile_sizes(true);
 
         // Disable fullscreen if needed.
-        if col.display_mode != ColumnDisplay::Tabbed && col.tiles.len() > 1 {
+        if !matches!(col.display_mode, ColumnDisplay::Tabbed | ColumnDisplay::Dwindle)
+            && col.tiles.len() > 1
+        {
             let window = col.tiles[col.active_tile_idx].window().id().clone();
             self.set_fullscreen(&window, false);
             self.set_maximized(&window, false);
         }
+    }
+
+    /// Flips the split orientation of the container holding the focused window (dwindle only).
+    pub fn toggle_column_split(&mut self) {
+        if self.columns.is_empty() {
+            return;
+        }
+
+        let col = &mut self.columns[self.active_column_idx];
+        col.toggle_split();
+    }
+
+    /// Sets a one-time directional override for the next window opened in the active column
+    /// (dwindle only).
+    pub fn dwindle_preselect(&mut self, side: SplitSide) {
+        if self.columns.is_empty() {
+            return;
+        }
+
+        let col = &mut self.columns[self.active_column_idx];
+        col.dwindle_tree.preselect(side);
+    }
+
+    /// Moves the focused window to the head of the active column's dwindle tree.
+    pub fn promote_window_in_column(&mut self) {
+        if self.columns.is_empty() {
+            return;
+        }
+
+        let col = &mut self.columns[self.active_column_idx];
+        col.promote_window();
     }
 
     pub fn center_column(&mut self) {
@@ -2882,7 +3037,7 @@ impl<W: LayoutElement> ScrollingSpace<W> {
 
         cancel_resize_for_column(&mut self.interactive_resize, col);
 
-        if is_fullscreen && (col.tiles.len() > 1 && !is_tabbed) {
+        if is_fullscreen && (col.tiles.len() > 1 && !is_tabbed && !col.is_dwindle()) {
             // This wasn't the only window in its column; extract it into a separate column.
             self.consume_or_expel_window_right(Some(window));
             col_idx += 1;
@@ -2913,7 +3068,7 @@ impl<W: LayoutElement> ScrollingSpace<W> {
 
         cancel_resize_for_column(&mut self.interactive_resize, col);
 
-        if maximize && (col.tiles.len() > 1 && !is_tabbed) {
+        if maximize && (col.tiles.len() > 1 && !is_tabbed && !col.is_dwindle()) {
             // This wasn't the only window in its column; extract it into a separate column.
             self.consume_or_expel_window_right(Some(window));
             col_idx += 1;
@@ -4012,6 +4167,7 @@ impl<W: LayoutElement> Column<W> {
             is_pending_fullscreen: false,
             display_mode,
             tab_indicator: TabIndicator::new(options.layout.tab_indicator),
+            dwindle_tree: DwindleTree::new(),
             move_x_animation: None,
             move_y_animation: None,
             view_size,
@@ -4413,6 +4569,11 @@ impl<W: LayoutElement> Column<W> {
             return false;
         }
 
+        if self.is_dwindle() {
+            let path = self.dwindle_tree.leaf_paths()[idx].clone();
+            self.dwindle_tree.set_active(&path);
+        }
+
         self.active_tile_idx = idx;
 
         self.tiles[idx].ensure_alpha_animates_to_1();
@@ -4425,13 +4586,17 @@ impl<W: LayoutElement> Column<W> {
         self.activate_idx(idx);
     }
 
-    fn add_tile_at(&mut self, idx: usize, mut tile: Tile<W>) {
+    fn add_tile_at(&mut self, idx: usize, mut tile: Tile<W>) -> usize {
         tile.update_config(self.view_size, self.scale, self.options.clone());
 
         // Inserting a tile pushes down all tiles below it, but also in always-centering mode it
         // will affect the X position of all tiles in the column.
         let mut prev_offsets = Vec::with_capacity(self.tiles.len() + 1);
         prev_offsets.extend(self.tile_offsets().take(self.tiles.len()));
+
+        if self.is_dwindle() {
+            return self.add_tile_to_dwindle(tile, prev_offsets);
+        }
 
         if self.display_mode != ColumnDisplay::Tabbed {
             self.is_pending_fullscreen = false;
@@ -4452,6 +4617,45 @@ impl<W: LayoutElement> Column<W> {
 
             tile.animate_move_from(prev - offset);
         }
+
+        idx
+    }
+
+    fn add_tile_to_dwindle(
+        &mut self,
+        tile: Tile<W>,
+        prev_offsets: Vec<Point<f64, Logical>>,
+    ) -> usize {
+        let value = self.tiles.len();
+
+        // The tree decides the new window's region; the region only matters for computing the
+        // default split side based on the active leaf's aspect ratio.
+        let region = self.dwindle_content_rect().size;
+
+        self.data.push(TileData::new(&tile, WindowHeight::auto_1()));
+        self.tiles.push(tile);
+        self.dwindle_tree.open_new(value, region);
+        self.reorder_tiles_by_dfs();
+
+        // open_new() made the new leaf active; its value is now its DFS position.
+        self.active_tile_idx = *self.dwindle_tree.active_value().unwrap();
+        let new_tile_idx = self.active_tile_idx;
+
+        self.update_tile_sizes(true);
+
+        let new_offsets: Vec<_> = self.tile_offsets().take(self.tiles.len()).collect();
+        for (i, (tile, new_offset)) in self.tiles.iter_mut().zip(new_offsets).enumerate() {
+            if i == self.active_tile_idx {
+                continue;
+            }
+
+            let delta = prev_offsets[i] - new_offset;
+            if delta != Point::default() {
+                tile.animate_move_from(delta);
+            }
+        }
+
+        new_tile_idx
     }
 
     fn update_window(&mut self, window: &W::Id) {
@@ -4470,6 +4674,7 @@ impl<W: LayoutElement> Column<W> {
         let offset = prev_height - self.data[tile_idx].size.h;
 
         let is_tabbed = self.display_mode == ColumnDisplay::Tabbed;
+        let is_dwindle = self.display_mode == ColumnDisplay::Dwindle;
 
         // Move windows below in tandem with resizing.
         //
@@ -4477,7 +4682,7 @@ impl<W: LayoutElement> Column<W> {
         // windows in the column, so they should all be animated. How should this interact with
         // animated vs. non-animated resizes? For example, an animated +20 resize followed by two
         // non-animated -10 resizes.
-        if !is_tabbed && offset != 0. {
+        if !is_tabbed && !is_dwindle && offset != 0. {
             if tile.resize_animation().is_some() {
                 // If there's a resize animation (that may have just started in
                 // tile.update_window()), then the apparent size change is smooth with no sudden
@@ -4563,6 +4768,18 @@ impl<W: LayoutElement> Column<W> {
                 } else {
                     tile.request_maximized(self.parent_area.size, animate, transaction);
                 }
+            }
+            return;
+        }
+
+        if self.is_dwindle() {
+            // Dwindle geometry is fully determined by the tree: every leaf gets a rectangle of the
+            // content region, partitioned by the split ratios and gaps.
+            let content = self.dwindle_content_rect();
+            let gaps = self.options.layout.gaps;
+            let rects = self.dwindle_tree.leaf_rects(content, gaps);
+            for (tile, (_, rect)) in self.tiles.iter_mut().zip(rects) {
+                tile.request_tile_size(rect.size, animate, Some(transaction.clone()));
             }
             return;
         }
@@ -4879,6 +5096,10 @@ impl<W: LayoutElement> Column<W> {
     }
 
     fn move_up(&mut self) -> bool {
+        if self.is_dwindle() {
+            return self.dwindle_move_up();
+        }
+
         let new_idx = self.active_tile_idx.saturating_sub(1);
         if self.active_tile_idx == new_idx {
             return false;
@@ -4902,6 +5123,10 @@ impl<W: LayoutElement> Column<W> {
     }
 
     fn move_down(&mut self) -> bool {
+        if self.is_dwindle() {
+            return self.dwindle_move_down();
+        }
+
         let new_idx = min(self.active_tile_idx + 1, self.tiles.len() - 1);
         if self.active_tile_idx == new_idx {
             return false;
@@ -4920,6 +5145,46 @@ impl<W: LayoutElement> Column<W> {
         let new_active_y = self.tile_offset(new_idx).y;
         self.tiles[new_idx].animate_move_y_from(active_y - new_active_y);
         self.tiles[new_idx - 1].animate_move_y_from(next_y - active_y);
+
+        true
+    }
+
+    fn dwindle_move_up(&mut self) -> bool {
+        self.dwindle_move(self.active_tile_idx.saturating_sub(1))
+    }
+
+    fn dwindle_move_down(&mut self) -> bool {
+        self.dwindle_move(min(self.active_tile_idx + 1, self.tiles.len() - 1))
+    }
+
+    /// Swaps the focused leaf in the dwindle tree with its DFS neighbor, re-sorting the tiles.
+    fn dwindle_move(&mut self, neighbor: usize) -> bool {
+        let idx = self.active_tile_idx;
+        if neighbor == idx {
+            return false;
+        }
+
+        let prev_offsets: Vec<Point<f64, Logical>> =
+            self.tile_offsets().take(self.tiles.len()).collect();
+
+        let paths = self.dwindle_tree.leaf_paths();
+        self.dwindle_tree.swap_leaves(&paths[idx], &paths[neighbor]);
+
+        self.reorder_tiles_by_dfs();
+
+        // The focused window now sits at the neighbor's DFS position; follow it.
+        let path = self.dwindle_tree.leaf_paths()[neighbor].clone();
+        self.dwindle_tree.set_active(&path);
+        self.active_tile_idx = *self.dwindle_tree.active_value().unwrap();
+
+        self.update_tile_sizes(true);
+
+        let new_offsets: Vec<Point<f64, Logical>> =
+            self.tile_offsets().take(self.tiles.len()).collect();
+
+        // Animate the two swapped tiles between their previous and new offsets.
+        self.tiles[idx].animate_move_from(prev_offsets[idx] - new_offsets[neighbor]);
+        self.tiles[neighbor].animate_move_from(prev_offsets[neighbor] - new_offsets[idx]);
 
         true
     }
@@ -5043,6 +5308,11 @@ impl<W: LayoutElement> Column<W> {
     }
 
     fn set_window_height(&mut self, change: SizeChange, tile_idx: Option<usize>, animate: bool) {
+        // Window heights don't apply in dwindle mode; the tree governs geometry.
+        if self.display_mode == ColumnDisplay::Dwindle {
+            return;
+        }
+
         let tile_idx = tile_idx.unwrap_or(self.active_tile_idx);
 
         // Start by converting all heights to automatic, since only one window in the column can be
@@ -5122,6 +5392,10 @@ impl<W: LayoutElement> Column<W> {
     }
 
     fn reset_window_height(&mut self, tile_idx: Option<usize>) {
+        if self.display_mode == ColumnDisplay::Dwindle {
+            return;
+        }
+
         if self.display_mode == ColumnDisplay::Tabbed {
             // When tabbed, reset window height should work on any window, not just the fixed-size
             // one.
@@ -5219,7 +5493,7 @@ impl<W: LayoutElement> Column<W> {
         }
 
         if is_fullscreen {
-            assert!(self.tiles.len() == 1 || self.display_mode == ColumnDisplay::Tabbed);
+            assert!(self.tiles.len() == 1 || self.is_tabbed_or_dwindle());
         }
 
         self.is_pending_fullscreen = is_fullscreen;
@@ -5232,7 +5506,7 @@ impl<W: LayoutElement> Column<W> {
         }
 
         if maximize {
-            assert!(self.tiles.len() == 1 || self.display_mode == ColumnDisplay::Tabbed);
+            assert!(self.tiles.len() == 1 || self.is_tabbed_or_dwindle());
         }
 
         self.is_pending_maximized = maximize;
@@ -5244,31 +5518,29 @@ impl<W: LayoutElement> Column<W> {
             return;
         }
 
-        // Animate the movement.
-        //
-        // We're doing some shortcuts here because we know that currently normal vs. tabbed can
-        // only cause a vertical shift + a shift to the origin.
-        //
-        // Doing it this way to avoid storing all tile positions in a vector. If more display modes
-        // are added it might be simpler to just collect everything into a smallvec.
-        let prev_origin = self.tiles_origin();
+        // Capture the animated positions of all tiles in the current mode.
+        let prev_offsets: Vec<Point<f64, Logical>> =
+            self.tile_offsets().take(self.tiles.len()).collect();
+
+        if !self.is_dwindle() && display == ColumnDisplay::Dwindle {
+            // Entering dwindle: rebuild the tree as a forced bottom-up chain, preserving the
+            // current tile order and focus.
+            self.become_dwindle();
+        } else if self.is_dwindle() && display != ColumnDisplay::Dwindle {
+            // Leaving dwindle: the tree is dropped and normal/tabbed geometry takes over.
+            self.dwindle_tree = DwindleTree::single(0);
+        }
+
         self.display_mode = display;
-        let new_origin = self.tiles_origin();
-        let origin_delta = prev_origin - new_origin;
 
-        // When need to walk the tiles in the normal display mode to get the right offsets.
-        self.display_mode = ColumnDisplay::Normal;
-        for (tile, pos) in self.tiles_mut() {
-            let mut y_delta = pos.y - prev_origin.y;
-
-            // Invert the Y motion when transitioning *to* normal display mode.
-            if display == ColumnDisplay::Normal {
-                y_delta *= -1.;
+        // Animate tiles according to the offset changes.
+        let new_offsets: Vec<Point<f64, Logical>> =
+            self.tile_offsets().take(self.tiles.len()).collect();
+        for (i, (tile, new_offset)) in self.tiles.iter_mut().zip(new_offsets).enumerate() {
+            let delta = prev_offsets[i] - new_offset;
+            if delta != Point::default() {
+                tile.animate_move_from(delta);
             }
-
-            let mut delta = origin_delta;
-            delta.y += y_delta;
-            tile.animate_move_from(delta);
         }
 
         // Animate the opacity.
@@ -5292,10 +5564,35 @@ impl<W: LayoutElement> Column<W> {
             );
         }
 
-        // Now switch the display mode for real.
-        self.display_mode = display;
         self.update_tile_sizes(true);
     }
+
+    fn become_dwindle(&mut self) {
+        let mut tree = DwindleTree::new();
+        for i in 0..self.tiles.len() {
+            tree.open_new_on(i, SplitSide::Bottom, Size::default());
+        }
+
+        // A bottom-up chain yields a right-leaning tree whose DFS order is insertion order, so
+        // values already equal positions; make sure the focused window stays focused.
+        let active = self.active_tile_idx;
+        let paths = tree.leaf_paths();
+        if active < paths.len() {
+            tree.set_active(&paths[active]);
+        }
+
+        self.dwindle_tree = tree;
+    }
+
+/// Reorders a vector in place so that `out[i] == old[order[i]]`. `order` must be a permutation.
+fn apply_permutation<T>(out: &mut Vec<T>, order: &[usize]) {
+    debug_assert_eq!(order.len(), out.len());
+    let mut old: Vec<Option<T>> = out.drain(..).map(Some).collect();
+    out.reserve(order.len());
+    for &old_pos in order {
+        out.push(old[old_pos].take().expect("order is a permutation"));
+    }
+}
 
     fn tiles_origin(&self) -> Point<f64, Logical> {
         let mut origin = Point::from((0., 0.));
@@ -5325,7 +5622,12 @@ impl<W: LayoutElement> Column<W> {
     fn tile_offsets_iter(
         &self,
         data: impl Iterator<Item = TileData>,
-    ) -> impl Iterator<Item = Point<f64, Logical>> {
+    ) -> Vec<Point<f64, Logical>> {
+        if self.is_dwindle() {
+            // Dwindle tile positions come straight from the tree.
+            return self.dwindle_offsets();
+        }
+
         // FIXME: this should take into account always-center-single-column, which means that
         // Column should somehow know when it is being centered due to being the single column on
         // the workspace or some other reason.
@@ -5352,7 +5654,7 @@ impl<W: LayoutElement> Column<W> {
         };
         let data = data.chain(iter::once(dummy));
 
-        data.map(move |data| {
+        let it = data.map(move |data| {
             let mut pos = origin;
 
             if center {
@@ -5366,15 +5668,90 @@ impl<W: LayoutElement> Column<W> {
             }
 
             pos
-        })
+        });
+
+        it.collect()
     }
 
     fn tile_offsets(&self) -> impl Iterator<Item = Point<f64, Logical>> + '_ {
-        self.tile_offsets_iter(self.data.iter().copied())
+        self.tile_offsets_iter(self.data.iter().copied()).into_iter()
     }
 
     fn tile_offset(&self, tile_idx: usize) -> Point<f64, Logical> {
         self.tile_offsets().nth(tile_idx).unwrap()
+    }
+
+    fn is_dwindle(&self) -> bool {
+        self.display_mode == ColumnDisplay::Dwindle
+    }
+
+    fn is_tabbed_or_dwindle(&self) -> bool {
+        matches!(self.display_mode, ColumnDisplay::Tabbed | ColumnDisplay::Dwindle)
+    }
+
+    /// The outer region that the dwindle tree partitions between its leaves.
+    fn dwindle_content_rect(&self) -> Rectangle<f64, Logical> {
+        let height = self.working_area.size.h - self.options.layout.gaps * 2.;
+        let size = Size::from((self.width(), height));
+        Rectangle::new(self.tiles_origin(), size)
+    }
+
+    /// Per-tile positions in the dwindle display mode, plus a dummy point one row past the last
+    /// leaf (for gap-based hit-testing).
+    fn dwindle_offsets(&self) -> Vec<Point<f64, Logical>> {
+        let gaps = self.options.layout.gaps;
+        let rects = self.dwindle_tree.leaf_rects(self.dwindle_content_rect(), gaps);
+
+        let mut rv: Vec<Point<f64, Logical>> = rects.iter().map(|(_, r)| r.loc).collect();
+        if let Some((_, last)) = rects.last() {
+            rv.push(Point::from((last.loc.x, last.loc.y + last.size.h + gaps)));
+        }
+
+        rv
+    }
+
+    /// Re-sorts `tiles`/`data` to match the tree's depth-first leaf order, then re-numbers leaf
+    /// values so that value == position.
+    fn reorder_tiles_by_dfs(&mut self) {
+        let order: Vec<usize> = self.dwindle_tree.leaves().copied().collect();
+        debug_assert_eq!(order.len(), self.tiles.len());
+        Self::apply_permutation(&mut self.tiles, &order);
+        Self::apply_permutation(&mut self.data, &order);
+        self.dwindle_tree.reindex(|value, i| *value = i);
+    }
+
+    /// Flips the split orientation of the container holding the focused window. Only meaningful in
+    /// dwindle mode.
+    pub fn toggle_split(&mut self) {
+        if !self.is_dwindle() {
+            return;
+        }
+
+        let paths = self.dwindle_tree.leaf_paths();
+        if self.active_tile_idx >= paths.len() {
+            return;
+        }
+
+        if self.dwindle_tree.toggle_split(&paths[self.active_tile_idx]) {
+            self.update_tile_sizes(true);
+        }
+    }
+
+    /// Moves the focused window to the head (first) position of the dwindle tree.
+    pub fn promote_window(&mut self) {
+        if !self.is_dwindle() || self.tiles.len() < 2 {
+            return;
+        }
+
+        let paths = self.dwindle_tree.leaf_paths();
+        let path = paths[self.active_tile_idx].clone();
+        if self.dwindle_tree.promote(&path) {
+            // The focused window's value now sits in the first leaf; keep the focus on it.
+            self.dwindle_tree.set_active(&paths[0]);
+            self.reorder_tiles_by_dfs();
+            self.active_tile_idx = *self.dwindle_tree.active_value().unwrap();
+            self.update_tile_sizes(true);
+        }
     }
 
     fn tile_offsets_in_render_order(
@@ -5385,6 +5762,7 @@ impl<W: LayoutElement> Column<W> {
         let active_pos = self.tile_offset(active_idx);
         let offsets = self
             .tile_offsets_iter(data)
+            .into_iter()
             .enumerate()
             .filter_map(move |(idx, pos)| (idx != active_idx).then_some(pos));
         iter::once(active_pos).chain(offsets)
@@ -5489,7 +5867,15 @@ impl<W: LayoutElement> Column<W> {
         assert_eq!(self.tiles.len(), self.data.len());
 
         if !self.pending_sizing_mode().is_normal() {
-            assert!(self.tiles.len() == 1 || self.display_mode == ColumnDisplay::Tabbed);
+            assert!(self.tiles.len() == 1 || self.is_tabbed_or_dwindle());
+        }
+
+        // Dwindle geometry is governed by the tree, not by the per-window height rules that the
+        // assertions below check, so validate only the basics and defer the rest to the engine.
+        if self.display_mode == ColumnDisplay::Dwindle {
+            assert_eq!(self.dwindle_tree.len(), self.tiles.len());
+            assert_eq!(*self.dwindle_tree.active_value().unwrap(), self.active_tile_idx);
+            return;
         }
 
         if let Some(idx) = self.preset_width_idx {

@@ -41,7 +41,7 @@ use ymir_config::utils::MergeWith as _;
 use ymir_config::{
     Config, CornerRadius, LayoutPart, PresetSize, Workspace as WorkspaceConfig, WorkspaceReference,
 };
-use ymir_ipc::{ColumnDisplay, PositionChange, SizeChange, WindowLayout};
+use ymir_ipc::{ColumnDisplay, PositionChange, SizeChange, SplitDirection, WindowLayout};
 use scrolling::{Column, ColumnWidth};
 use smithay::backend::renderer::element::surface::WaylandSurfaceRenderElement;
 use smithay::backend::renderer::element::utils::RescaleRenderElement;
@@ -57,6 +57,7 @@ use self::monitor::{Monitor, WorkspaceSwitch};
 use self::workspace::{OutputId, Workspace};
 use crate::animation::{Animation, Clock};
 use crate::input::swipe_tracker::SwipeTracker;
+use crate::layout::dwindle::SplitSide;
 use crate::layout::scrolling::ScrollDirection;
 use crate::ymir_render_elements;
 use crate::render_helpers::background_effect::BackgroundEffectElement;
@@ -2255,11 +2256,42 @@ impl<W: LayoutElement> Layout<W> {
         workspace.swap_window_in_direction(direction);
     }
 
-    pub fn toggle_column_tabbed_display(&mut self) {
+pub fn toggle_column_tabbed_display(&mut self) {
         let Some(workspace) = self.active_workspace_mut() else {
             return;
         };
+
         workspace.toggle_column_tabbed_display();
+    }
+
+    pub fn toggle_column_split(&mut self) {
+        let Some(workspace) = self.active_workspace_mut() else {
+            return;
+        };
+
+        workspace.toggle_column_split();
+    }
+
+    pub fn preselect_in_column(&mut self, direction: SplitDirection) {
+        let Some(workspace) = self.active_workspace_mut() else {
+            return;
+        };
+
+        let side = match direction {
+            SplitDirection::Top => SplitSide::Top,
+            SplitDirection::Bottom => SplitSide::Bottom,
+            SplitDirection::Left => SplitSide::Left,
+            SplitDirection::Right => SplitSide::Right,
+        };
+        workspace.preselect_in_column(side);
+    }
+
+    pub fn promote_window_in_column(&mut self) {
+        let Some(workspace) = self.active_workspace_mut() else {
+            return;
+        };
+
+        workspace.promote_window_in_column();
     }
 
     pub fn set_column_display(&mut self, display: ColumnDisplay) {

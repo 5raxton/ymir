@@ -17,6 +17,7 @@ use smithay::utils::{Logical, Point, Rectangle, Serial, Size, Transform};
 use smithay::wayland::compositor::with_states;
 use smithay::wayland::shell::xdg::SurfaceCachedState;
 
+use super::dwindle::SplitSide;
 use super::floating::{FloatingSpace, FloatingSpaceRenderElement};
 use super::scrolling::{
     Column, ColumnWidth, ScrollDirection, ScrollingSpace, ScrollingSpaceRenderElement,
@@ -1142,6 +1143,27 @@ impl<W: LayoutElement> Workspace<W> {
             return;
         }
         self.scrolling.toggle_column_tabbed_display();
+    }
+
+    pub fn toggle_column_split(&mut self) {
+        if self.floating_is_active.get() {
+            return;
+        }
+        self.scrolling.toggle_column_split();
+    }
+
+    pub fn preselect_in_column(&mut self, direction: SplitSide) {
+        if self.floating_is_active.get() {
+            return;
+        }
+        self.scrolling.dwindle_preselect(direction);
+    }
+
+    pub fn promote_window_in_column(&mut self) {
+        if self.floating_is_active.get() {
+            return;
+        }
+        self.scrolling.promote_window_in_column();
     }
 
     pub fn set_column_display(&mut self, display: ColumnDisplay) {

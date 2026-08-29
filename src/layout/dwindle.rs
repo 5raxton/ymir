@@ -199,6 +199,25 @@ impl<T> DwindleTree<T> {
         self.leaf(path)
     }
 
+    /// Sets the active leaf to the leaf at `path`, if it exists.
+    ///
+    /// Returns whether the path pointed at a leaf.
+    pub fn set_active(&mut self, path: &LeafPath) -> bool {
+        if self.leaf(path).is_none() {
+            return false;
+        }
+        self.active = Some(path.clone());
+        true
+    }
+
+    /// Applies `f` to every leaf value together with its depth-first position.
+    ///
+    /// Useful for re-establishing a "value == position" invariant after tree mutations.
+    pub fn reindex(&mut self, f: impl Fn(&mut T, usize)) {
+        let mut i = 0;
+        reindex_node(self.root.as_mut(), &mut i, &f);
+    }
+
     /// Returns the value at `path`.
     pub fn leaf(&self, path: &LeafPath) -> Option<&T> {
         self.leaf_impl(self.root.as_ref()?, path.0.as_slice())
@@ -548,6 +567,20 @@ impl<T> DwindleTree<T> {
             return false;
         };
         adjust_ratio_impl(root, &path.0, delta)
+    }
+}
+
+fn reindex_node<T>(node: Option<&mut Node<T>>, i: &mut usize, f: &impl Fn(&mut T, usize)) {
+    match node {
+        Some(Node::Leaf(v)) => {
+            f(v, *i);
+            *i += 1;
+        }
+        Some(Node::Split { first, second, .. }) => {
+            reindex_node(Some(first), i, f);
+            reindex_node(Some(second), i, f);
+        }
+        None => (),
     }
 }
 

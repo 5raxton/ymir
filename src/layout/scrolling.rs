@@ -11,7 +11,7 @@ use smithay::backend::renderer::gles::GlesRenderer;
 use smithay::utils::{Logical, Point, Rectangle, Scale, Serial, Size};
 
 use super::closing_window::{ClosingWindow, ClosingWindowRenderElement};
-use super::dwindle::{DwindleTree, SpatialDir, SplitSide};
+use super::dwindle::{DwindleTree, LeafPath, SpatialDir, SplitSide};
 use super::monitor::InsertPosition;
 use super::tab_indicator::{TabIndicator, TabIndicatorRenderElement, TabInfo};
 use super::tile::{Tile, TileRenderElement, TileRenderSnapshot};
@@ -4890,6 +4890,7 @@ impl<W: LayoutElement> Column<W> {
                 delta.x,
                 usable_w.max(1.),
                 usable_h.max(1.),
+                gaps,
                 &min_w,
                 &min_h,
             );
@@ -4907,6 +4908,7 @@ impl<W: LayoutElement> Column<W> {
                 delta.y,
                 usable_w.max(1.),
                 usable_h.max(1.),
+                gaps,
                 &min_w,
                 &min_h,
             );
@@ -5435,8 +5437,14 @@ impl<W: LayoutElement> Column<W> {
         true
     }
 
-    /// Swaps the focused leaf in the dwindle tree with its spatially adjacent leaf in `dir`,
-    /// re-sorting the tiles. Returns true on success.
+    /// Moves the focused leaf in the dwindle tree in direction `dir`, re-splitting the tree so the
+    /// window is placed directly in that direction from its current position.
+    ///
+    /// This mirrors Hyprland's dwindle move: the window is removed from the tree and re-inserted by
+    /// splitting whichever leaf now occupies the space just beyond its edge in `dir`. The split
+    /// axis is forced to match the movement (up/down stack, left/right sit side-by-side) and the
+    /// window is placed on the corresponding side, so a directional move never slides a window
+    /// diagonally. Returns true on success.
     fn move_dwindle_direction(&mut self, dir: SpatialDir) -> bool {
         let idx = self.active_tile_idx;
         if !self.is_dwindle() || self.tiles.len() < 2 {
@@ -5446,30 +5454,82 @@ impl<W: LayoutElement> Column<W> {
         let paths = self.dwindle_tree.leaf_paths();
         let active = paths[idx].clone();
         let gaps = self.options.layout.gaps;
-        let Some(neighbor) = self
-            .dwindle_tree
-            .spatial_neighbor(&active, dir, self.dwindle_content_rect(), gaps)
-        else {
-            return false;
-        };
-        let Some(neighbor_idx) = paths.iter().position(|p| p == &neighbor) else {
-            return false;
-        };
-        if neighbor_idx == idx {
-            return false;
-        }
+        let content = self.dwindle_content_rect();
 
         let prev_offsets: Vec<Point<f64, Logical>> =
             self.tile_offsets().take(self.tiles.len()).collect();
 
-        self.dwindle_tree
-            .swap_leaves(&paths[idx], &paths[neighbor_idx]);
+        // Focal point just beyond the focused leaf's edge in `dir`, at the midpoint along the
+        // perpendicular axis (mirrors Hyprland's move focal point).
+        let active_rect = self
+            .dwindle_tree
+            .leaf_rects(content, gaps)
+            .into_iter()
+            .find(|(p, _)| *p == active)
+            .map(|(_, r)| r);
+        let Some(active_rect) = active_rect else {
+            return false;
+        };
+        let focal: Point<f64, Logical> = match dir {
+            SpatialDir::Up => Point::from((active_rect.loc.x + active_rect.size.w / 2., active_rect.loc.y - 1.)),
+            SpatialDir::Down => Point::from((
+                active_rect.loc.x + active_rect.size.w / 2.,
+                active_rect.loc.y + active_rect.size.h + 1.,
+            )),
+            SpatialDir::Left => Point::from((active_rect.loc.x - 1., active_rect.loc.y + active_rect.size.h / 2.)),
+            SpatialDir::Right => Point::from((
+                active_rect.loc.x + active_rect.size.w + 1.,
+                active_rect.loc.y + active_rect.size.h / 2.,
+            )),
+        };
 
-        self.reorder_tiles_by_dfs();
+        // Remove the focused window from the tree and from the tile list, collapsing its slot.
+        let _ = self.dwindle_tree.expel(&active);
+        let tile = self.tiles.remove(idx);
+        self.data.remove(idx);
+        // The remaining leaf values are stale after expel; restore the value == position invariant.
+        self.dwindle_tree.reindex(|value, i| *value = i);
 
-        // The focused window now sits at the neighbor's DFS position; follow it.
-        let path = self.dwindle_tree.leaf_paths()[neighbor_idx].clone();
-        self.dwindle_tree.set_active(&path);
+        // After removal the focused slot is filled by its neighbor, so the focal point now lies
+        // inside (or nearest to) the leaf that should receive the re-insertion.
+        let post_rects = self.dwindle_tree.leaf_rects(content, gaps);
+        let dest: Option<LeafPath> = post_rects
+            .iter()
+            .find(|(_, r)| {
+                focal.x >= r.loc.x - 1.
+                    && focal.x <= r.loc.x + r.size.w + 1.
+                    && focal.y >= r.loc.y - 1.
+                    && focal.y <= r.loc.y + r.size.h + 1.
+            })
+            .map(|(p, _)| p)
+            .or_else(|| {
+                post_rects
+                    .iter()
+                    .map(|(p, r)| {
+                        let d = ((focal.x - (r.loc.x + r.size.w / 2.)).powi(2)
+                            + (focal.y - (r.loc.y + r.size.h / 2.)).powi(2))
+                        .sqrt();
+                        (d, p)
+                    })
+                    .min_by(|(a, _), (b, _)| a.total_cmp(b))
+                    .map(|(_, p)| p)
+            })
+            .cloned();
+
+        // Re-insert the moved window by splitting the destination leaf on the movement's side.
+        let side = dir.as_split_side();
+        let Some(dest) = dest else {
+            // Cannot happen for len >= 2, but guard anyway.
+            return false;
+        };
+        self.dwindle_tree.set_active(&dest);
+        let post_len = self.tiles.len();
+        self.data.push(TileData::new(&tile, WindowHeight::auto_1()));
+        self.tiles.push(tile);
+        self.dwindle_tree.open_new_on(post_len, side, content.size);
+        let order = self.reorder_tiles_by_dfs();
+
+        // open_new_on() made the new leaf active; follow the moved window (value == its DFS slot).
         self.active_tile_idx = *self.dwindle_tree.active_value().unwrap();
 
         self.update_tile_sizes(true);
@@ -5477,12 +5537,24 @@ impl<W: LayoutElement> Column<W> {
         let new_offsets: Vec<Point<f64, Logical>> =
             self.tile_offsets().take(self.tiles.len()).collect();
 
-        // Animate the two swapped tiles between their previous and new offsets. After the swap
-        // and re-sort, the focused tile (old position `idx`) now sits at `neighbor_idx` and the
-        // neighbor tile (old position `neighbor_idx`) now sits at `idx`.
-        self.tiles[neighbor_idx]
-            .animate_move_from(prev_offsets[idx] - new_offsets[neighbor_idx]);
-        self.tiles[idx].animate_move_from(prev_offsets[neighbor_idx] - new_offsets[idx]);
+        // Animate each tile from its pre-move offset to its new position. `order` maps the final
+        // position back to the pre-reorder slot; the moved window is the one pushed last (slot
+        // `post_len`), which corresponds to pre-move slot `idx`. The kept tiles keep their relative
+        // order, so a pre-reorder slot `s` was at pre-move slot `s` (if `s < idx`) or `s + 1`.
+        for (i, (tile, new_offset)) in self.tiles.iter_mut().zip(new_offsets).enumerate() {
+            let old_slot = order[i];
+            let old_idx = if old_slot == post_len {
+                idx
+            } else if old_slot < idx {
+                old_slot
+            } else {
+                old_slot + 1
+            };
+            let delta = prev_offsets[old_idx] - new_offset;
+            if delta != Point::default() {
+                tile.animate_move_from(delta);
+            }
+        }
 
         true
     }

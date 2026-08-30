@@ -444,7 +444,7 @@ impl<T> DwindleTree<T> {
         match remove_leaf(root, &path.0) {
             RemoveOutcome::Removed { subtree, value } => {
                 self.root = subtree.map(|b| *b);
-                let active_was_removed = self.active.as_ref().map_or(true, |a| a == path);
+                let active_was_removed = self.active.as_ref().is_none_or(|a| a == path);
                 if self.root.is_none() {
                     self.active = None;
                 } else if active_was_removed {
@@ -511,10 +511,7 @@ impl<T> DwindleTree<T> {
         if paths.is_empty() {
             return None;
         }
-        let idx = match paths.iter().position(|p| p == from) {
-            Some(idx) => idx,
-            None => return None,
-        };
+        let idx = paths.iter().position(|p| p == from)?;
         let len = paths.len() as i32;
         let new = (idx as i32 + step).clamp(0, len - 1);
         let path = paths[new as usize].clone();
@@ -522,11 +519,17 @@ impl<T> DwindleTree<T> {
         Some(path)
     }
 
-    /// Finds the spatial neighbor of `from` in the given direction, using the leaf rectangles
-    /// returned by [`Self::leaf_rects`] over `content`.
+    /// Finds the spatially adjacent leaf in direction `dir`, using the leaf rectangles returned by
+    /// [`Self::leaf_rects`] over `content`.
     ///
-    /// Returns the closest leaf rectangle in that direction. `None` when there is no leaf in that
-    /// direction.
+    /// A candidate must be immediately adjacent to `from` in that direction — its near edge must
+    /// sit within a gap of `from`'s far edge (the divider between them) — and it must overlap
+    /// `from` along the perpendicular axis. Among the candidates the one with the greatest
+    /// perpendicular overlap wins (ties broken by closer distance, then DFS order). This mirrors
+    /// Hyprland's dwindle directional focus: focus follows the window sharing a real divider, never
+    /// jumping diagonally to a taller/wider neighbor just because its center lines up.
+    ///
+    /// Returns `None` when there is no leaf immediately in that direction.
     pub fn spatial_neighbor(
         &self,
         from: &LeafPath,
@@ -536,26 +539,67 @@ impl<T> DwindleTree<T> {
     ) -> Option<LeafPath> {
         let rects = self.leaf_rects(content, gaps);
         let from_rect = rects.iter().find(|(p, _)| p == from)?.1;
-        let from_center = center(from_rect);
+        let tol = gaps + 1.0;
 
         let mut best: Option<(f64, f64, &LeafPath)> = None;
         for (path, rect) in &rects {
             if path == from {
                 continue;
             }
-            let (dist, overlap) =
-                match directional_score(from_center, center(*rect), from_rect, *rect, dir) {
-                    Some(score) => score,
-                    None => continue,
-                };
-            let better = match best {
-                None => true,
-                Some((best_dist, best_overlap, _)) => {
-                    dist < best_dist || (approx_eq(dist, best_dist) && overlap > best_overlap)
+            // Perpendicular overlap and the near-edge gap to `from`'s far edge, if the candidate is
+            // the immediate neighbor in `dir`.
+            let candidate = match dir {
+                SpatialDir::Right => {
+                    let gap_x = rect.loc.x - (from_rect.loc.x + from_rect.size.w);
+                    if gap_x >= -tol && gap_x <= tol {
+                        let overlap = vertical_overlap(from_rect, *rect);
+                        (overlap > 0.).then_some((overlap, gap_x))
+                    } else {
+                        None
+                    }
+                }
+                SpatialDir::Left => {
+                    let gap_x = from_rect.loc.x - (rect.loc.x + rect.size.w);
+                    if gap_x >= -tol && gap_x <= tol {
+                        let overlap = vertical_overlap(from_rect, *rect);
+                        (overlap > 0.).then_some((overlap, gap_x))
+                    } else {
+                        None
+                    }
+                }
+                SpatialDir::Down => {
+                    let gap_y = rect.loc.y - (from_rect.loc.y + from_rect.size.h);
+                    if gap_y >= -tol && gap_y <= tol {
+                        let overlap = horizontal_overlap(from_rect, *rect);
+                        (overlap > 0.).then_some((overlap, gap_y))
+                    } else {
+                        None
+                    }
+                }
+                SpatialDir::Up => {
+                    let gap_y = from_rect.loc.y - (rect.loc.y + rect.size.h);
+                    if gap_y >= -tol && gap_y <= tol {
+                        let overlap = horizontal_overlap(from_rect, *rect);
+                        (overlap > 0.).then_some((overlap, gap_y))
+                    } else {
+                        None
+                    }
+                }
+            };
+
+            let better = match (best, candidate) {
+                (_, None) => false,
+                (None, Some(_)) => true,
+                (Some((c_overlap, c_dist, _)), Some((n_overlap, n_dist))) => {
+                    // Prefer more overlap, then a closer divider; exact ties keep the first (DFS
+                    // order) candidate.
+                    n_overlap > c_overlap || (n_overlap == c_overlap && n_dist < c_dist)
                 }
             };
             if better {
-                best = Some((dist, overlap, path));
+                if let Some((overlap, dist)) = candidate {
+                    best = Some((overlap, dist, path));
+                }
             }
         }
 
@@ -625,6 +669,7 @@ impl<T> DwindleTree<T> {
         delta_px: f64,
         usable_w: f64,
         usable_h: f64,
+        gaps: f64,
         min_w: &impl Fn(&T) -> f64,
         min_h: &impl Fn(&T) -> f64,
     ) -> bool {
@@ -639,8 +684,9 @@ impl<T> DwindleTree<T> {
             &path.0,
             edge,
             delta_px,
-            usable_w,
-            usable_h,
+            usable_w + gaps,
+            usable_h + gaps,
+            gaps,
             min_w,
             min_h,
         )
@@ -1176,14 +1222,21 @@ fn subtree_min<T>(
 /// a shallow split can still move even when deeper splits of different orientation sit in
 /// between. The ratio is clamped so neither child subtree shrinks below the combined minimum of
 /// its leaves (empty clamp range leaves the ratio untouched).
+///
+/// `box_w`/`box_h` are the current node's own rectangle extent (the root split starts with the
+/// full content size). The pixel-to-ratio conversion and the minimum-ratio clamp each use this
+/// *local* extent, so a divider of a deeply nested split follows the pointer 1:1 instead of being
+/// scaled (and clamped) against the whole column's size — mirroring Hyprland, which scales by the
+/// split's own `box`. Child boxes are derived from the parent's box as the recursion descends.
 #[allow(clippy::too_many_arguments)]
 fn adjust_ratio_for_edge_impl<T>(
     node: &mut Node<T>,
     path: &[Child],
     edge: ResizeEdge,
     delta_px: f64,
-    usable_w: f64,
-    usable_h: f64,
+    box_w: f64,
+    box_h: f64,
+    gaps: f64,
     min_w: &impl Fn(&T) -> f64,
     min_h: &impl Fn(&T) -> f64,
 ) -> bool {
@@ -1192,6 +1245,7 @@ fn adjust_ratio_for_edge_impl<T>(
         ratio,
         first,
         second,
+        ..
     } = node
     else {
         return false;
@@ -1201,14 +1255,34 @@ fn adjust_ratio_for_edge_impl<T>(
     };
     let rest = &path[1..];
     if !rest.is_empty() {
+        // Derive the matching child's box from this node's box so the deeper split scales by its
+        // own extent.
+        let rect = Rectangle::new(Point::from((0., 0.)), Size::from((box_w, box_h)));
+        let (child_w, child_h) = match *axis {
+            SplitAxis::Vertical => {
+                let (first_rect, second_rect) = split_rect(rect, SplitAxis::Vertical, *ratio, gaps);
+                match child {
+                    Child::First => (first_rect.size.w, first_rect.size.h),
+                    Child::Second => (second_rect.size.w, second_rect.size.h),
+                }
+            }
+            SplitAxis::Horizontal => {
+                let (first_rect, second_rect) = split_rect(rect, SplitAxis::Horizontal, *ratio, gaps);
+                match child {
+                    Child::First => (first_rect.size.w, first_rect.size.h),
+                    Child::Second => (second_rect.size.w, second_rect.size.h),
+                }
+            }
+        };
         let deeper = match child {
             Child::First => adjust_ratio_for_edge_impl(
                 &mut **first,
                 rest,
                 edge,
                 delta_px,
-                usable_w,
-                usable_h,
+                child_w,
+                child_h,
+                gaps,
                 min_w,
                 min_h,
             ),
@@ -1217,8 +1291,9 @@ fn adjust_ratio_for_edge_impl<T>(
                 rest,
                 edge,
                 delta_px,
-                usable_w,
-                usable_h,
+                child_w,
+                child_h,
+                gaps,
                 min_w,
                 min_h,
             ),
@@ -1239,8 +1314,8 @@ fn adjust_ratio_for_edge_impl<T>(
     }
 
     let usable = match *axis {
-        SplitAxis::Vertical => usable_w,
-        SplitAxis::Horizontal => usable_h,
+        SplitAxis::Vertical => box_w - gaps,
+        SplitAxis::Horizontal => box_h - gaps,
     };
     if usable <= 0. {
         return false;
@@ -1276,47 +1351,31 @@ fn leaf_paths_of<T>(root: &Option<Node<T>>) -> Vec<LeafPath> {
     out
 }
 
-fn center(rect: Rectangle<f64, Logical>) -> Point<f64, Logical> {
-    Point::from((
-        rect.loc.x + rect.size.w / 2.,
-        rect.loc.y + rect.size.h / 2.,
-    ))
+/// Length of the shared span of `a` and `b` along the vertical axis (how far their y-ranges
+/// overlap). This is the perpendicular overlap relevant for left/right moves.
+fn vertical_overlap(
+    a: Rectangle<f64, Logical>,
+    b: Rectangle<f64, Logical>,
+) -> f64 {
+    let top = f64::max(a.loc.y, b.loc.y);
+    let bottom = f64::min(a.loc.y + a.size.h, b.loc.y + b.size.h);
+    f64::max(0., bottom - top)
 }
 
+/// Length of the shared span of `a` and `b` along the horizontal axis (how far their x-ranges
+/// overlap). This is the perpendicular overlap relevant for up/down moves.
+fn horizontal_overlap(
+    a: Rectangle<f64, Logical>,
+    b: Rectangle<f64, Logical>,
+) -> f64 {
+    let left = f64::max(a.loc.x, b.loc.x);
+    let right = f64::min(a.loc.x + a.size.w, b.loc.x + b.size.w);
+    f64::max(0., right - left)
+}
+
+#[cfg(test)]
 fn approx_eq(a: f64, b: f64) -> bool {
     (a - b).abs() < 0.01
-}
-
-/// Computes the distance and overlap score of `candidate` relative to `from` in direction `dir`.
-///
-/// Returns `None` when the candidate is not strictly in that direction.
-fn directional_score(
-    from: Point<f64, Logical>,
-    candidate: Point<f64, Logical>,
-    from_rect: Rectangle<f64, Logical>,
-    candidate_rect: Rectangle<f64, Logical>,
-    dir: SpatialDir,
-) -> Option<(f64, f64)> {
-    let dx = candidate.x - from.x;
-    let dy = candidate.y - from.y;
-    let horizontal_overlap = f64::min(
-        from_rect.loc.x + from_rect.size.w,
-        candidate_rect.loc.x + candidate_rect.size.w,
-    ) - f64::max(from_rect.loc.x, candidate_rect.loc.x);
-    let vertical_overlap = f64::min(
-        from_rect.loc.y + from_rect.size.h,
-        candidate_rect.loc.y + candidate_rect.size.h,
-    ) - f64::max(from_rect.loc.y, candidate_rect.loc.y);
-
-    let (dist, overlap) = match dir {
-        SpatialDir::Up if dy < 0. => (from.y - candidate.y, horizontal_overlap),
-        SpatialDir::Down if dy > 0. => (candidate.y - from.y, horizontal_overlap),
-        SpatialDir::Left if dx < 0. => (from.x - candidate.x, vertical_overlap),
-        SpatialDir::Right if dx > 0. => (candidate.x - from.x, vertical_overlap),
-        _ => return None,
-    };
-
-    Some((dist, f64::max(0., overlap)))
 }
 
 /// Spatial direction for navigation and preselection.
@@ -1709,19 +1768,22 @@ mod tests {
     }
 
     #[test]
-    fn adjust_ratio_for_edge_drags_shared_divider_from_both_sides() {
-        // H{ V{ B, C }, A }: B and C share a vertical divider inside a horizontal outer split.
+    fn adjust_ratio_for_edge_scales_nested_divider_by_own_box() {
+        // V_root{ V_inner{0, 2}, 1 }: leaf 2 shares a vertical divider with 0 inside a vertical
+        // split that only spans the root's left half (100 wide in a 200-wide root). Dragging that
+        // divider must scale by the inner split's OWN 100px width (10px -> ratio +0.1), not the
+        // whole column's 200px (which would be +0.05) -- that was the "both windows resize
+        // weirdly" bug for nested side-by-side splits.
         let mut tree = DwindleTree::new();
-        tree.open_new(0, square());                       // leaf 0
-        tree.open_new_on(1, SplitSide::Bottom, square()); // H{0, 1}, active 1
-        tree.set_active(&LeafPath(vec![Child::First]));   // active 0
-        tree.open_new_on(2, SplitSide::Right, square());  // H{ V{0, 2}, 1 }, active 2
-        let b = LeafPath(vec![Child::First, Child::First]);
-        let c = LeafPath(vec![Child::First, Child::Second]);
+        tree.open_new(0, square());               // leaf 0
+        tree.open_new_on(1, SplitSide::Right, square()); // V{0, 1}, active 1
+        tree.set_active(&LeafPath(vec![Child::First])); // active 0
+        tree.open_new_on(2, SplitSide::Right, square()); // V{ V{0, 2}, 1 }, active 2
+        let two = LeafPath(vec![Child::First, Child::Second]);
         let no_min = |_v: &i32| 1.;
 
-        // B's right edge and C's left edge are the same (vertical) divider; both can move it.
-        assert!(tree.adjust_ratio_for_edge(&b, ResizeEdge::RIGHT, 50., 200., 200., &no_min, &no_min));
+        // Inner split is 100 wide, so +10px moves its divider by 0.1.
+        assert!(tree.adjust_ratio_for_edge(&two, ResizeEdge::LEFT, 10., 200., 200., 0., &no_min, &no_min));
         let Node::Split {
             axis: SplitAxis::Vertical,
             ratio,
@@ -1730,9 +1792,10 @@ mod tests {
         else {
             unreachable!();
         };
-        assert_eq!(*ratio, DEFAULT_RATIO + 0.25);
+        assert_eq!(*ratio, DEFAULT_RATIO + 0.1);
 
-        assert!(tree.adjust_ratio_for_edge(&c, ResizeEdge::LEFT, -20., 200., 200., &no_min, &no_min));
+        // -20px back down the 100px scale returns it to the default.
+        assert!(tree.adjust_ratio_for_edge(&two, ResizeEdge::LEFT, -20., 200., 200., 0., &no_min, &no_min));
         let Node::Split {
             axis: SplitAxis::Vertical,
             ratio,
@@ -1741,11 +1804,11 @@ mod tests {
         else {
             unreachable!();
         };
-        assert_eq!(*ratio, DEFAULT_RATIO + 0.25 - 0.1);
+        assert!(approx_eq(*ratio, DEFAULT_RATIO - 0.1));
 
-        // The outer horizontal split was not touched.
+        // The root divider (200 wide) was not touched.
         let Node::Split {
-            axis: SplitAxis::Horizontal,
+            axis: SplitAxis::Vertical,
             ratio,
             ..
         } = walk(&tree, &[])
@@ -1768,7 +1831,7 @@ mod tests {
         let deep = LeafPath(vec![Child::First, Child::Second]);
         let no_min = |_v: &i32| 1.;
 
-        assert!(tree.adjust_ratio_for_edge(&deep, ResizeEdge::RIGHT, 50., 200., 200., &no_min, &no_min));
+        assert!(tree.adjust_ratio_for_edge(&deep, ResizeEdge::RIGHT, 50., 200., 200., 0., &no_min, &no_min));
         let Node::Split { ratio, .. } = walk(&tree, &[]) else {
             unreachable!();
         };
@@ -1788,14 +1851,14 @@ mod tests {
 
         // Leaf 0's top edge is the content boundary, not a divider.
         let leaf = LeafPath(vec![Child::First]);
-        assert!(!tree.adjust_ratio_for_edge(&leaf, ResizeEdge::TOP, 10., 200., 100., &no_min, &no_min));
+        assert!(!tree.adjust_ratio_for_edge(&leaf, ResizeEdge::TOP, 10., 200., 100., 0., &no_min, &no_min));
         // Leaf 0's bottom edge is the shared divider; it moves.
-        assert!(tree.adjust_ratio_for_edge(&leaf, ResizeEdge::BOTTOM, 10., 200., 100., &no_min, &no_min));
+        assert!(tree.adjust_ratio_for_edge(&leaf, ResizeEdge::BOTTOM, 10., 200., 100., 0., &no_min, &no_min));
 
         // Leaf 1's top edge is the same divider; its bottom edge is the content boundary.
         let leaf = LeafPath(vec![Child::Second]);
-        assert!(!tree.adjust_ratio_for_edge(&leaf, ResizeEdge::BOTTOM, 10., 200., 100., &no_min, &no_min));
-        assert!(tree.adjust_ratio_for_edge(&leaf, ResizeEdge::TOP, 10., 200., 100., &no_min, &no_min));
+        assert!(!tree.adjust_ratio_for_edge(&leaf, ResizeEdge::BOTTOM, 10., 200., 100., 0., &no_min, &no_min));
+        assert!(tree.adjust_ratio_for_edge(&leaf, ResizeEdge::TOP, 10., 200., 100., 0., &no_min, &no_min));
     }
 
     #[test]
@@ -1807,14 +1870,14 @@ mod tests {
         let min_h = |v: &i32| if *v == 0 || *v == 1 { 30. } else { 0. };
 
         // A huge upward drag (growing the Second child) stops at the First child's minimum.
-        assert!(tree.adjust_ratio_for_edge(&leaf, ResizeEdge::TOP, -1000., 200., 100., &no_min_w, &min_h));
+        assert!(tree.adjust_ratio_for_edge(&leaf, ResizeEdge::TOP, -1000., 200., 100., 0., &no_min_w, &min_h));
         let Node::Split { ratio, .. } = walk(&tree, &[]) else {
             unreachable!();
         };
         assert_eq!(*ratio, 0.3);
 
         // A huge downward drag (growing the First child) stops at the Second child's minimum.
-        assert!(tree.adjust_ratio_for_edge(&leaf, ResizeEdge::TOP, 1000., 200., 100., &no_min_w, &min_h));
+        assert!(tree.adjust_ratio_for_edge(&leaf, ResizeEdge::TOP, 1000., 200., 100., 0., &no_min_w, &min_h));
         let Node::Split { ratio, .. } = walk(&tree, &[]) else {
             unreachable!();
         };
@@ -1828,7 +1891,7 @@ mod tests {
         let leaf = LeafPath(vec![Child::Second]);
         let no_min_w = |_v: &i32| 1.;
         let min_h = |_v: &i32| 60.;
-        assert!(!tree.adjust_ratio_for_edge(&leaf, ResizeEdge::TOP, 10., 200., 100., &no_min_w, &min_h));
+        assert!(!tree.adjust_ratio_for_edge(&leaf, ResizeEdge::TOP, 10., 200., 100., 0., &no_min_w, &min_h));
         let Node::Split { ratio, .. } = walk(&tree, &[]) else {
             unreachable!();
         };
@@ -1851,6 +1914,7 @@ mod tests {
             3.7,
             127.,
             100.,
+            0.,
             &no_min,
             &no_min,
         ));
@@ -1906,33 +1970,50 @@ mod tests {
 
     #[test]
     fn spatial_neighbor_navigates_directions() {
-        // Tree: H{0, V{2, 1}} over (0,0,1000x1000):
-        //   leaf0 = (0,0,1000x500), leaf2 = (0,500,500x500), leaf1 = (500,500,500x500)
+        // Tree: H{0, V{1, 2}} over (0,0,1000x1000):
+        //   leaf 0 = (0,0,1000x500) full-width top,
+        //   leaf 1 = (0,500,500x500) bottom-left, leaf 2 = (500,500,500x500) bottom-right.
         let mut tree = DwindleTree::single(0);
         tree.open_new_on(1, SplitSide::Bottom, square());
         tree.open_new_on(2, SplitSide::Right, wide());
         let content = Rectangle::new(Point::from((0., 0.)), Size::from((1000., 1000.)));
         let gaps = 0.;
 
-        let leaf0 = LeafPath(vec![Child::First]);
-        let leaf2 = LeafPath(vec![Child::Second, Child::First]);
-        let leaf1 = LeafPath(vec![Child::Second, Child::Second]);
+        let leaf0 = LeafPath(vec![Child::First]); // value 0, full-width top
+        let leaf1 = LeafPath(vec![Child::Second, Child::First]); // value 1, bottom-left
+        let leaf2 = LeafPath(vec![Child::Second, Child::Second]); // value 2, bottom-right
 
+        // Navigation follows real dividers: the window behind the far edge in `dir` that overlaps
+        // the source along the perpendicular axis; on a tie the DFS-first candidate wins.
         assert_eq!(
-            tree.spatial_neighbor(&leaf1, SpatialDir::Left, content, gaps),
-            Some(leaf0.clone())
+            tree.spatial_neighbor(&leaf2, SpatialDir::Left, content, gaps),
+            Some(leaf1.clone()),
+            "bottom-right moves left across its own divider to bottom-left"
         );
         assert_eq!(
-            tree.spatial_neighbor(&leaf2, SpatialDir::Up, content, gaps),
-            Some(leaf0.clone())
+            tree.spatial_neighbor(&leaf1, SpatialDir::Up, content, gaps),
+            Some(leaf0.clone()),
+            "bottom-left moves up across the root divider to the top leaf"
         );
         assert_eq!(
             tree.spatial_neighbor(&leaf0, SpatialDir::Down, content, gaps),
-            Some(leaf2.clone())
+            Some(leaf1.clone()),
+            "the whole top-leaf bottom edge is the root divider; the DFS-first bottom leaf wins the tie"
+        );
+        assert_eq!(
+            tree.spatial_neighbor(&leaf2, SpatialDir::Right, content, gaps),
+            None,
+            "the bottom-right leaf has no divider to its right"
         );
         assert_eq!(
             tree.spatial_neighbor(&leaf0, SpatialDir::Right, content, gaps),
-            Some(leaf1.clone())
+            None,
+            "the full-width top leaf has no rightward divider (no diagonal hop to the bottom-right)"
+        );
+        assert_eq!(
+            tree.spatial_neighbor(&leaf1, SpatialDir::Left, content, gaps),
+            None,
+            "the bottom-left leaf has no divider to its left"
         );
     }
 

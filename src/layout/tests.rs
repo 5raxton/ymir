@@ -2506,37 +2506,50 @@ fn dwindle_spatial_focus_directions() {
         assert_eq!(layout.focus().unwrap().0.id, expect);
     };
 
-    // Spatial layout of this dwindle tree (matches observed geometry):
-    //   tree = H{0, V{ H{1,3}, 2 } }  -- 0 is a tall left column; 1/3 sit above 2 on the right.
+    // Dwindle geometry of this tree (tree = H{0, H{1, V{2, 3}}}):
+    //   0: (0, 16, 616 x 688)    tall left column
+    //   1: (632, 16, 616 x 336)  top of the right half
+    //   2: (632, 368, 300 x 336) bottom-left of the right half
+    //   3: (948, 368, 300 x 336) bottom-right of the right half
+    //
+    // Directional focus follows real dividers: right from 0 crosses the root divider (shared by
+    // 1 and 2; the greatest-overlap tie resolves to the DFS-first candidate, 1).
     Op::FocusWindow(0).apply(&mut layout);
     Op::FocusColumnRight.apply(&mut layout);
-    focus_column(&layout, 2);
-    Op::FocusWindow(0).apply(&mut layout);
-    Op::FocusWindowUp.apply(&mut layout);
     focus_column(&layout, 1);
 
+    // Nothing shares a divider above the tall left column, so up keeps focus on 0.
+    Op::FocusWindow(0).apply(&mut layout);
+    Op::FocusWindowUp.apply(&mut layout);
+    focus_column(&layout, 0);
+
+    // Down from the top-right window crosses the horizontal divider to window 2.
     Op::FocusWindow(1).apply(&mut layout);
     Op::FocusWindowDown.apply(&mut layout);
-    focus_column(&layout, 0);
+    focus_column(&layout, 2);
+    // The top-right window has no divider to its right, so right keeps focus.
     Op::FocusWindow(1).apply(&mut layout);
+    Op::FocusColumnRight.apply(&mut layout);
+    focus_column(&layout, 1);
+
+    // Up from the bottom-left card reaches the top-right window; right crosses to window 3.
+    Op::FocusWindow(2).apply(&mut layout);
+    Op::FocusWindowUp.apply(&mut layout);
+    focus_column(&layout, 1);
+    Op::FocusWindow(2).apply(&mut layout);
     Op::FocusColumnRight.apply(&mut layout);
     focus_column(&layout, 3);
 
-    Op::FocusWindow(2).apply(&mut layout);
-    Op::FocusWindowUp.apply(&mut layout);
-    focus_column(&layout, 0);
-    Op::FocusWindow(2).apply(&mut layout);
-    Op::FocusColumnRight.apply(&mut layout);
-    focus_column(&layout, 1);
-
+    // Left from the far-right card walks back across the bottom divider to window 2.
     Op::FocusWindow(3).apply(&mut layout);
     Op::FocusColumnLeft.apply(&mut layout);
-    focus_column(&layout, 1);
+    focus_column(&layout, 2);
 }
 #[test]
 fn dwindle_spatial_move_single_window() {
-    // Moving a single window directionally inside a dwindle column swaps it with its
-    // spatial neighbor without touching the rest of the tree.
+    // Moving a window directionally inside a dwindle column re-splits the tree at the window
+    // beyond its edge in that direction (Hyprland-style), placing it directly on that side
+    // without sliding it diagonally.
     let options = Options {
         layout: ymir_config::Layout {
             default_column_display: ymir_ipc::ColumnDisplay::Dwindle,
@@ -2556,14 +2569,39 @@ fn dwindle_spatial_move_single_window() {
             Op::FocusWindow(0),
         ],
     );
+    check_ops_on_layout(&mut layout, [Op::CompleteAnimations]);
 
-    Op::FocusWindow(0).apply(&mut layout);
+    let pos_of = |layout: &Layout<TestWindow>, id: usize| -> (f64, f64) {
+        let pos = layout
+            .active_workspace()
+            .unwrap()
+            .tiles_with_render_positions()
+            .find(|(tile, ..)| *tile.window().id() == id)
+            .unwrap()
+            .1;
+        (pos.x, pos.y)
+    };
+
+    // Window 0 is the tall left column: it spans the full height, so moving it right should keep
+    // it in the same (top) row -- it must never jump diagonally to the bottom-right.
+    let before = pos_of(&layout, 0);
     Op::MoveColumnRight.apply(&mut layout);
+    check_ops_on_layout(&mut layout, [Op::CompleteAnimations]);
 
-    // Window 0 was the far-left root; moving it right swaps it with its spatial
-    // neighbor (2), so 2 now sits to its left.
-    Op::FocusColumnLeft.apply(&mut layout);
-    assert_eq!(layout.focus().unwrap().0.id, 2);
+    let after = pos_of(&layout, 0);
+    assert!(
+        after.0 > before.0,
+        "window 0 moved right (x {}->{})",
+        before.0,
+        after.0
+    );
+    assert!(
+        (after.1 - before.1).abs() < 1.0,
+        "window 0 stayed in the same row (y {}->{})",
+        before.1,
+        after.1
+    );
+    assert_eq!(*layout.focus().unwrap().id(), 0, "focus stays on the moved window");
 }
 
 /// Regression for the "fullscreen on brackets" bug: in dwindle mode, move-window left/right and
@@ -4829,4 +4867,52 @@ proptest! {
 
         check_ops_with_options(options, ops);
     }
+}
+/// Regression: a directional move must place the window directly in that direction from its
+/// current spot (Hyprland-style re-split), never slide it diagonally into a different column.
+#[test]
+fn dwindle_move_up_tiles_with_window_directly_above() {
+    let options = Options {
+        layout: ymir_config::Layout {
+            default_column_display: ymir_ipc::ColumnDisplay::Dwindle,
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+    let mut layout = check_ops_with_options(
+        options,
+        [
+            Op::AddOutput(0),
+            Op::AddWindow { params: TestWindowParams::new(0) },
+            Op::AddWindow { params: TestWindowParams::new(1) },
+            Op::AddWindow { params: TestWindowParams::new(2) },
+            Op::FocusWindow(2),
+            Op::CompleteAnimations,
+        ],
+    );
+    let pos = |layout: &Layout<TestWindow>, id: usize| -> (f64, f64) {
+        let p = layout
+            .active_workspace()
+            .unwrap()
+            .tiles_with_render_positions()
+            .find(|(t, ..)| *t.window().id() == id)
+            .unwrap()
+            .1;
+        (p.x, p.y)
+    };
+
+    // layout: 0 = tall left column; 1 = top-right; 2 = bottom-right (H{0, V{1,2}}).
+    let (x2_before, y2_before) = pos(&layout, 2);
+    assert!(y2_before > pos(&layout, 1).1, "window 2 starts below window 1");
+
+    Op::MoveWindowUp.apply(&mut layout);
+    check_ops_on_layout(&mut layout, [Op::CompleteAnimations]);
+
+    let (x2, y2) = pos(&layout, 2);
+    // Moving up must keep window 2 in the same (right) column -- no diagonal jump to the left.
+    assert!((x2 - x2_before).abs() < 1.0, "window 2 should stay in its column (x {}->{})", x2_before, x2);
+    // ...and place it directly above its former spot in that column.
+    assert!(y2 < y2_before, "window 2 moved up (y {}->{})", y2_before, y2);
+    assert!(y2 < pos(&layout, 1).1, "window 2 now sits above window 1");
+    assert_eq!(*layout.focus().unwrap().id(), 2, "focus stays on the moved window");
 }

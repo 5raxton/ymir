@@ -1266,7 +1266,9 @@ impl State {
                                 send_scale_transform(surface, data, scale, transform);
                             });
                         }
-                        popup.send_configure().expect("initial configure failed");
+                        if let Err(err) = popup.send_configure() {
+                            warn!("error sending initial popup configure: {err:?}");
+                        }
                     }
                 }
                 // Input method popup can arbitrary change its geometry, so we need to unconstrain

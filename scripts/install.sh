@@ -13,7 +13,7 @@
 # artifacts, and does a fresh build, so it also serves as a full update.
 set -euo pipefail
 
-REPO_URL="https://lab.braxton.onl/braxton/ymir.git"
+REPO_URL="https://github.com/5raxton/ymir.git"
 REPO_DIR="${YMIR_REPO_DIR:-$HOME/src/ymir}"
 BRANCH="${YMIR_BRANCH:-main}"
 PREFIX="${YMIR_PREFIX:-/usr/local}"
@@ -166,6 +166,10 @@ if [[ ! -d "$REPO_DIR/.git" ]]; then
     git clone --branch "$BRANCH" "$REPO_URL" "$REPO_DIR"
 else
     log "Updating ymir in $REPO_DIR to origin/$BRANCH"
+    # Reuse $REPO_URL (HTTPS) regardless of what the clone's origin is set to:
+    # a stale SSH URL from an earlier installer run would otherwise fail for
+    # users without SSH keys.
+    git -C "$REPO_DIR" remote set-url origin "$REPO_URL"
     # makepkg rewrites the PKGBUILD's pkgver line when building, so throw any
     # such local edits away before pulling.
     git -C "$REPO_DIR" fetch origin "$BRANCH"

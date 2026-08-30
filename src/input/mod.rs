@@ -1029,6 +1029,28 @@ impl State {
                 // FIXME: granular
                 self.ymir.queue_redraw_all();
             }
+            Action::MoveWindowLeft => {
+                if self.ymir.screenshot_ui.is_open() {
+                    self.ymir.screenshot_ui.move_left();
+                } else {
+                    self.ymir.layout.move_window_left();
+                    self.maybe_warp_cursor_to_focus();
+                }
+
+                // FIXME: granular
+                self.ymir.queue_redraw_all();
+            }
+            Action::MoveWindowRight => {
+                if self.ymir.screenshot_ui.is_open() {
+                    self.ymir.screenshot_ui.move_right();
+                } else {
+                    self.ymir.layout.move_window_right();
+                    self.maybe_warp_cursor_to_focus();
+                }
+
+                // FIXME: granular
+                self.ymir.queue_redraw_all();
+            }
             Action::MoveWindowDownOrToWorkspaceDown => {
                 if self.ymir.screenshot_ui.is_open() {
                     self.ymir.screenshot_ui.move_down();
@@ -4827,6 +4849,8 @@ fn allowed_during_screenshot(action: &Action) -> bool {
             | Action::MoveWindowUpOrToWorkspaceUp
             | Action::MoveWindowDown
             | Action::MoveWindowDownOrToWorkspaceDown
+            | Action::MoveWindowLeft
+            | Action::MoveWindowRight
             | Action::MoveColumnToMonitorLeft
             | Action::MoveColumnToMonitorRight
             | Action::MoveColumnToMonitorUp

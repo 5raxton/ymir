@@ -1823,6 +1823,22 @@ impl<W: LayoutElement> Layout<W> {
         workspace.move_right();
     }
 
+    /// Moves the focused window left in the dwindle tree.
+    pub fn move_window_left(&mut self) {
+        let Some(workspace) = self.active_workspace_mut() else {
+            return;
+        };
+        workspace.move_window_left();
+    }
+
+    /// Moves the focused window right in the dwindle tree.
+    pub fn move_window_right(&mut self) {
+        let Some(workspace) = self.active_workspace_mut() else {
+            return;
+        };
+        workspace.move_window_right();
+    }
+
     pub fn move_column_to_first(&mut self) {
         let Some(workspace) = self.active_workspace_mut() else {
             return;

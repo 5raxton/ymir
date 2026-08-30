@@ -55,6 +55,8 @@ Key bindings (see the example config for the full list):
 | `Mod+Space` | toggle-split: cycle the split direction of the active window (right/up) |
 | `Mod+Ctrl+Space` | preselect the split side where the next window will open |
 | `Mod+Shift+Home` | promote-window: swap the active node with its sibling's position |
+| `Mod+Shift+Left/Right` | move-window-left/right: swap the focused window with its spatial neighbor in the dwindle tree |
+| `Mod+Shift+H/L` | move-window-left/right (keyboard-row aliases) |
 | `Mod+Comma` | consume-window-into-column |
 | `Mod+Period` | expel-window-from-column |
 

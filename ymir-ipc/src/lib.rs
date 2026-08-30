@@ -410,6 +410,10 @@ pub enum Action {
     MoveWindowDown {},
     /// Move the focused window up in a column.
     MoveWindowUp {},
+    /// Move the focused window left in the dwindle tree.
+    MoveWindowLeft {},
+    /// Move the focused window right in the dwindle tree.
+    MoveWindowRight {},
     /// Move the focused window down in a column or to the workspace below.
     MoveWindowDownOrToWorkspaceDown {},
     /// Move the focused window up in a column or to the workspace above.

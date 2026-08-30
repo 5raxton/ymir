@@ -1947,6 +1947,109 @@ fn dwindle_spatial_move_single_window() {
     assert_eq!(layout.focus().unwrap().0.id, 2);
 }
 
+/// Regression for the "fullscreen on brackets" bug: in dwindle mode, move-window left/right and
+/// consume-or-expel-window-* must swap windows spatially instead of splitting the full-width
+/// column (which used to leave a single window filling the work area).
+#[test]
+fn dwindle_consume_or_expel_moves_window_spatially() {
+    let options = Options {
+        layout: ymir_config::Layout {
+            default_column_display: ymir_ipc::ColumnDisplay::Dwindle,
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+
+    let mut layout = check_ops_with_options(
+        options,
+        [
+            Op::AddOutput(0),
+            Op::AddWindow { params: TestWindowParams::new(0) },
+            Op::AddWindow { params: TestWindowParams::new(1) },
+            Op::FocusWindow(1),
+            Op::CompleteAnimations,
+        ],
+    );
+
+    let x_of = |layout: &Layout<TestWindow>, id: usize| -> f64 {
+        layout
+            .active_workspace()
+            .unwrap()
+            .tiles_with_render_positions()
+            .find(|(tile, ..)| *tile.window().id() == id)
+            .unwrap()
+            .1
+            .x
+    };
+
+    // Window 1 starts on the right (x=648 in a 1280-wide work area); window 0 on the left (x=16).
+    assert!(x_of(&layout, 1) > x_of(&layout, 0));
+
+    // consume-or-expel-window-left on a 2-window dwindle split swaps cleanly, no fullscreen.
+    layout.consume_or_expel_window_left(None);
+    check_ops_on_layout(&mut layout, [Op::CompleteAnimations]);
+    assert!(x_of(&layout, 1) < x_of(&layout, 0), "window 1 should swap to the left");
+
+    // Still two side-by-side windows (neither fills the whole area).
+    let poses: Vec<f64> = layout
+        .active_workspace()
+        .unwrap()
+        .tiles_with_render_positions()
+        .map(|(_, pos, _)| pos.x)
+        .collect();
+    assert_eq!(poses.len(), 2);
+    assert!(poses[0] < poses[1], "two distinct x positions, side by side");
+
+    // consume-or-expel-window-right moves it back the other way.
+    layout.consume_or_expel_window_right(None);
+    check_ops_on_layout(&mut layout, [Op::CompleteAnimations]);
+    assert!(x_of(&layout, 1) > x_of(&layout, 0), "window 1 should swap back to the right");
+}
+
+/// The new move-window-left/right actions perform a dwindle spatial move.
+#[test]
+fn dwindle_move_window_left_right_spatially() {
+    let options = Options {
+        layout: ymir_config::Layout {
+            default_column_display: ymir_ipc::ColumnDisplay::Dwindle,
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+
+    let mut layout = check_ops_with_options(
+        options,
+        [
+            Op::AddOutput(0),
+            Op::AddWindow { params: TestWindowParams::new(0) },
+            Op::AddWindow { params: TestWindowParams::new(1) },
+            Op::FocusWindow(1),
+            Op::CompleteAnimations,
+        ],
+    );
+
+    let x_of = |layout: &Layout<TestWindow>, id: usize| -> f64 {
+        layout
+            .active_workspace()
+            .unwrap()
+            .tiles_with_render_positions()
+            .find(|(tile, ..)| *tile.window().id() == id)
+            .unwrap()
+            .1
+            .x
+    };
+
+    assert!(x_of(&layout, 1) > x_of(&layout, 0));
+    layout.move_window_left();
+    check_ops_on_layout(&mut layout, [Op::CompleteAnimations]);
+    assert!(x_of(&layout, 1) < x_of(&layout, 0), "move-window-left should swap window 1 left");
+    assert_eq!(*layout.focus().unwrap().id(), 1, "focus should stay on moved window");
+
+    layout.move_window_right();
+    check_ops_on_layout(&mut layout, [Op::CompleteAnimations]);
+    assert!(x_of(&layout, 1) > x_of(&layout, 0), "move-window-right should swap window 1 back");
+}
+
 #[test]
 fn operations_from_starting_state_dont_panic() {
     if std::env::var_os("RUN_SLOW_TESTS").is_none() {

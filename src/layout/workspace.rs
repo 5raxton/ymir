@@ -1094,6 +1094,16 @@ impl<W: LayoutElement> Workspace<W> {
         }
     }
 
+    /// Moves the focused window left in the dwindle tree.
+    pub fn move_window_left(&mut self) -> bool {
+        self.scrolling.move_window_left()
+    }
+
+    /// Moves the focused window right in the dwindle tree.
+    pub fn move_window_right(&mut self) -> bool {
+        self.scrolling.move_window_right()
+    }
+
     pub fn move_column_to_first(&mut self) {
         if self.floating_is_active.get() {
             return;

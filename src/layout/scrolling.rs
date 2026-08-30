@@ -1942,6 +1942,24 @@ impl<W: LayoutElement> ScrollingSpace<W> {
         true
     }
 
+    /// Moves the focused window left in the dwindle tree. No-op (returns false) when the focused
+    /// column isn't a dwindle column.
+    pub fn move_window_left(&mut self) -> bool {
+        if self.columns.is_empty() {
+            return false;
+        }
+        self.columns[self.active_column_idx].move_dwindle_direction(SpatialDir::Left)
+    }
+
+    /// Moves the focused window right in the dwindle tree. No-op (returns false) when the focused
+    /// column isn't a dwindle column.
+    pub fn move_window_right(&mut self) -> bool {
+        if self.columns.is_empty() {
+            return false;
+        }
+        self.columns[self.active_column_idx].move_dwindle_direction(SpatialDir::Right)
+    }
+
     pub fn move_column_to_first(&mut self) {
         self.move_column_to(0);
     }
@@ -1998,6 +2016,14 @@ impl<W: LayoutElement> ScrollingSpace<W> {
 
         let source_tile_was_active = self.active_column_idx == source_col_idx
             && source_column.active_tile_idx == source_tile_idx;
+
+        // In dwindle mode the column spans the whole work area; consume/expel would otherwise split
+        // it into a column layout (the "fullscreen" glitch). Instead, move the focused window
+        // spatially in the tree, matching Hyprland's dwindle behavior for brackets.
+        if source_column.is_dwindle() {
+            self.columns[source_col_idx].move_dwindle_direction(SpatialDir::Left);
+            return;
+        }
 
         if source_column.tiles.len() == 1 {
             if source_col_idx == 0 {
@@ -2114,6 +2140,14 @@ impl<W: LayoutElement> ScrollingSpace<W> {
 
         let source_tile_was_active = self.active_column_idx == source_col_idx
             && source_column.active_tile_idx == source_tile_idx;
+
+        // In dwindle mode the column spans the whole work area; consume/expel would otherwise split
+        // it into a column layout (the "fullscreen" glitch). Instead, move the focused window
+        // spatially in the tree, matching Hyprland's dwindle behavior for brackets.
+        if source_column.is_dwindle() {
+            self.columns[source_col_idx].move_dwindle_direction(SpatialDir::Right);
+            return;
+        }
 
         if source_column.tiles.len() == 1 {
             if source_col_idx + 1 == self.columns.len() {

@@ -243,6 +243,8 @@ pub enum Action {
     MoveColumnToIndex(#[knuffel(argument)] usize),
     MoveWindowDown,
     MoveWindowUp,
+    MoveWindowLeft,
+    MoveWindowRight,
     MoveWindowDownOrToWorkspaceDown,
     MoveWindowUpOrToWorkspaceUp,
     ConsumeOrExpelWindowLeft,
@@ -531,6 +533,8 @@ impl From<ymir_ipc::Action> for Action {
             }
             ymir_ipc::Action::MoveWindowDown {} => Self::MoveWindowDown,
             ymir_ipc::Action::MoveWindowUp {} => Self::MoveWindowUp,
+            ymir_ipc::Action::MoveWindowLeft {} => Self::MoveWindowLeft,
+            ymir_ipc::Action::MoveWindowRight {} => Self::MoveWindowRight,
             ymir_ipc::Action::MoveWindowDownOrToWorkspaceDown {} => {
                 Self::MoveWindowDownOrToWorkspaceDown
             }

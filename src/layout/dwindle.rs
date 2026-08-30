@@ -27,6 +27,8 @@
 
 use smithay::utils::{Logical, Point, Rectangle, Size};
 
+use crate::utils::ResizeEdge;
+
 /// The axis along which a [`Split`] divides its region.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SplitAxis {
@@ -599,6 +601,50 @@ impl<T> DwindleTree<T> {
         };
         adjust_ancestor_ratio_impl(root, &path.0, axis, delta_px / usable)
     }
+
+    /// Moves the divider that the leaf's `edge` lies on, if any.
+    ///
+    /// A leaf edge coincides with the divider of exactly one ancestor split: the deepest one on
+    /// the path whose orientation matches the edge's axis and whose `First`/`Second` slot places
+    /// the shared divider on that edge (a `First` child shares its right/bottom edge, a `Second`
+    /// child shares its left/top edge). That split may sit at *any* ancestor depth, not just the
+    /// nearest matching-axis split — so every real divider of the tree is draggable from the
+    /// windows it separates, including the root divider seen from a deeply nested leaf.
+    ///
+    /// `delta_px` follows the pointer: a positive delta grows the split's `First` child along the
+    /// edge's axis. `usable_w`/`usable_h` are the content sizes minus the seam. `min_w`/`min_h`
+    /// report each leaf's minimum extent (width for a `Vertical` divider, height for a
+    /// `Horizontal` one); the divider is clamped so that neither child subtree shrinks below the
+    /// combined minimum of its leaves. If the leaf's mins already exceed the usable space the
+    /// divider is left untouched. Returns whether a divider was found and moved.
+    #[allow(clippy::too_many_arguments)]
+    pub fn adjust_ratio_for_edge(
+        &mut self,
+        path: &LeafPath,
+        edge: ResizeEdge,
+        delta_px: f64,
+        usable_w: f64,
+        usable_h: f64,
+        min_w: &impl Fn(&T) -> f64,
+        min_h: &impl Fn(&T) -> f64,
+    ) -> bool {
+        if path.is_empty() || !delta_px.is_finite() || usable_w <= 0. || usable_h <= 0. {
+            return false;
+        }
+        let Some(root) = self.root.as_mut() else {
+            return false;
+        };
+        adjust_ratio_for_edge_impl(
+            root,
+            &path.0,
+            edge,
+            delta_px,
+            usable_w,
+            usable_h,
+            min_w,
+            min_h,
+        )
+    }
 }
 
 fn reindex_node<T>(node: Option<&mut Node<T>>, i: &mut usize, f: &impl Fn(&mut T, usize)) {
@@ -644,6 +690,11 @@ impl<'a, T> Iterator for Leaves<'a, T> {
 }
 
 /// Divides `rect` into two regions along the given axis at `ratio`, inserting a `gaps`-wide seam.
+///
+/// The `First` child's extent is floored to a whole logical pixel and the `Second` child gets the
+/// remainder, so every shared divider lands on exactly one pixel boundary: the two leaves it
+/// separates compute their adjoining edges from the same value, instead of each rounding a
+/// fractional boundary independently.
 fn split_rect(
     rect: Rectangle<f64, Logical>,
     axis: SplitAxis,
@@ -657,7 +708,7 @@ fn split_rect(
         SplitAxis::Horizontal => {
             // Clamp so a region smaller than the seam can't produce a negative split size.
             let usable = (rect.size.h - gaps).max(0.);
-            let first_h = (usable * ratio).clamp(0., usable);
+            let first_h = (usable * ratio).floor().clamp(0., usable);
             let second_h = usable - first_h;
             let first = Rectangle::new(rect.loc, Size::from((rect.size.w, first_h)));
             let second = Rectangle::new(
@@ -668,7 +719,7 @@ fn split_rect(
         }
         SplitAxis::Vertical => {
             let usable = (rect.size.w - gaps).max(0.);
-            let first_w = (usable * ratio).clamp(0., usable);
+            let first_w = (usable * ratio).floor().clamp(0., usable);
             let second_w = usable - first_w;
             let first = Rectangle::new(rect.loc, Size::from((first_w, rect.size.h)));
             let second = Rectangle::new(
@@ -1086,6 +1137,125 @@ fn adjust_ancestor_ratio_impl<T>(
         }
         _ => false,
     }
+}
+
+/// Total minimum extent of `node`'s leaves along `axis`. Children partition `axis` when the node
+/// splits along it (mins sum) and stack perpendicular to it (the largest min wins).
+fn subtree_min<T>(
+    node: &Node<T>,
+    axis: SplitAxis,
+    min_w: &impl Fn(&T) -> f64,
+    min_h: &impl Fn(&T) -> f64,
+) -> f64 {
+    match node {
+        Node::Leaf(v) => match axis {
+            SplitAxis::Vertical => min_w(v),
+            SplitAxis::Horizontal => min_h(v),
+        },
+        Node::Split {
+            axis: a,
+            first,
+            second,
+            ..
+        } => {
+            let f = subtree_min(first, axis, min_w, min_h);
+            let s = subtree_min(second, axis, min_w, min_h);
+            if *a == axis {
+                f + s
+            } else {
+                f.max(s)
+            }
+        }
+    }
+}
+
+/// Moves the divider of the node on `path` whose interior edge coincides with `edge`, if any.
+///
+/// The deepest matching split on the path wins (descend first, then claim this node), but a node
+/// only owns `edge` when the leaf's slot on its axis places the shared divider on that edge — so
+/// a shallow split can still move even when deeper splits of different orientation sit in
+/// between. The ratio is clamped so neither child subtree shrinks below the combined minimum of
+/// its leaves (empty clamp range leaves the ratio untouched).
+#[allow(clippy::too_many_arguments)]
+fn adjust_ratio_for_edge_impl<T>(
+    node: &mut Node<T>,
+    path: &[Child],
+    edge: ResizeEdge,
+    delta_px: f64,
+    usable_w: f64,
+    usable_h: f64,
+    min_w: &impl Fn(&T) -> f64,
+    min_h: &impl Fn(&T) -> f64,
+) -> bool {
+    let Node::Split {
+        axis,
+        ratio,
+        first,
+        second,
+    } = node
+    else {
+        return false;
+    };
+    let Some(child) = path.first() else {
+        return false;
+    };
+    let rest = &path[1..];
+    if !rest.is_empty() {
+        let deeper = match child {
+            Child::First => adjust_ratio_for_edge_impl(
+                &mut **first,
+                rest,
+                edge,
+                delta_px,
+                usable_w,
+                usable_h,
+                min_w,
+                min_h,
+            ),
+            Child::Second => adjust_ratio_for_edge_impl(
+                &mut **second,
+                rest,
+                edge,
+                delta_px,
+                usable_w,
+                usable_h,
+                min_w,
+                min_h,
+            ),
+        };
+        if deeper {
+            return true;
+        }
+    }
+
+    let slot_matches = match (*axis, child) {
+        (SplitAxis::Vertical, Child::First) => edge.contains(ResizeEdge::RIGHT),
+        (SplitAxis::Vertical, Child::Second) => edge.contains(ResizeEdge::LEFT),
+        (SplitAxis::Horizontal, Child::First) => edge.contains(ResizeEdge::BOTTOM),
+        (SplitAxis::Horizontal, Child::Second) => edge.contains(ResizeEdge::TOP),
+    };
+    if !slot_matches {
+        return false;
+    }
+
+    let usable = match *axis {
+        SplitAxis::Vertical => usable_w,
+        SplitAxis::Horizontal => usable_h,
+    };
+    if usable <= 0. {
+        return false;
+    }
+
+    let first_min = subtree_min(first, *axis, min_w, min_h);
+    let second_min = subtree_min(second, *axis, min_w, min_h);
+    let ratio_min = (first_min / usable).max(MIN_RATIO);
+    let ratio_max = (1. - second_min / usable).min(MAX_RATIO);
+    if ratio_min > ratio_max {
+        return false;
+    }
+
+    *ratio = (*ratio + delta_px / usable).clamp(ratio_min, ratio_max);
+    true
 }
 
 fn leaf_paths_of<T>(root: &Option<Node<T>>) -> Vec<LeafPath> {
@@ -1536,6 +1706,170 @@ mod tests {
         let leaf = LeafPath(vec![Child::Second]);
         assert_eq!(tree.leaf_side_in_split(&leaf, SplitAxis::Vertical), None);
         assert!(!tree.adjust_ancestor_ratio(&leaf, SplitAxis::Vertical, 10., 100.));
+    }
+
+    #[test]
+    fn adjust_ratio_for_edge_drags_shared_divider_from_both_sides() {
+        // H{ V{ B, C }, A }: B and C share a vertical divider inside a horizontal outer split.
+        let mut tree = DwindleTree::new();
+        tree.open_new(0, square());                       // leaf 0
+        tree.open_new_on(1, SplitSide::Bottom, square()); // H{0, 1}, active 1
+        tree.set_active(&LeafPath(vec![Child::First]));   // active 0
+        tree.open_new_on(2, SplitSide::Right, square());  // H{ V{0, 2}, 1 }, active 2
+        let b = LeafPath(vec![Child::First, Child::First]);
+        let c = LeafPath(vec![Child::First, Child::Second]);
+        let no_min = |_v: &i32| 1.;
+
+        // B's right edge and C's left edge are the same (vertical) divider; both can move it.
+        assert!(tree.adjust_ratio_for_edge(&b, ResizeEdge::RIGHT, 50., 200., 200., &no_min, &no_min));
+        let Node::Split {
+            axis: SplitAxis::Vertical,
+            ratio,
+            ..
+        } = walk(&tree, &[Child::First])
+        else {
+            unreachable!();
+        };
+        assert_eq!(*ratio, DEFAULT_RATIO + 0.25);
+
+        assert!(tree.adjust_ratio_for_edge(&c, ResizeEdge::LEFT, -20., 200., 200., &no_min, &no_min));
+        let Node::Split {
+            axis: SplitAxis::Vertical,
+            ratio,
+            ..
+        } = walk(&tree, &[Child::First])
+        else {
+            unreachable!();
+        };
+        assert_eq!(*ratio, DEFAULT_RATIO + 0.25 - 0.1);
+
+        // The outer horizontal split was not touched.
+        let Node::Split {
+            axis: SplitAxis::Horizontal,
+            ratio,
+            ..
+        } = walk(&tree, &[])
+        else {
+            unreachable!();
+        };
+        assert_eq!(*ratio, DEFAULT_RATIO);
+    }
+
+    #[test]
+    fn adjust_ratio_for_edge_moves_outer_shared_divider() {
+        // V_root{ V_inner{0, 2}, 1 }: leaf 2 sits at [First, Second]. Its right edge is the ROOT
+        // divider — the old nearest-matching-split logic could not move that edge, leaving the
+        // divider dead even though it is a real shared border.
+        let mut tree = DwindleTree::new();
+        tree.open_new(0, square());               // leaf 0
+        tree.open_new_on(1, SplitSide::Right, square()); // V{0, 1}, active 1
+        tree.set_active(&LeafPath(vec![Child::First])); // active 0
+        tree.open_new_on(2, SplitSide::Right, square()); // V{ V{0, 2}, 1 }, active 2
+        let deep = LeafPath(vec![Child::First, Child::Second]);
+        let no_min = |_v: &i32| 1.;
+
+        assert!(tree.adjust_ratio_for_edge(&deep, ResizeEdge::RIGHT, 50., 200., 200., &no_min, &no_min));
+        let Node::Split { ratio, .. } = walk(&tree, &[]) else {
+            unreachable!();
+        };
+        assert_eq!(*ratio, DEFAULT_RATIO + 0.25);
+
+        // The leaf's other (interior) edge still targets the deeper split, which stayed put.
+        let Node::Split { ratio, .. } = walk(&tree, &[Child::First]) else {
+            unreachable!();
+        };
+        assert_eq!(*ratio, DEFAULT_RATIO);
+    }
+
+    #[test]
+    fn adjust_ratio_for_edge_refuses_exterior_edges() {
+        let mut tree = build_chain(2); // H{0, 1}
+        let no_min = |_v: &i32| 1.;
+
+        // Leaf 0's top edge is the content boundary, not a divider.
+        let leaf = LeafPath(vec![Child::First]);
+        assert!(!tree.adjust_ratio_for_edge(&leaf, ResizeEdge::TOP, 10., 200., 100., &no_min, &no_min));
+        // Leaf 0's bottom edge is the shared divider; it moves.
+        assert!(tree.adjust_ratio_for_edge(&leaf, ResizeEdge::BOTTOM, 10., 200., 100., &no_min, &no_min));
+
+        // Leaf 1's top edge is the same divider; its bottom edge is the content boundary.
+        let leaf = LeafPath(vec![Child::Second]);
+        assert!(!tree.adjust_ratio_for_edge(&leaf, ResizeEdge::BOTTOM, 10., 200., 100., &no_min, &no_min));
+        assert!(tree.adjust_ratio_for_edge(&leaf, ResizeEdge::TOP, 10., 200., 100., &no_min, &no_min));
+    }
+
+    #[test]
+    fn adjust_ratio_for_edge_clamps_to_subtree_minimums() {
+        // H{0, 1} in a 100-tall usable space; both leaves need at least 30 in height.
+        let mut tree = build_chain(2);
+        let leaf = LeafPath(vec![Child::Second]);
+        let no_min_w = |_v: &i32| 1.;
+        let min_h = |v: &i32| if *v == 0 || *v == 1 { 30. } else { 0. };
+
+        // A huge upward drag (growing the Second child) stops at the First child's minimum.
+        assert!(tree.adjust_ratio_for_edge(&leaf, ResizeEdge::TOP, -1000., 200., 100., &no_min_w, &min_h));
+        let Node::Split { ratio, .. } = walk(&tree, &[]) else {
+            unreachable!();
+        };
+        assert_eq!(*ratio, 0.3);
+
+        // A huge downward drag (growing the First child) stops at the Second child's minimum.
+        assert!(tree.adjust_ratio_for_edge(&leaf, ResizeEdge::TOP, 1000., 200., 100., &no_min_w, &min_h));
+        let Node::Split { ratio, .. } = walk(&tree, &[]) else {
+            unreachable!();
+        };
+        assert_eq!(*ratio, 0.7);
+    }
+
+    #[test]
+    fn adjust_ratio_for_edge_noop_when_minimums_do_not_fit() {
+        // The leaves' minimums (60 each) exceed the usable height (100): the divider is pinned.
+        let mut tree = build_chain(2);
+        let leaf = LeafPath(vec![Child::Second]);
+        let no_min_w = |_v: &i32| 1.;
+        let min_h = |_v: &i32| 60.;
+        assert!(!tree.adjust_ratio_for_edge(&leaf, ResizeEdge::TOP, 10., 200., 100., &no_min_w, &min_h));
+        let Node::Split { ratio, .. } = walk(&tree, &[]) else {
+            unreachable!();
+        };
+        assert_eq!(*ratio, DEFAULT_RATIO);
+    }
+
+    #[test]
+    fn leaf_rects_share_divider_on_whole_pixels() {
+        // Odd content width with a fractional divider: the First child floors to a whole logical
+        // pixel and the Second child takes the remainder, so the shared divider is exactly the
+        // same integer boundary for both leaves and the partition still tiles the content.
+        let mut tree = DwindleTree::new();
+        tree.open_new(0, wide());
+        tree.open_new_on(1, SplitSide::Right, wide()); // V{0, 1}
+        let no_min = |_v: &i32| 1.;
+        // Push the divider to a fractionally-lying ratio: 0.5 + 3.7/127.
+        assert!(tree.adjust_ratio_for_edge(
+            &LeafPath(vec![Child::First]),
+            ResizeEdge::RIGHT,
+            3.7,
+            127.,
+            100.,
+            &no_min,
+            &no_min,
+        ));
+
+        let content = Rectangle::new(Point::from((0., 0.)), Size::from((127., 100.)));
+        let rects = tree.leaf_rects(content, 0.);
+        assert_eq!(rects.len(), 2);
+        let (first, second) = (rects[0].1, rects[1].1);
+        assert_eq!(
+            first.size.w,
+            first.size.w.floor(),
+            "first child width must be whole pixels: {first:?}"
+        );
+        assert_eq!(
+            first.loc.x + first.size.w,
+            second.loc.x,
+            "the shared divider must be one boundary: {first:?} vs {second:?}"
+        );
+        assert_eq!(first.size.w + second.size.w, content.size.w);
     }
 
     #[test]

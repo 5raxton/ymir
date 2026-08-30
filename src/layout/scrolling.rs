@@ -11,7 +11,7 @@ use smithay::backend::renderer::gles::GlesRenderer;
 use smithay::utils::{Logical, Point, Rectangle, Scale, Serial, Size};
 
 use super::closing_window::{ClosingWindow, ClosingWindowRenderElement};
-use super::dwindle::{Child, DwindleTree, SpatialDir, SplitAxis, SplitSide};
+use super::dwindle::{DwindleTree, SpatialDir, SplitSide};
 use super::monitor::InsertPosition;
 use super::tab_indicator::{TabIndicator, TabIndicatorRenderElement, TabInfo};
 use super::tile::{Tile, TileRenderElement, TileRenderSnapshot};
@@ -2721,6 +2721,16 @@ impl<W: LayoutElement> ScrollingSpace<W> {
         })
     }
 
+    pub fn dwindle_resize_edges_under(&self, pos: Point<f64, Logical>) -> Option<ResizeEdge> {
+        // `columns_in_render_order` yields tape-space column offsets; the rendered (screen)
+        // position additionally shifts everything by `-view_pos()`. The dwindle content geometry
+        // is in tape space, so shift it by that same amount before comparing against the cursor.
+        let view_off = -self.view_pos();
+        self.columns_in_render_order().find_map(|(col, col_x)| {
+            col.dwindle_resize_edges_under(pos, col_x + view_off)
+        })
+    }
+
     pub fn tiles_with_render_positions(
         &self,
     ) -> impl Iterator<Item = (&Tile<W>, Point<f64, Logical>, bool)> {
@@ -4833,10 +4843,11 @@ impl<W: LayoutElement> Column<W> {
 
     /// Applies an interactive resize drag to this dwindle column.
     ///
-    /// In dwindle mode a window's border is a split divider: dragging it moves the divider of the
-    /// nearest ancestor split whose orientation matches the drag axis (if the dragged edge is the
-    /// one shared with a sibling). Only those dividers can move — the column always spans the full
-    /// work area, so exterior edges are pinned.
+    /// In dwindle mode a window's border is a split divider: dragging a shared edge moves the
+    /// divider of the (possibly deep) ancestor split whose interior edge coincides with it. Only
+    /// real dividers can move — the column always spans the full work area, so exterior edges are
+    /// pinned. The moved divider is additionally clamped so that neither child subtree shrinks
+    /// below the combined minimum size of its windows.
     fn interactive_resize_update_dwindle(
         &mut self,
         tile_idx: usize,
@@ -4854,46 +4865,51 @@ impl<W: LayoutElement> Column<W> {
 
         let path = self.dwindle_tree.leaf_paths()[tile_idx].clone();
 
+        let min_sizes: Vec<Size<f64, Logical>> = self
+            .tiles
+            .iter()
+            .map(|tile| {
+                let mut size = tile.min_size_nonfullscreen();
+                size.w = size.w.max(1.);
+                size.h = size.h.max(1.);
+                size
+            })
+            .collect();
+        let min_w = |v: &usize| min_sizes[*v].w;
+        let min_h = |v: &usize| min_sizes[*v].h;
+
         if edges.intersects(ResizeEdge::LEFT_RIGHT) {
-            // Left/right drags move a vertical divider.
-            if let Some(side) = self
-                .dwindle_tree
-                .leaf_side_in_split(&path, SplitAxis::Vertical)
-            {
-                let interior = match side {
-                    Child::First => ResizeEdge::RIGHT,
-                    Child::Second => ResizeEdge::LEFT,
-                };
-                if edges.contains(interior) {
-                    self.dwindle_tree.adjust_ancestor_ratio(
-                        &path,
-                        SplitAxis::Vertical,
-                        delta.x,
-                        usable_w.max(1.),
-                    );
-                }
-            }
+            let edge = if edges.contains(ResizeEdge::LEFT) {
+                ResizeEdge::LEFT
+            } else {
+                ResizeEdge::RIGHT
+            };
+            self.dwindle_tree.adjust_ratio_for_edge(
+                &path,
+                edge,
+                delta.x,
+                usable_w.max(1.),
+                usable_h.max(1.),
+                &min_w,
+                &min_h,
+            );
         }
 
         if edges.intersects(ResizeEdge::TOP_BOTTOM) {
-            // Top/bottom drags move a horizontal divider.
-            if let Some(side) = self
-                .dwindle_tree
-                .leaf_side_in_split(&path, SplitAxis::Horizontal)
-            {
-                let interior = match side {
-                    Child::First => ResizeEdge::BOTTOM,
-                    Child::Second => ResizeEdge::TOP,
-                };
-                if edges.contains(interior) {
-                    self.dwindle_tree.adjust_ancestor_ratio(
-                        &path,
-                        SplitAxis::Horizontal,
-                        delta.y,
-                        usable_h.max(1.),
-                    );
-                }
-            }
+            let edge = if edges.contains(ResizeEdge::TOP) {
+                ResizeEdge::TOP
+            } else {
+                ResizeEdge::BOTTOM
+            };
+            self.dwindle_tree.adjust_ratio_for_edge(
+                &path,
+                edge,
+                delta.y,
+                usable_w.max(1.),
+                usable_h.max(1.),
+                &min_w,
+                &min_h,
+            );
         }
 
         self.update_tile_sizes(false);
@@ -5996,6 +6012,60 @@ fn is_permutation(order: &[usize]) -> bool {
 
     fn is_dwindle(&self) -> bool {
         self.display_mode == ColumnDisplay::Dwindle
+    }
+
+    /// Resize edges under `pos` (global coordinates) for this dwindle column, measured against
+    /// the leaf's real solved rectangle instead of coarse position-in-tile thirds.
+    ///
+    /// `grid_x_screen` is the screen-space x at which this column's tape-space x = 0 appears;
+    /// the solved leaf rectangles (tape space) are shifted by it to match rendered positions.
+    ///
+    /// The pointer is within the resize zone of an edge when it is closer to that edge of its
+    /// rectangle than the zone radius. A corner (close to two perpendicular edges) yields the
+    /// combined corner edge. Returns `None` when the column is not a dwindle column, the pointer
+    /// is outside every leaf rectangle (a seam), or it sits too far from any edge for a resize.
+    fn dwindle_resize_edges_under(
+        &self,
+        pos: Point<f64, Logical>,
+        grid_x_screen: f64,
+    ) -> Option<ResizeEdge> {
+        if !self.is_dwindle() {
+            return None;
+        }
+
+        let mut content = self.dwindle_content_rect();
+        content.loc.x = grid_x_screen;
+        let gaps = self.options.layout.gaps;
+        let rect = self
+            .dwindle_tree
+            .leaf_rects(content, gaps)
+            .into_iter()
+            .find_map(|(_, rect)| rect.contains(pos).then_some(rect))?;
+
+        // The zone is scaled to the leaf so tiny nested windows stay grabbable and huge ones
+        // don't claim the whole screen as "edgy".
+        let zone = f64::min(rect.size.w, rect.size.h) / 3.;
+
+        let dx_left = pos.x - rect.loc.x;
+        let dx_right = rect.loc.x + rect.size.w - pos.x;
+        let dy_top = pos.y - rect.loc.y;
+        let dy_bottom = rect.loc.y + rect.size.h - pos.y;
+
+        let mut edges = ResizeEdge::empty();
+        if dx_left <= zone && dx_left <= dx_right {
+            edges |= ResizeEdge::LEFT;
+        }
+        if dx_right <= zone && dx_right < dx_left {
+            edges |= ResizeEdge::RIGHT;
+        }
+        if dy_top <= zone && dy_top <= dy_bottom {
+            edges |= ResizeEdge::TOP;
+        }
+        if dy_bottom <= zone && dy_bottom < dy_top {
+            edges |= ResizeEdge::BOTTOM;
+        }
+
+        (!edges.is_empty()).then_some(edges)
     }
 
     fn is_tabbed_or_dwindle(&self) -> bool {

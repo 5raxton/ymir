@@ -1857,6 +1857,13 @@ impl<W: LayoutElement> Workspace<W> {
     }
 
     pub fn resize_edges_under(&self, pos: Point<f64, Logical>) -> Option<ResizeEdge> {
+        // Dwindle columns measure edges against their real solved rectangles, so every divider is
+        // grabbable regardless of how unbalanced the split got. Other columns keep the generic
+        // position-in-tile zones.
+        if let Some(edges) = self.scrolling.dwindle_resize_edges_under(pos) {
+            return Some(edges);
+        }
+
         self.tiles_with_render_positions()
             .find_map(|(tile, tile_pos, visible)| {
                 // This logic should be consistent with window_under() in when it returns Some vs.
@@ -1881,7 +1888,8 @@ impl<W: LayoutElement> Workspace<W> {
                     } else if 2. * size.h / 3. < pos_within_tile.y {
                         edges |= ResizeEdge::BOTTOM;
                     }
-                    return Some(edges);
+                    // `None` when nothing is grabbable, symmetric with the dwindle path.
+                    return (!edges.is_empty()).then_some(edges);
                 }
 
                 None

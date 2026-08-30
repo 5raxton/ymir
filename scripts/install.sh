@@ -13,7 +13,7 @@
 # artifacts, and does a fresh build, so it also serves as a full update.
 set -euo pipefail
 
-REPO_URL="git@github.com:5raxton/ymir.git"
+REPO_URL="https://lab.braxton.onl/braxton/ymir.git"
 REPO_DIR="${YMIR_REPO_DIR:-$HOME/src/ymir}"
 BRANCH="${YMIR_BRANCH:-main}"
 PREFIX="${YMIR_PREFIX:-/usr/local}"

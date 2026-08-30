@@ -159,19 +159,6 @@ Things you may be wondering about:
 - **Performance**: development stays conscious of performance; runtime and compile budgets are
   both kept reasonable.
 
-## Related projects
-
-- [PaperWM] — scrollable tiling on top of GNOME Shell, and the original inspiration.
-- [niri] — the scrollable-tiling compositor Ymir forked from.
-- [karousel] — scrollable tiling on top of KDE.
-- [scroll] and [papersway] — scrollable tiling on top of sway/i3.
-- [Paneru] and [PaperWM.spoon] — scrollable tiling on top of macOS.
-
-## Contributing
-
-If you'd like to help with Ymir, there are plenty of both coding- and non-coding-related ways
-to do so. See [CONTRIBUTING.md](CONTRIBUTING.md) for an overview.
-
 ## License
 
 Ymir is distributed under the GPL-3.0-or-later license. See [LICENSE](LICENSE).
@@ -181,9 +168,4 @@ Ymir is distributed under the GPL-3.0-or-later license. See [LICENSE](LICENSE).
 [waybar]: https://github.com/Alexays/Waybar
 [alacritty]: https://github.com/alacritty/alacritty
 [fuzzel]: https://codeberg.org/dnkl/fuzzel
-[karousel]: https://github.com/peterfajdiga/karousel
-[scroll]: https://github.com/dawsers/scroll
-[papersway]: https://spwhitton.name/tech/code/papersway/
-[Paneru]: https://github.com/karinushka/paneru
-[PaperWM.spoon]: https://github.com/mogenson/PaperWM.spoon
 [OpenTabletDriver]: https://opentabletdriver.net/

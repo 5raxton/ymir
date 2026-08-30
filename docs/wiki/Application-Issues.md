@@ -8,9 +8,11 @@ For Electron ≥ 39, you can use the command-line flag if the app does not defau
 ```
 
 For Electron < 39, you can set an environment variable:
-```kdl
-environment {
-    ELECTRON_OZONE_PLATFORM_HINT "auto"
+```lua
+return {
+    environment = {
+        { name = "ELECTRON_OZONE_PLATFORM_HINT", value = "auto" },
+    },
 }
 ```
 
@@ -42,10 +44,14 @@ If the settings window fails to load under Wayland, and the UI becomes unrespons
 
 There's [a bug](https://github.com/wezterm/wezterm/issues/4708) in WezTerm that it waits for a zero-sized Wayland configure event, so its window never shows up in ymir. To work around it, put this window rule in the ymir config (included in the default config):
 
-```kdl
-window-rule {
-    match app-id=r#"^org\.wezfurlong\.wezterm$"#
-    default-column-width {}
+```lua
+return {
+    window_rules = {
+        {
+            match = { { app_id = "^org\\.wezfurlong\\.wezterm$" } },
+            default_column_width = {},
+        },
+    },
 }
 ```
 
@@ -70,9 +76,11 @@ To fix it, open `about:config` and set `widget.dmabuf.force-enabled` to `true`.
 GTK 4.20 [stopped](https://gitlab.gnome.org/GNOME/gtk/-/merge_requests/8556) handling dead keys and Compose on its own on Wayland.
 To make them work, either run an IME like IBus or Fcitx5, or set the `GTK_IM_MODULE=simple` environment variable.
 
-```kdl
-environment {
-    GTK_IM_MODULE "simple"
+```lua
+return {
+    environment = {
+        { name = "GTK_IM_MODULE", value = "simple" },
+    },
 }
 ```
 
@@ -109,10 +117,16 @@ If you do not want to disable GPU accelerated rendering you can instead try to p
 Steam notifications don't run through the standard notification daemon and show up as floating windows in the center of the screen.
 You can move them to a more convenient location by adding a window rule in your ymir config:
 
-```kdl
-window-rule {
-    match app-id="steam" title=r#"^notificationtoasts_\d+_desktop$"#
-    default-floating-position x=10 y=10 relative-to="bottom-right"
+```lua
+return {
+    window_rules = {
+        {
+            match = {
+                { app_id = "steam", title = "^notificationtoasts_\\d+_desktop$" },
+            },
+            default_floating_position = { x = 10, y = 10, relative_to = "bottom-right" },
+        },
+    },
 }
 ```
 

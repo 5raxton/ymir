@@ -21,10 +21,14 @@ You can also override this behavior with the [`draw-border-with-background` wind
 
 Put this window rule in your config:
 
-```kdl
-window-rule {
-    geometry-corner-radius 12
-    clip-to-geometry true
+```lua
+return {
+    window_rules = {
+        {
+            geometry_corner_radius = 12,
+            clip_to_geometry = true,
+        },
+    },
 }
 ```
 
@@ -34,9 +38,11 @@ For more information, check the [`geometry-corner-radius` window rule](./Configu
 
 Put this into your config:
 
-```kdl
-hotkey-overlay {
-    skip-at-startup
+```lua
+return {
+    hotkey_overlay = {
+        skip_at_startup = true,
+    },
 }
 ```
 
@@ -119,7 +125,7 @@ It doesn't always happen:
 
 To fix this, you can:
 
-- Use `focus-follows-mouse max-scroll-amount="0%"`, which will prevent `focus-follows-mouse` from triggering when it would cause scrolling.
+- Use `focus_follows_mouse = { max_scroll_amount = "0%" }`, which will prevent `focus_follows_mouse` from triggering when it would cause scrolling.
 - Set `prefer-no-csd` which will generally cause clients to remove those resizing margins.
 
 ### How do I recover from a dead screen locker / from a red screen?
@@ -131,9 +137,15 @@ You can recover from this by spawning a new screen locker.
 One way is to switch to a different TTY (with a shortcut like <kbd>Ctrl</kbd><kbd>Alt</kbd><kbd>F3</kbd>) and spawning a screen locker to ymir's Wayland display, e.g. `WAYLAND_DISPLAY=wayland-1 swaylock`.
 
 Another way is to set `allow-when-locked=true` on your screen locker bind, then you can press it on the red screen to get a fresh screen locker.
-```kdl
-binds {
-    Super+Alt+L allow-when-locked=true { spawn "swaylock"; }
+```lua
+return {
+    binds = {
+        {
+            key = "Super+Alt+L",
+            allow_when_locked = true,
+            action = { name = "spawn", command = { "swaylock" } },
+        },
+    },
 }
 ```
 
@@ -141,7 +153,7 @@ binds {
 
 If you require different output configurations depending on what outputs are connected then you can use [Kanshi](https://gitlab.freedesktop.org/emersion/kanshi).
 
-Kanshi has its own simple configuration and communicates with ymir via IPC. You may want to launch kanshi from the ymir config.kdl e.g. `spawn-at-startup "/usr/bin/kanshi"`
+Kanshi has its own simple configuration and communicates with ymir via IPC. You may want to launch kanshi from the ymir config.lua e.g. `spawn_at_startup = { { command = { "/usr/bin/kanshi" } } }`
 
 For example, if you wish to scale your laptop display differently when an external monitor is connected, you might use a Kanshi config like this:
 ```

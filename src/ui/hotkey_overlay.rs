@@ -263,7 +263,7 @@ fn collect_actions(config: &Config) -> Vec<&Action> {
     // Screenshot is not as important, can omit if not bound.
     if let Some(bind) = binds
         .iter()
-        .find(|bind| matches!(bind.action, Action::Screenshot(_, _)))
+        .find(|bind| matches!(bind.action, Action::Screenshot(_)))
     {
         actions.push(&bind.action);
     }
@@ -479,7 +479,7 @@ fn action_name(action: &Action) -> String {
             String::from("Switch Focus Between Floating and Tiling")
         }
         Action::ToggleOverview => String::from("Open the Overview"),
-        Action::Screenshot(_, _) => String::from("Take a Screenshot"),
+        Action::Screenshot(_) => String::from("Take a Screenshot"),
         Action::Spawn(args) => format!(
             "Spawn <span face='monospace' bgcolor='#000000'>{}</span>",
             args.first().unwrap_or(&String::new())
@@ -630,15 +630,17 @@ mod tests {
     #[test]
     fn test_format_bind() {
         // Not bound.
-        assert_snapshot!(check("", Action::Screenshot(true, None)), @" (not bound) : Take a Screenshot");
+        assert_snapshot!(check("", Action::Screenshot(None)), @" (not bound) : Take a Screenshot");
 
         // Bound with a default title.
         assert_snapshot!(
             check(
-                r#"binds {
-                    Mod+P { screenshot; }
+                r#"return {
+                    binds = {
+                        { key = "Mod+P", action = { name = "screenshot" } },
+                    },
                 }"#,
-                Action::Screenshot(true, None),
+                Action::Screenshot(None),
             ),
             @" Super + P : Take a Screenshot"
         );
@@ -646,10 +648,12 @@ mod tests {
         // Custom title.
         assert_snapshot!(
             check(
-                r#"binds {
-                    Mod+P hotkey-overlay-title="Hello" { screenshot; }
+                r#"return {
+                    binds = {
+                        { key = "Mod+P", hotkey_overlay_title = "Hello", action = { name = "screenshot" } },
+                    },
                 }"#,
-                Action::Screenshot(true, None),
+                Action::Screenshot(None),
             ),
             @" Super + P : Hello"
         );
@@ -657,11 +661,13 @@ mod tests {
         // Prefer first bind.
         assert_snapshot!(
             check(
-                r#"binds {
-                    Mod+P { screenshot; }
-                    Print { screenshot; }
+                r#"return {
+                    binds = {
+                        { key = "Mod+P", action = { name = "screenshot" } },
+                        { key = "Print", action = { name = "screenshot" } },
+                    },
                 }"#,
-                Action::Screenshot(true, None),
+                Action::Screenshot(None),
             ),
             @" Super + P : Take a Screenshot"
         );
@@ -669,11 +675,13 @@ mod tests {
         // Prefer bind with custom title.
         assert_snapshot!(
             check(
-                r#"binds {
-                    Mod+P { screenshot; }
-                    Print hotkey-overlay-title="My Cool Bind" { screenshot; }
+                r#"return {
+                    binds = {
+                        { key = "Mod+P", action = { name = "screenshot" } },
+                        { key = "Print", hotkey_overlay_title = "My Cool Bind", action = { name = "screenshot" } },
+                    },
                 }"#,
-                Action::Screenshot(true, None),
+                Action::Screenshot(None),
             ),
             @" PrtSc : My Cool Bind"
         );
@@ -681,11 +689,13 @@ mod tests {
         // Prefer first bind with custom title.
         assert_snapshot!(
             check(
-                r#"binds {
-                    Mod+P hotkey-overlay-title="First" { screenshot; }
-                    Print hotkey-overlay-title="My Cool Bind" { screenshot; }
+                r#"return {
+                    binds = {
+                        { key = "Mod+P", hotkey_overlay_title = "First", action = { name = "screenshot" } },
+                        { key = "Print", hotkey_overlay_title = "My Cool Bind", action = { name = "screenshot" } },
+                    },
                 }"#,
-                Action::Screenshot(true, None),
+                Action::Screenshot(None),
             ),
             @" Super + P : First"
         );
@@ -693,11 +703,13 @@ mod tests {
         // Any bind with null title hides it.
         assert_snapshot!(
             check(
-                r#"binds {
-                    Mod+P { screenshot; }
-                    Print hotkey-overlay-title=null { screenshot; }
+                r#"return {
+                    binds = {
+                        { key = "Mod+P", action = { name = "screenshot" } },
+                        { key = "Print", hotkey_overlay_title = ymir.null, action = { name = "screenshot" } },
+                    },
                 }"#,
-                Action::Screenshot(true, None),
+                Action::Screenshot(None),
             ),
             @"None"
         );
@@ -705,11 +717,13 @@ mod tests {
         // Custom title takes preference over null.
         assert_snapshot!(
             check(
-                r#"binds {
-                    Mod+P hotkey-overlay-title="Hello" { screenshot; }
-                    Print hotkey-overlay-title=null { screenshot; }
+                r#"return {
+                    binds = {
+                        { key = "Mod+P", hotkey_overlay_title = "Hello", action = { name = "screenshot" } },
+                        { key = "Print", hotkey_overlay_title = ymir.null, action = { name = "screenshot" } },
+                    },
                 }"#,
-                Action::Screenshot(true, None),
+                Action::Screenshot(None),
             ),
             @" Super + P : Hello"
         );

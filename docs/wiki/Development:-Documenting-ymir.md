@@ -78,8 +78,8 @@ https://github.com/user-attachments/assets/379a5d1f-acdb-4c11-b36c-e85fd91f0995
 
 Configuration and code snippets in general should be annotated with a language.
 
-If the language used in the snippet is KDL, open the code block like this:
+If the language used in the snippet is Lua, open the code block like this:
 
 ```md
-```kdl
+```lua
 ```

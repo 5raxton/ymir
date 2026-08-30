@@ -75,6 +75,7 @@ keyframe = { version = "1.1.1", default-features = false }
 libc = "0.2.189"
 libdisplay-info = "0.3.0"
 log = { version = "0.4.33", features = ["max_level_trace", "release_max_level_debug"] }
+notify = "6.1.1"
 ymir-config = { version = "26.4.0", path = "ymir-config" }
 ymir-ipc = { version = "26.4.0", path = "ymir-ipc", features = ["clap"] }
 ordered-float = "5.3.0"
@@ -153,10 +154,6 @@ collapsible_match = "allow"
 debug = "line-tables-only"
 overflow-checks = true
 lto = "thin"
-
-[profile.release.package.ymir-config]
-# knuffel with chomsky generates a metric ton of debuginfo.
-debug = false
 
 [profile.dev.package]
 insta.opt-level = 3

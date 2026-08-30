@@ -4,7 +4,7 @@
 
 You can apply background effects to windows and layer-shell surfaces.
 These include blur, xray, saturation, and noise.
-They can be enabled in the `background-effect {}` section of [window](./Configuration:-Window-Rules.md#background-effect) or [layer](./Configuration:-Layer-Rules.md#background-effect) rules.
+They can be enabled in the `background_effect` table of [window](./Configuration:-Window-Rules.md#background-effect) or [layer](./Configuration:-Layer-Rules.md#background-effect) rules.
 
 ![Screenshot with blur](./img/blur.png)
 
@@ -18,23 +18,27 @@ In this case, the application will usually offer some "background blur" setting 
 
 You can also enable blur on the ymir side with the `blur true` background effect window rule:
 
-```kdl
-// Enable blur behind the Alacritty terminal.
-window-rule {
-    match app-id="^Alacritty$"
+```lua
+return {
+    window_rules = {
+        {
+            -- Enable blur behind the Alacritty terminal.
+            match = { { app_id = "^Alacritty$" } },
+            background_effect = {
+                blur = true,
+            },
+        },
+    },
 
-    background-effect {
-        blur true
-    }
-}
-
-// Enable blur behind the fuzzel launcher.
-layer-rule {
-    match namespace="^launcher$"
-
-    background-effect {
-        blur true
-    }
+    layer_rules = {
+        {
+            -- Enable blur behind the fuzzel launcher.
+            match = { { namespace = "^launcher$" } },
+            background_effect = {
+                blur = true,
+            },
+        },
+    },
 }
 ```
 

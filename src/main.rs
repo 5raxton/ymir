@@ -344,12 +344,12 @@ fn default_config_path() -> Option<PathBuf> {
     };
 
     let mut path = dirs.config_dir().to_owned();
-    path.push("config.kdl");
+    path.push("config.lua");
     Some(path)
 }
 
 fn system_config_path() -> PathBuf {
-    PathBuf::from("/etc/ymir/config.kdl")
+    PathBuf::from("/etc/ymir/config.lua")
 }
 
 fn config_path(cli_path: Option<PathBuf>) -> ConfigPath {

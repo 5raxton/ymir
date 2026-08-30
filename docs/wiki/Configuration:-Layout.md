@@ -1,99 +1,101 @@
 ### Overview
 
-In the `layout {}` section you can change various settings that influence how windows are positioned and sized.
+In the `layout` table you can change various settings that influence how windows are positioned and sized.
 
 Here are the contents of this section at a glance:
 
-```kdl
-layout {
-    gaps 16
-    center-focused-column "never"
-    always-center-single-column
-    empty-workspace-above-first
-    default-column-display "tabbed"
-    background-color "#003300"
+```lua
+return {
+    layout = {
+        gaps = 16,
+        center_focused_column = "never",
+        always_center_single_column = true,
+        empty_workspace_above_first = true,
+        default_column_display = "tabbed",
+        background_color = "#003300",
 
-    preset-column-widths {
-        proportion 0.33333
-        proportion 0.5
-        proportion 0.66667
-    }
+        preset_column_widths = {
+            { proportion = 0.33333 },
+            { proportion = 0.5 },
+            { proportion = 0.66667 },
+        },
 
-    default-column-width { proportion 0.5; }
+        default_column_width = { proportion = 0.5 },
 
-    preset-window-heights {
-        proportion 0.33333
-        proportion 0.5
-        proportion 0.66667
-    }
+        preset_window_heights = {
+            { proportion = 0.33333 },
+            { proportion = 0.5 },
+            { proportion = 0.66667 },
+        },
 
-    focus-ring {
-        // off
-        on
-        width 4
-        active-color "#7fc8ff"
-        inactive-color "#505050"
-        urgent-color "#9b0000"
-        // active-gradient from="#80c8ff" to="#bbddff" angle=45
-        // inactive-gradient from="#505050" to="#808080" angle=45 relative-to="workspace-view"
-        // urgent-gradient from="#800" to="#a33" angle=45
-    }
+        focus_ring = {
+            -- off = true
+            on = true,
+            width = 4,
+            active_color = "#7fc8ff",
+            inactive_color = "#505050",
+            urgent_color = "#9b0000",
+            -- active_gradient = { from = "#80c8ff", to = "#bbddff", angle = 45 }
+            -- inactive_gradient = { from = "#505050", to = "#808080", angle = 45, relative_to = "workspace-view" }
+            -- urgent_gradient = { from = "#800", to = "#a33", angle = 45 }
+        },
 
-    border {
-        off
-        // on
-        width 4
-        active-color "#ffc87f"
-        inactive-color "#505050"
-        urgent-color "#9b0000"
-        // active-gradient from="#ffbb66" to="#ffc880" angle=45 relative-to="workspace-view"
-        // inactive-gradient from="#505050" to="#808080" angle=45 relative-to="workspace-view" in="srgb-linear"
-        // urgent-gradient from="#800" to="#a33" angle=45
-    }
+        border = {
+            off = true,
+            -- on = true
+            width = 4,
+            active_color = "#ffc87f",
+            inactive_color = "#505050",
+            urgent_color = "#9b0000",
+            -- active_gradient = { from = "#ffbb66", to = "#ffc880", angle = 45, relative_to = "workspace-view" }
+            -- inactive_gradient = { from = "#505050", to = "#808080", angle = 45, relative_to = "workspace-view", in = "srgb-linear" }
+            -- urgent_gradient = { from = "#800", to = "#a33", angle = 45 }
+        },
 
-    shadow {
-        off
-        // on
-        softness 30
-        spread 5
-        offset x=0 y=5
-        draw-behind-window true
-        color "#00000070"
-        // inactive-color "#00000054"
-    }
+        shadow = {
+            off = true,
+            -- on = true
+            softness = 30,
+            spread = 5,
+            offset = { x = 0, y = 5 },
+            draw_behind_window = true,
+            color = "#00000070",
+            -- inactive_color = "#00000054"
+        },
 
-    tab-indicator {
-        // off
-        on
-        hide-when-single-tab
-        place-within-column
-        gap 5
-        width 4
-        length total-proportion=1.0
-        position "right"
-        gaps-between-tabs 2
-        corner-radius 8
-        active-color "red"
-        inactive-color "gray"
-        urgent-color "blue"
-        // active-gradient from="#80c8ff" to="#bbddff" angle=45
-        // inactive-gradient from="#505050" to="#808080" angle=45 relative-to="workspace-view"
-        // urgent-gradient from="#800" to="#a33" angle=45
-    }
+        tab_indicator = {
+            -- off = true
+            on = true,
+            hide_when_single_tab = true,
+            place_within_column = true,
+            gap = 5,
+            width = 4,
+            length = { total_proportion = 1.0 },
+            position = "right",
+            gaps_between_tabs = 2,
+            corner_radius = 8,
+            active_color = "red",
+            inactive_color = "gray",
+            urgent_color = "blue",
+            -- active_gradient = { from = "#80c8ff", to = "#bbddff", angle = 45 }
+            -- inactive_gradient = { from = "#505050", to = "#808080", angle = 45, relative_to = "workspace-view" }
+            -- urgent_gradient = { from = "#800", to = "#a33", angle = 45 }
+        },
 
-    insert-hint {
-        // off
-        on
-        color "#ffc87f80"
-        // gradient from="#ffbb6680" to="#ffc88080" angle=45 relative-to="workspace-view"
-    }
+        insert_hint = {
+            -- off = true
+            on = true,
+            color = "#ffc87f80",
+            -- gradient = { from = "#ffbb6680", to = "#ffc88080", angle = 45, relative_to = "workspace-view" }
+        },
 
-    struts {
-        // left 64
-        // right 64
-        // top 64
-        // bottom 64
-    }
+        struts = {
+            -- left = 64
+            -- right = 64
+            -- top = 64
+            -- bottom = 64
+        },
+    },
 }
 ```
 
@@ -105,13 +107,15 @@ Set gaps around (inside and outside) windows in logical pixels.
 
 <sup>Since: 0.1.7</sup> You can use fractional values.
 The value will be rounded to physical pixels according to the scale factor of every output.
-For example, `gaps 0.5` on an output with `scale 2` will result in one physical-pixel wide gaps.
+For example, `gaps = 0.5` on an output with `scale = 2` will result in one physical-pixel wide gaps.
 
 <sup>Since: 0.1.8</sup> You can emulate "inner" vs. "outer" gaps with negative `struts` values (see the struts section below).
 
-```kdl
-layout {
-    gaps 16
+```lua
+return {
+    layout = {
+        gaps = 16,
+    },
 }
 ```
 
@@ -124,9 +128,11 @@ This can be set to:
 - `"always"`, the focused column will always be centered.
 - `"on-overflow"`, focusing a column will center it if it doesn't fit on screen together with the previously focused column.
 
-```kdl
-layout {
-    center-focused-column "always"
+```lua
+return {
+    layout = {
+        center_focused_column = "always",
+    },
 }
 ```
 
@@ -134,11 +140,13 @@ layout {
 
 <sup>Since: 0.1.9</sup>
 
-If set, ymir will always center a single column on a workspace, regardless of the `center-focused-column` option.
+If set, ymir will always center a single column on a workspace, regardless of the `center_focused_column` option.
 
-```kdl
-layout {
-    always-center-single-column
+```lua
+return {
+    layout = {
+        always_center_single_column = true,
+    },
 }
 ```
 
@@ -148,9 +156,11 @@ layout {
 
 If set, ymir will always add an empty workspace at the very start, in addition to the empty workspace at the very end.
 
-```kdl
-layout {
-    empty-workspace-above-first
+```lua
+return {
+    layout = {
+        empty_workspace_above_first = true,
+    },
 }
 ```
 
@@ -167,48 +177,52 @@ window into a binary-split tree. Set it to `normal` (scrollable columns) or
 page for the full documentation of the dwindle mode.
 
 You can switch between dwindle and scrollable layout at runtime with the
-`switch-column-display` action (bound to Mod+Shift+D in the default config),
-and per-column display modes via `set-column-display` or
-`toggle-column-tabbed-display`.
+`switch_column_display` action (bound to Mod+Shift+D in the default config),
+and per-column display modes via `set_column_display` or
+`toggle_column_tabbed_display`.
 
-The `switch-column-display` toggle is remembered per workspace for the rest of
+The `switch_column_display` toggle is remembered per workspace for the rest of
 the session: any new windows (and any further columns) you open in that
 workspace keep following the chosen layout until you toggle it again (or a
 per-workspace `layout` config is applied).
 
-```kdl
-// Make all new columns tabbed by default.
-layout {
-    default-column-display "tabbed"
+```lua
+return {
+    layout = {
+        -- Make all new columns tabbed by default.
+        default_column_display = "tabbed",
 
-    // You may also want to hide the tab indicator
-    // when there's only a single window in a column.
-    tab-indicator {
-        hide-when-single-tab
-    }
+        -- You may also want to hide the tab indicator
+        -- when there's only a single window in a column.
+        tab_indicator = {
+            hide_when_single_tab = true,
+        },
+    },
 }
 ```
 
 ### `preset-column-widths`
 
-Set the widths that the `switch-preset-column-width` action (Mod+R) toggles between.
-<sup>Since: 25.08</sup> You can use the `switch-preset-column-width-back` action (Mod+Shift+R) to toggle in reverse.
+Set the widths that the `switch_preset_column_width` action (Mod+R) toggles between.
+<sup>Since: 25.08</sup> You can use the `switch_preset_column_width_back` action (Mod+Shift+R) to toggle in reverse.
 
 `proportion` sets the width as a fraction of the output width, taking gaps into account.
-For example, you can perfectly fit four windows sized `proportion 0.25` on an output, regardless of the gaps setting.
+For example, you can perfectly fit four windows sized `proportion = 0.25` on an output, regardless of the gaps setting.
 The default preset widths are <sup>1</sup>&frasl;<sub>3</sub>, <sup>1</sup>&frasl;<sub>2</sub> and <sup>2</sup>&frasl;<sub>3</sub> of the output.
 
 `fixed` sets the window width in logical pixels exactly.
 
-```kdl
-layout {
-    // Cycle between 1/3, 1/2, 2/3 of the output, and a fixed 1280 logical pixels.
-    preset-column-widths {
-        proportion 0.33333
-        proportion 0.5
-        proportion 0.66667
-        fixed 1280
-    }
+```lua
+return {
+    layout = {
+        -- Cycle between 1/3, 1/2, 2/3 of the output, and a fixed 1280 logical pixels.
+        preset_column_widths = {
+            { proportion = 0.33333 },
+            { proportion = 0.5 },
+            { proportion = 0.66667 },
+            { fixed = 1280 },
+        },
+    },
 }
 ```
 
@@ -218,49 +232,55 @@ Set the default width of the new windows.
 
 The syntax is the same as in `preset-column-widths` above.
 
-```kdl
-layout {
-    // Open new windows sized 1/3 of the output.
-    default-column-width { proportion 0.33333; }
+```lua
+return {
+    layout = {
+        -- Open new windows sized 1/3 of the output.
+        default_column_width = { proportion = 0.33333 },
+    },
 }
 ```
 
-You can also leave the brackets empty, then the windows themselves will decide their initial width.
+You can also leave the table empty, then the windows themselves will decide their initial width.
 
-```kdl
-layout {
-    // New windows decide their initial width themselves.
-    default-column-width {}
+```lua
+return {
+    layout = {
+        -- New windows decide their initial width themselves.
+        default_column_width = {},
+    },
 }
 ```
 
 > [!NOTE]
-> `default-column-width {}` causes ymir to send a (0, H) size in the initial configure request.
+> `default_column_width = {}` causes ymir to send a (0, H) size in the initial configure request.
 >
 > This is a bit [unclearly defined](https://gitlab.freedesktop.org/wayland/wayland-protocols/-/issues/155) in the Wayland protocol, so some clients may misinterpret it.
-> Either way, `default-column-width {}` is most useful for specific windows, in form of a [window rule](./Configuration:-Window-Rules.md#default-column-width) with the same syntax.
+> Either way, `default_column_width = {}` is most useful for specific windows, in form of a [window rule](./Configuration:-Window-Rules.md#default-column-width) with the same syntax.
 
 ### `preset-window-heights`
 
 <sup>Since: 0.1.9</sup>
 
-Set the heights that the `switch-preset-window-height` action (Mod+Ctrl+Shift+R) toggles between.
-<sup>Since: 25.08</sup> You can use the `switch-preset-window-height-back` action (not bound by default) to toggle in reverse.
+Set the heights that the `switch_preset_window_height` action (Mod+Ctrl+Shift+R) toggles between.
+<sup>Since: 25.08</sup> You can use the `switch_preset_window_height_back` action (not bound by default) to toggle in reverse.
 
 `proportion` sets the height as a fraction of the output height, taking gaps into account.
 The default preset heights are <sup>1</sup>&frasl;<sub>3</sub>, <sup>1</sup>&frasl;<sub>2</sub> and <sup>2</sup>&frasl;<sub>3</sub> of the output.
 
 `fixed` sets the height in logical pixels exactly.
 
-```kdl
-layout {
-    // Cycle between 1/3, 1/2, 2/3 of the output, and a fixed 720 logical pixels.
-    preset-window-heights {
-        proportion 0.33333
-        proportion 0.5
-        proportion 0.66667
-        fixed 720
-    }
+```lua
+return {
+    layout = {
+        -- Cycle between 1/3, 1/2, 2/3 of the output, and a fixed 720 logical pixels.
+        preset_window_heights = {
+            { proportion = 0.33333 },
+            { proportion = 0.5 },
+            { proportion = 0.66667 },
+            { fixed = 720 },
+        },
+    },
 }
 ```
 
@@ -280,32 +300,34 @@ The difference is that the focus ring is drawn only around the active window, wh
 > That is, they will show up through semitransparent windows.
 > This is because windows using client-side decorations can have an arbitrary shape.
 >
-> If you don't like that, you should uncomment the [`prefer-no-csd` setting](./Configuration:-Miscellaneous.md#prefer-no-csd) at the top level of the config.
+> If you don't like that, you should uncomment the [`prefer_no_csd` setting](./Configuration:-Miscellaneous.md#prefer-no-csd) at the top level of the config.
 > Ymir will draw focus rings and borders *around* windows that agree to omit their client-side decorations.
 >
-> Alternatively, you can override this behavior with the [`draw-border-with-background` window rule](./Configuration:-Window-Rules.md#draw-border-with-background).
+> Alternatively, you can override this behavior with the [`draw_border_with_background` window rule](./Configuration:-Window-Rules.md#draw-border-with-background).
 
 Focus ring and border have the following options.
 
-```kdl
-layout {
-    // focus-ring has the same options.
-    border {
-        // Uncomment this line to disable the border.
-        // off
+```lua
+return {
+    layout = {
+        -- focus_ring has the same options.
+        border = {
+            -- Uncomment this line to disable the border.
+            -- off = true
 
-        // Width of the border in logical pixels.
-        width 4
+            -- Width of the border in logical pixels.
+            width = 4,
 
-        active-color "#ffc87f"
-        inactive-color "#505050"
+            active_color = "#ffc87f",
+            inactive_color = "#505050",
 
-        // Color of the border around windows that request your attention.
-        urgent-color "#9b0000"
+            -- Color of the border around windows that request your attention.
+            urgent_color = "#9b0000",
 
-        // active-gradient from="#ffbb66" to="#ffc880" angle=45 relative-to="workspace-view"
-        // inactive-gradient from="#505050" to="#808080" angle=45 relative-to="workspace-view" in="srgb-linear"
-    }
+            -- active_gradient = { from = "#ffbb66", to = "#ffc880", angle = 45, relative_to = "workspace-view" }
+            -- inactive_gradient = { from = "#505050", to = "#808080", angle = 45, relative_to = "workspace-view", in = "srgb-linear" }
+        },
+    },
 }
 ```
 
@@ -315,13 +337,15 @@ Set the thickness of the border in logical pixels.
 
 <sup>Since: 0.1.7</sup> You can use fractional values.
 The value will be rounded to physical pixels according to the scale factor of every output.
-For example, `width 0.5` on an output with `scale 2` will result in one physical-pixel thick borders.
+For example, `width = 0.5` on an output with `scale = 2` will result in one physical-pixel thick borders.
 
-```kdl
-layout {
-    border {
-        width 2
-    }
+```lua
+return {
+    layout = {
+        border = {
+            width = 2,
+        },
+    },
 }
 ```
 
@@ -333,47 +357,51 @@ Colors can be set in a variety of ways:
 - RGB hex: `"#rgb"`, `"#rgba"`, `"#rrggbb"`, `"#rrggbbaa"`
 - CSS-like notation: `"rgb(255, 127, 0)"`, `"rgba()"`, `"hsl()"` and a few others.
 
-`active-color` is the color of the focus ring / border around the active window, and `inactive-color` is the color of the focus ring / border around all other windows.
+`active_color` is the color of the focus ring / border around the active window, and `inactive_color` is the color of the focus ring / border around all other windows.
 
-The *focus ring* is only drawn around the active window on each monitor, so with a single monitor you will never see its `inactive-color`.
+The *focus ring* is only drawn around the active window on each monitor, so with a single monitor you will never see its `inactive_color`.
 You will see it if you have multiple monitors, though.
 
-There's also a *deprecated* syntax for setting colors with four numbers representing R, G, B and A: `active-color 127 200 255 255`.
+There's also a *deprecated* syntax for setting colors with four numbers representing R, G, B and A: `active_color = { r = 127, g = 200, b = 255, a = 255 }`.
 
 #### Gradients
 
-Similarly to colors, you can set `active-gradient` and `inactive-gradient`, which will take precedence.
+Similarly to colors, you can set `active_gradient` and `inactive_gradient`, which will take precedence.
 
 Gradients are rendered the same as CSS [`linear-gradient(angle, from, to)`](https://developer.mozilla.org/en-US/docs/Web/CSS/gradient/linear-gradient).
 The angle works the same as in `linear-gradient`, and is optional, defaulting to `180` (top-to-bottom gradient).
 You can use any CSS linear-gradient tool on the web to set these up, like [css-gradient.com](https://www.css-gradient.com/).
 
-```kdl
-layout {
-    focus-ring {
-        active-gradient from="#80c8ff" to="#bbddff" angle=45
-    }
+```lua
+return {
+    layout = {
+        focus_ring = {
+            active_gradient = { from = "#80c8ff", to = "#bbddff", angle = 45 },
+        },
+    },
 }
 ```
 
 Gradients can be colored relative to windows individually (the default), or to the whole view of the workspace.
-To do that, set `relative-to="workspace-view"`.
+To do that, set `relative_to = "workspace-view"`.
 Here's a visual example:
 
-| Default                          | `relative-to="workspace-view"`                      |
+| Default                          | `relative_to = "workspace-view"`                    |
 | -------------------------------- | --------------------------------------------------- |
 | ![Screenshot displaying 4 windows, each with individual gradient borders](./img/gradients-default.png) | ![Screenshot displaying 4 windows, with a shared gradient across their borders](./img/gradients-relative-to-workspace-view.png) |
 
-```kdl
-layout {
-    border {
-        active-gradient from="#ffbb66" to="#ffc880" angle=45 relative-to="workspace-view"
-        inactive-gradient from="#505050" to="#808080" angle=45 relative-to="workspace-view"
-    }
+```lua
+return {
+    layout = {
+        border = {
+            active_gradient = { from = "#ffbb66", to = "#ffc880", angle = 45, relative_to = "workspace-view" },
+            inactive_gradient = { from = "#505050", to = "#808080", angle = 45, relative_to = "workspace-view" },
+        },
+    },
 }
 ```
 
-<sup>Since: 0.1.8</sup> You can set the gradient interpolation color space using syntax like `in="srgb-linear"` or `in="oklch longer hue"`.
+<sup>Since: 0.1.8</sup> You can set the gradient interpolation color space using syntax like `in = "srgb-linear"` or `in = "oklch longer hue"`.
 Supported color spaces are:
 
 - `srgb` (the default),
@@ -382,15 +410,17 @@ Supported color spaces are:
 - `oklch` with `shorter hue` or `longer hue` or `increasing hue` or `decreasing hue`.
 
 They are rendered the same as CSS.
-For example, `active-gradient from="#f00f" to="#0f05" angle=45 in="oklch longer hue"` will look the same as CSS `linear-gradient(45deg in oklch longer hue, #f00f, #0f05)`.
+For example, `active_gradient = { from = "#f00f", to = "#0f05", angle = 45, in = "oklch longer hue" }` will look the same as CSS `linear-gradient(45deg in oklch longer hue, #f00f, #0f05)`.
 
 ![Screenshot showing a window with a border using a gradient in the oklch color space](./img/gradients-oklch.png)
 
-```kdl
-layout {
-    border {
-        active-gradient from="#f00f" to="#0f05" angle=45 in="oklch longer hue"
-    }
+```lua
+return {
+    layout = {
+        border = {
+            active_gradient = { from = "#f00f", to = "#0f05", angle = 45, ["in"] = "oklch longer hue" },
+        },
+    },
 }
 ```
 
@@ -403,43 +433,45 @@ Shadow rendered behind a window.
 Set `on` to enable the shadow.
 
 `softness` controls the shadow softness/size in logical pixels, same as [CSS box-shadow] *blur radius*.
-Setting `softness 0` will give you hard shadows.
+Setting `softness = 0` will give you hard shadows.
 
 `spread` is the distance to expand the window rectangle in logical pixels, same as CSS box-shadow spread.
 <sup>Since: 25.05</sup> Spread can be negative.
 
 `offset` moves the shadow relative to the window in logical pixels, same as CSS box-shadow offset.
-For example, `offset x=2 y=2` will move the shadow 2 logical pixels downwards and to the right.
+For example, `offset = { x = 2, y = 2 }` will move the shadow 2 logical pixels downwards and to the right.
 
-Set `draw-behind-window` to `true` to make shadows draw behind the window rather than just around it.
+Set `draw_behind_window` to `true` to make shadows draw behind the window rather than just around it.
 Note that ymir has no way of knowing about the CSD window corner radius.
 It has to assume that windows have square corners, leading to shadow artifacts inside the CSD rounded corners.
 This setting fixes those artifacts.
 
-However, instead you may want to set `prefer-no-csd` and/or `geometry-corner-radius`.
+However, instead you may want to set `prefer_no_csd` and/or `geometry_corner_radius`.
 Then, ymir will know the corner radius and draw the shadow correctly, without having to draw it behind the window.
 These will also remove client-side shadows if the window draws any.
 
 `color` is the shadow color and opacity.
 
-`inactive-color` lets you override the shadow color for inactive windows; by default, a more transparent `color` is used.
+`inactive_color` lets you override the shadow color for inactive windows; by default, a more transparent `color` is used.
 
-Shadow drawing will follow the window corner radius set with the [`geometry-corner-radius` window rule](./Configuration:-Window-Rules.md#geometry-corner-radius).
+Shadow drawing will follow the window corner radius set with the [`geometry_corner_radius` window rule](./Configuration:-Window-Rules.md#geometry-corner-radius).
 
 > [!NOTE]
-> Currently, shadow drawing only supports matching radius for all corners. If you set `geometry-corner-radius` to four values instead of one, the first (top-left) corner radius will be used for shadows.
+> Currently, shadow drawing only supports matching radius for all corners. If you set `geometry_corner_radius` to four values instead of one, the first (top-left) corner radius will be used for shadows.
 
-```kdl
-// Enable shadows.
-layout {
-    shadow {
-        on
-    }
+```lua
+return {
+    layout = {
+        -- Enable shadows.
+        shadow = {
+            on = true,
+        },
+    },
+
+    -- Also ask windows to omit client-side decorations, so that
+    -- they don't draw their own window shadows.
+    prefer_no_csd = true,
 }
-
-// Also ask windows to omit client-side decorations, so that
-// they don't draw their own window shadows.
-prefer-no-csd
 ```
 
 [CSS box-shadow]: https://developer.mozilla.org/en-US/docs/Web/CSS/box-shadow
@@ -452,9 +484,9 @@ Controls the appearance of the tab indicator that appears next to columns in tab
 
 Set `off` to hide the tab indicator.
 
-Set `hide-when-single-tab` to hide the indicator for tabbed columns that only have a single window.
+Set `hide_when_single_tab` to hide the indicator for tabbed columns that only have a single window.
 
-Set `place-within-column` to put the tab indicator "within" the column, rather than outside.
+Set `place_within_column` to put the tab indicator "within" the column, rather than outside.
 This will include it in column sizing and avoid overlaying adjacent columns.
 
 `gap` sets the gap between the tab indicator and the window in logical pixels.
@@ -463,37 +495,39 @@ The gap can be negative, this will put the tab indicator on top of the window.
 `width` sets the thickness of the indicator in logical pixels.
 
 `length` controls the length of the indicator.
-Set the `total-proportion` property to make tabs take up this much length relative to the window size.
-By default, the tab indicator has length equal to half of the window size, or `length total-proportion=0.5`.
+Set the `total_proportion` property to make tabs take up this much length relative to the window size.
+By default, the tab indicator has length equal to half of the window size, or `length = { total_proportion = 0.5 }`.
 
 `position` sets the position of the tab indicator relative to the window.
 It can be `left`, `right`, `top`, or `bottom`.
 
-`gaps-between-tabs` controls the gap between individual tabs in logical pixels.
+`gaps_between_tabs` controls the gap between individual tabs in logical pixels.
 
-`corner-radius` sets the rounded corner radius for tabs in the indicator in logical pixels.
-When `gaps-between-tabs` is zero, only the first and the last tabs have rounded corners, otherwise all tabs do.
+`corner_radius` sets the rounded corner radius for tabs in the indicator in logical pixels.
+When `gaps_between_tabs` is zero, only the first and the last tabs have rounded corners, otherwise all tabs do.
 
-`active-color`, `inactive-color`, `urgent-color`, `active-gradient`, `inactive-gradient`, `urgent-gradient` let you override the colors for the tabs.
+`active_color`, `inactive_color`, `urgent_color`, `active_gradient`, `inactive_gradient`, `urgent_gradient` let you override the colors for the tabs.
 They have the same semantics as the border and focus ring colors and gradients.
 
 Tab colors are picked in this order:
 
-1. Colors from the `tab-indicator` window rule, if set.
-1. Colors from the `tab-indicator` layout options, if set (you're here).
+1. Colors from the `tab_indicator` window rule, if set.
+1. Colors from the `tab_indicator` layout options, if set (you're here).
 1. If neither are set, ymir picks the color matching the window border or focus ring, whichever one is active.
 
-```kdl
-// Make the tab indicator wider and match the window height,
-// also put it at the top and within the column.
-layout {
-    tab-indicator {
-        width 8
-        gap 8
-        length total-proportion=1.0
-        position "top"
-        place-within-column
-    }
+```lua
+return {
+    layout = {
+        -- Make the tab indicator wider and match the window height,
+        -- also put it at the top and within the column.
+        tab_indicator = {
+            width = 8,
+            gap = 8,
+            length = { total_proportion = 1.0 },
+            position = "top",
+            place_within_column = true,
+        },
+    },
 }
 ```
 
@@ -507,13 +541,15 @@ Settings for the window insert position hint during an interactive window move.
 
 `color` and `gradient` let you change the color of the hint and have the same syntax as colors and gradients in border and focus ring.
 
-```kdl
-layout {
-    insert-hint {
-        // off
-        color "#ffc87f80"
-        gradient from="#ffbb6680" to="#ffc88080" angle=45 relative-to="workspace-view"
-    }
+```lua
+return {
+    layout = {
+        insert_hint = {
+            -- off = true
+            color = "#ffc87f80",
+            gradient = { from = "#ffbb6680", to = "#ffc88080", angle = 45, relative_to = "workspace-view" },
+        },
+    },
 }
 ```
 
@@ -528,16 +564,18 @@ Top and bottom struts will simply add outer gaps in addition to the area occupie
 
 <sup>Since: 0.1.7</sup> You can use fractional values.
 The value will be rounded to physical pixels according to the scale factor of every output.
-For example, `top 0.5` on an output with `scale 2` will result in one physical-pixel wide top strut.
+For example, `top = 0.5` on an output with `scale = 2` will result in one physical-pixel wide top strut.
 
-```kdl
-layout {
-    struts {
-        left 64
-        right 64
-        top 64
-        bottom 64
-    }
+```lua
+return {
+    layout = {
+        struts = {
+            left = 64,
+            right = 64,
+            top = 64,
+            bottom = 64,
+        },
+    },
 }
 ```
 
@@ -549,16 +587,18 @@ They will push the windows outwards, even outside the edges of the screen.
 You can use negative struts with matching gaps value to emulate "inner" vs. "outer" gaps.
 For example, use this for inner gaps without outer gaps:
 
-```kdl
-layout {
-    gaps 16
+```lua
+return {
+    layout = {
+        gaps = 16,
 
-    struts {
-        left -16
-        right -16
-        top -16
-        bottom -16
-    }
+        struts = {
+            left = -16,
+            right = -16,
+            top = -16,
+            bottom = -16,
+        },
+    },
 }
 ```
 
@@ -569,9 +609,11 @@ layout {
 Set the default background color that ymir draws for workspaces.
 This is visible when you're not using any background tools like swaybg.
 
-```kdl
-layout {
-    background-color "#003300"
+```lua
+return {
+    layout = {
+        background_color = "#003300",
+    },
 }
 ```
 

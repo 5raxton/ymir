@@ -154,7 +154,7 @@ install -Dm644 -t %{buildroot}%{zsh_completions_dir} ./_ymir
 %files
 %license LICENSE
 %doc README.md
-%doc resources/default-config.kdl
+%doc resources/default-config.lua
 %doc docs/wiki
 %{_bindir}/ymir
 %{_bindir}/ymir-session

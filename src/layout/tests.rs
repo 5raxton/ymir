@@ -2452,11 +2452,16 @@ fn numeric_workspace_tags_apply_layout_to_default_workspaces() {
     // monitor, without creating a named workspace.
     let config = ymir_config::Config::parse_mem(
         r#"
-        workspace "1" {
-            layout {
-                // Override the global default (normal) only for the first default workspace.
-                default-column-display "dwindle"
-            }
+        return {
+            workspaces = {
+                {
+                    name = "1",
+                    layout = {
+                        -- Override the global default (normal) only for the first default workspace.
+                        default_column_display = "dwindle",
+                    },
+                },
+            },
         }
         "#,
     )
@@ -2535,7 +2540,11 @@ fn numeric_workspace_tags_apply_layout_to_default_workspaces() {
     // A non-numeric workspace entry still creates a named workspace.
     let named_config = ymir_config::Config::parse_mem(
         r#"
-        workspace "browser"
+        return {
+            workspaces = {
+                { name = "browser" },
+            },
+        }
         "#,
     )
     .unwrap();

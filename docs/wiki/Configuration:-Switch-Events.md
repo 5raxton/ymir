@@ -2,16 +2,18 @@
 
 <sup>Since: 0.1.10</sup>
 
-Switch event bindings are declared in the `switch-events {}` section of the config.
+Switch event bindings are declared in the `switch_events` section of the config.
 
 Here are all the events that you can bind at a glance:
 
-```kdl
-switch-events {
-    lid-close { spawn "notify-send" "The laptop lid is closed!"; }
-    lid-open { spawn "notify-send" "The laptop lid is open!"; }
-    tablet-mode-on { spawn "bash" "-c" "gsettings set org.gnome.desktop.a11y.applications screen-keyboard-enabled true"; }
-    tablet-mode-off { spawn "bash" "-c" "gsettings set org.gnome.desktop.a11y.applications screen-keyboard-enabled false"; }
+```lua
+return {
+    switch_events = {
+        lid_close = { spawn = { "notify-send", "The laptop lid is closed!" } },
+        lid_open = { spawn = { "notify-send", "The laptop lid is open!" } },
+        tablet_mode_on = { spawn = { "bash", "-c", "gsettings set org.gnome.desktop.a11y.applications screen-keyboard-enabled true" } },
+        tablet_mode_off = { spawn = { "bash", "-c", "gsettings set org.gnome.desktop.a11y.applications screen-keyboard-enabled false" } },
+    },
 }
 ```
 
@@ -27,10 +29,12 @@ These events correspond to closing and opening of the laptop lid.
 
 Note that ymir will already automatically turn the internal laptop monitor on and off in accordance with the laptop lid.
 
-```kdl
-switch-events {
-    lid-close { spawn "notify-send" "The laptop lid is closed!"; }
-    lid-open { spawn "notify-send" "The laptop lid is open!"; }
+```lua
+return {
+    switch_events = {
+        lid_close = { spawn = { "notify-send", "The laptop lid is closed!" } },
+        lid_open = { spawn = { "notify-send", "The laptop lid is open!" } },
+    },
 }
 ```
 
@@ -42,9 +46,11 @@ In tablet mode, the keyboard and mouse are usually inaccessible, so you can use 
 > [!NOTE]
 > The commands below are just examples, you will need to provide your own on-screen keyboard, such as [sysboard](https://github.com/System64fumo/sysboard) or [wvkbd](https://github.com/jjsullivan5196/wvkbd).
 
-```kdl
-switch-events {
-    tablet-mode-on { spawn "bash" "-c" "gsettings set org.gnome.desktop.a11y.applications screen-keyboard-enabled true"; }
-    tablet-mode-off { spawn "bash" "-c" "gsettings set org.gnome.desktop.a11y.applications screen-keyboard-enabled false"; }
+```lua
+return {
+    switch_events = {
+        tablet_mode_on = { spawn = { "bash", "-c", "gsettings set org.gnome.desktop.a11y.applications screen-keyboard-enabled true" } },
+        tablet_mode_off = { spawn = { "bash", "-c", "gsettings set org.gnome.desktop.a11y.applications screen-keyboard-enabled false" } },
+    },
 }
 ```

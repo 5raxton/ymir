@@ -5,63 +5,62 @@ Additionally, you can disable or slow down all animations at once.
 
 Here's a quick glance at the available animations with their default values.
 
-```kdl
-animations {
-    // Uncomment to turn off all animations.
-    // You can also put "off" into each individual animation to disable it.
-    // off
+```lua
+return {
+    animations = {
+        -- Uncomment to turn off all animations.
+        -- You can also put "off" into each individual animation to disable it.
+        -- off = true
 
-    // Slow down all animations by this factor. Values below 1 speed them up instead.
-    // slowdown 3.0
+        -- Slow down all animations by this factor. Values below 1 speed them up instead.
+        -- slowdown = 3.0
 
-    // Individual animations.
+        -- Individual animations.
 
-    workspace-switch {
-        spring damping-ratio=1.0 stiffness=1000 epsilon=0.0001
-    }
+        workspace_switch = {
+            spring = { damping_ratio = 1.0, stiffness = 1000, epsilon = 0.0001 },
+        },
 
-    window-open {
-        duration-ms 150
-        curve "ease-out-expo"
-    }
+        window_open = {
+            easing = { duration_ms = 150, curve = "ease-out-expo" },
+        },
 
-    window-close {
-        duration-ms 150
-        curve "ease-out-quad"
-    }
+        window_close = {
+            easing = { duration_ms = 150, curve = "ease-out-quad" },
+        },
 
-    horizontal-view-movement {
-        spring damping-ratio=1.0 stiffness=800 epsilon=0.0001
-    }
+        horizontal_view_movement = {
+            spring = { damping_ratio = 1.0, stiffness = 800, epsilon = 0.0001 },
+        },
 
-    window-movement {
-        spring damping-ratio=1.0 stiffness=800 epsilon=0.0001
-    }
+        window_movement = {
+            spring = { damping_ratio = 1.0, stiffness = 800, epsilon = 0.0001 },
+        },
 
-    window-resize {
-        spring damping-ratio=1.0 stiffness=800 epsilon=0.0001
-    }
+        window_resize = {
+            spring = { damping_ratio = 1.0, stiffness = 800, epsilon = 0.0001 },
+        },
 
-    config-notification-open-close {
-        spring damping-ratio=0.6 stiffness=1000 epsilon=0.001
-    }
+        config_notification_open_close = {
+            spring = { damping_ratio = 0.6, stiffness = 1000, epsilon = 0.001 },
+        },
 
-    exit-confirmation-open-close {
-        spring damping-ratio=0.6 stiffness=500 epsilon=0.01
-    }
+        exit_confirmation_open_close = {
+            spring = { damping_ratio = 0.6, stiffness = 500, epsilon = 0.01 },
+        },
 
-    screenshot-ui-open {
-        duration-ms 200
-        curve "ease-out-quad"
-    }
+        screenshot_ui_open = {
+            easing = { duration_ms = 200, curve = "ease-out-quad" },
+        },
 
-    overview-open-close {
-        spring damping-ratio=1.0 stiffness=800 epsilon=0.0001
-    }
+        overview_open_close = {
+            spring = { damping_ratio = 1.0, stiffness = 800, epsilon = 0.0001 },
+        },
 
-    recent-windows-close {
-        spring damping-ratio=1.0 stiffness=800 epsilon=0.001
-    }
+        recent_windows_close = {
+            spring = { damping_ratio = 1.0, stiffness = 800, epsilon = 0.001 },
+        },
+    },
 }
 ```
 
@@ -76,15 +75,16 @@ This is a relatively common animation type that changes the value over a set dur
 
 To use this animation, set the following parameters:
 
-- `duration-ms`: duration of the animation in milliseconds.
+- `duration_ms`: duration of the animation in milliseconds.
 - `curve`: the easing curve to use.
 
-```kdl
-animations {
-    window-open {
-        duration-ms 150
-        curve "ease-out-expo"
-    }
+```lua
+return {
+    animations = {
+        window_open = {
+            easing = { duration_ms = 150, curve = "ease-out-expo" },
+        },
+    },
 }
 ```
 
@@ -96,13 +96,15 @@ You can get a feel for them on pages like [easings.net](https://easings.net/).
 - `ease-out-expo`
 - `linear` <sup>Since: 0.1.6</sup>
 - `cubic-bezier` <sup>Since: 25.08</sup>
-    A custom [cubic Bézier curve](https://www.w3.org/TR/css-easing-1/#cubic-bezier-easing-functions). You need to set 4 numbers defining the control points of the curve, for example:
-    ```kdl
-    animations {
-        window-open {
-            // Same as CSS cubic-bezier(0.05, 0.7, 0.1, 1)
-            curve "cubic-bezier" 0.05 0.7 0.1 1
-        }
+    A custom [cubic Bézier curve](https://www.w3.org/TR/css-easing-1/#cubic-bezier-easing-functions). You need to write the 4 numbers defining the control points of the curve as a CSS-style string, for example:
+    ```lua
+    return {
+        animations = {
+            window_open = {
+                -- Same as CSS cubic-bezier(0.05, 0.7, 0.1, 1)
+                easing = { duration_ms = 150, curve = "cubic-bezier(0.05, 0.7, 0.1, 1)" },
+            },
+        },
     }
     ```
     You can tweak the cubic-bezier parameters on pages like [easings.co](https://easings.co?curve=0.05,0.7,0.1,1).
@@ -119,15 +121,17 @@ You can use the [Elastic](https://flathub.org/apps/app.drey.Elastic) app to help
 
 A spring animation is configured like this, with three mandatory parameters:
 
-```kdl
-animations {
-    workspace-switch {
-        spring damping-ratio=1.0 stiffness=1000 epsilon=0.0001
-    }
+```lua
+return {
+    animations = {
+        workspace_switch = {
+            spring = { damping_ratio = 1.0, stiffness = 1000, epsilon = 0.0001 },
+        },
+    },
 }
 ```
 
-The `damping-ratio` goes from 0.1 to 10.0 and has the following properties:
+The `damping_ratio` goes from 0.1 to 10.0 and has the following properties:
 
 - below 1.0: underdamped spring, will oscillate in the end.
 - above 1.0: overdamped spring, won't oscillate.
@@ -137,7 +141,7 @@ However, even with damping ratio = 1.0, the spring animation may oscillate if "l
 
 > [!WARNING]
 > Overdamped springs currently have some numerical stability issues and may cause graphical glitches.
-> Therefore, setting `damping-ratio` above `1.0` is not recommended.
+> Therefore, setting `damping_ratio` above `1.0` is not recommended.
 
 Lower `stiffness` will result in a slower animation more prone to oscillation.
 
@@ -156,11 +160,13 @@ Now let's go into more detail on the animations that you can configure.
 
 Animation when switching workspaces up and down, including after the vertical touchpad gesture (a spring is recommended).
 
-```kdl
-animations {
-    workspace-switch {
-        spring damping-ratio=1.0 stiffness=1000 epsilon=0.0001
-    }
+```lua
+return {
+    animations = {
+        workspace_switch = {
+            spring = { damping_ratio = 1.0, stiffness = 1000, epsilon = 0.0001 },
+        },
+    },
 }
 ```
 
@@ -170,12 +176,13 @@ Window opening animation.
 
 This one uses an easing type by default.
 
-```kdl
-animations {
-    window-open {
-        duration-ms 150
-        curve "ease-out-expo"
-    }
+```lua
+return {
+    animations = {
+        window_open = {
+            easing = { duration_ms = 150, curve = "ease-out-expo" },
+        },
+    },
 }
 ```
 
@@ -197,28 +204,28 @@ When running ymir as a systemd service, you can see the warnings in the journal:
 
 Example: open will fill the current geometry with a solid gradient that gradually fades in.
 
-```kdl
-animations {
-    window-open {
-        duration-ms 250
-        curve "linear"
+```lua
+return {
+    animations = {
+        window_open = {
+            easing = { duration_ms = 250, curve = "linear" },
+            custom_shader = [[
+                vec4 open_color(vec3 coords_geo, vec3 size_geo) {
+                    vec4 color = vec4(0.0);
 
-        custom-shader r"
-            vec4 open_color(vec3 coords_geo, vec3 size_geo) {
-                vec4 color = vec4(0.0);
+                    if (0.0 <= coords_geo.x && coords_geo.x <= 1.0
+                            && 0.0 <= coords_geo.y && coords_geo.y <= 1.0)
+                    {
+                        vec4 from = vec4(1.0, 0.0, 0.0, 1.0);
+                        vec4 to = vec4(0.0, 1.0, 0.0, 1.0);
+                        color = mix(from, to, coords_geo.y);
+                    }
 
-                if (0.0 <= coords_geo.x && coords_geo.x <= 1.0
-                        && 0.0 <= coords_geo.y && coords_geo.y <= 1.0)
-                {
-                    vec4 from = vec4(1.0, 0.0, 0.0, 1.0);
-                    vec4 to = vec4(0.0, 1.0, 0.0, 1.0);
-                    color = mix(from, to, coords_geo.y);
+                    return color * ymir_clamped_progress;
                 }
-
-                return color * ymir_clamped_progress;
-            }
-        "
-    }
+            ]],
+        },
+    },
 }
 ```
 
@@ -230,12 +237,13 @@ Window closing animation.
 
 This one uses an easing type by default.
 
-```kdl
-animations {
-    window-close {
-        duration-ms 150
-        curve "ease-out-quad"
-    }
+```lua
+return {
+    animations = {
+        window_close = {
+            easing = { duration_ms = 150, curve = "ease-out-quad" },
+        },
+    },
 }
 ```
 
@@ -257,25 +265,28 @@ When running ymir as a systemd service, you can see the warnings in the journal:
 
 Example: close will fill the current geometry with a solid gradient that gradually fades away.
 
-```kdl
-animations {
-    window-close {
-        custom-shader r"
-            vec4 close_color(vec3 coords_geo, vec3 size_geo) {
-                vec4 color = vec4(0.0);
+```lua
+return {
+    animations = {
+        window_close = {
+            easing = { duration_ms = 150, curve = "ease-out-quad" },
+            custom_shader = [[
+                vec4 close_color(vec3 coords_geo, vec3 size_geo) {
+                    vec4 color = vec4(0.0);
 
-                if (0.0 <= coords_geo.x && coords_geo.x <= 1.0
-                        && 0.0 <= coords_geo.y && coords_geo.y <= 1.0)
-                {
-                    vec4 from = vec4(1.0, 0.0, 0.0, 1.0);
-                    vec4 to = vec4(0.0, 1.0, 0.0, 1.0);
-                    color = mix(from, to, coords_geo.y);
+                    if (0.0 <= coords_geo.x && coords_geo.x <= 1.0
+                            && 0.0 <= coords_geo.y && coords_geo.y <= 1.0)
+                    {
+                        vec4 from = vec4(1.0, 0.0, 0.0, 1.0);
+                        vec4 to = vec4(0.0, 1.0, 0.0, 1.0);
+                        color = mix(from, to, coords_geo.y);
+                    }
+
+                    return color * (1.0 - ymir_clamped_progress);
                 }
-
-                return color * (1.0 - ymir_clamped_progress);
-            }
-        "
-    }
+            ]],
+        },
+    },
 }
 ```
 
@@ -287,11 +298,13 @@ All horizontal camera view movement animations, such as:
 - When a new window appears off-screen and the camera scrolls to it.
 - After a horizontal touchpad gesture (a spring is recommended).
 
-```kdl
-animations {
-    horizontal-view-movement {
-        spring damping-ratio=1.0 stiffness=800 epsilon=0.0001
-    }
+```lua
+return {
+    animations = {
+        horizontal_view_movement = {
+            spring = { damping_ratio = 1.0, stiffness = 800, epsilon = 0.0001 },
+        },
+    },
 }
 ```
 
@@ -303,18 +316,20 @@ Movement of individual windows within a workspace.
 
 Includes:
 
-- Moving window columns with `move-column-left` and `move-column-right`.
-- Moving windows inside a column with `move-window-up` and `move-window-down`.
+- Moving window columns with `move_column_left` and `move_column_right`.
+- Moving windows inside a column with `move_window_up` and `move_window_down`.
 - Moving windows out of the way upon window opening and closing.
 - Window movement between columns when consuming/expelling.
 
 This animation *does not* include the camera view movement, such as scrolling the workspace left and right.
 
-```kdl
-animations {
-    window-movement {
-        spring damping-ratio=1.0 stiffness=800 epsilon=0.0001
-    }
+```lua
+return {
+    animations = {
+        window_movement = {
+            spring = { damping_ratio = 1.0, stiffness = 800, epsilon = 0.0001 },
+        },
+    },
 }
 ```
 
@@ -324,14 +339,16 @@ animations {
 
 Window resize animation.
 
-Only manual window resizes are animated, i.e. when you resize the window with `switch-preset-column-width` or `maximize-column`.
+Only manual window resizes are animated, i.e. when you resize the window with `switch_preset_column_width` or `maximize_column`.
 Also, very small resizes (up to 10 pixels) are not animated.
 
-```kdl
-animations {
-    window-resize {
-        spring damping-ratio=1.0 stiffness=800 epsilon=0.0001
-    }
+```lua
+return {
+    animations = {
+        window_resize = {
+            spring = { damping_ratio = 1.0, stiffness = 800, epsilon = 0.0001 },
+        },
+    },
 }
 ```
 
@@ -353,17 +370,20 @@ When running ymir as a systemd service, you can see the warnings in the journal:
 
 Example: resize will show the next (after resize) window texture right away, stretched to the current geometry.
 
-```kdl
-animations {
-    window-resize {
-        custom-shader r"
-            vec4 resize_color(vec3 coords_curr_geo, vec3 size_curr_geo) {
-                vec3 coords_tex_next = ymir_geo_to_tex_next * coords_curr_geo;
-                vec4 color = texture2D(ymir_tex_next, coords_tex_next.st);
-                return color;
-            }
-        "
-    }
+```lua
+return {
+    animations = {
+        window_resize = {
+            spring = { damping_ratio = 1.0, stiffness = 800, epsilon = 0.0001 },
+            custom_shader = [[
+                vec4 resize_color(vec3 coords_curr_geo, vec3 size_curr_geo) {
+                    vec3 coords_tex_next = ymir_geo_to_tex_next * coords_curr_geo;
+                    vec4 color = texture2D(ymir_tex_next, coords_tex_next.st);
+                    return color;
+                }
+            ]],
+        },
+    },
 }
 ```
 
@@ -371,13 +391,15 @@ animations {
 
 The open/close animation of the config parse error and new default config notifications.
 
-This one uses an underdamped spring by default (`damping-ratio=0.6`) which causes a slight oscillation in the end.
+This one uses an underdamped spring by default (`damping_ratio=0.6`) which causes a slight oscillation in the end.
 
-```kdl
-animations {
-    config-notification-open-close {
-        spring damping-ratio=0.6 stiffness=1000 epsilon=0.001
-    }
+```lua
+return {
+    animations = {
+        config_notification_open_close = {
+            spring = { damping_ratio = 0.6, stiffness = 1000, epsilon = 0.001 },
+        },
+    },
 }
 ```
 
@@ -387,13 +409,15 @@ animations {
 
 The open/close animation of the exit confirmation dialog.
 
-This one uses an underdamped spring by default (`damping-ratio=0.6`) which causes a slight oscillation in the end.
+This one uses an underdamped spring by default (`damping_ratio=0.6`) which causes a slight oscillation in the end.
 
-```kdl
-animations {
-    exit-confirmation-open-close {
-        spring damping-ratio=0.6 stiffness=500 epsilon=0.01
-    }
+```lua
+return {
+    animations = {
+        exit_confirmation_open_close = {
+            spring = { damping_ratio = 0.6, stiffness = 500, epsilon = 0.01 },
+        },
+    },
 }
 ```
 
@@ -403,12 +427,13 @@ animations {
 
 The open (fade-in) animation of the screenshot UI.
 
-```kdl
-animations {
-    screenshot-ui-open {
-        duration-ms 200
-        curve "ease-out-quad"
-    }
+```lua
+return {
+    animations = {
+        screenshot_ui_open = {
+            easing = { duration_ms = 200, curve = "ease-out-quad" },
+        },
+    },
 }
 ```
 
@@ -418,11 +443,13 @@ animations {
 
 The open/close zoom animation of the [Overview](./Overview.md).
 
-```kdl
-animations {
-    overview-open-close {
-        spring damping-ratio=1.0 stiffness=800 epsilon=0.0001
-    }
+```lua
+return {
+    animations = {
+        overview_open_close = {
+            spring = { damping_ratio = 1.0, stiffness = 800, epsilon = 0.0001 },
+        },
+    },
 }
 ```
 
@@ -432,11 +459,13 @@ animations {
 
 The close fade-out animation of the recent windows switcher.
 
-```kdl
-animations {
-    recent-windows-close {
-        spring damping-ratio=1.0 stiffness=800 epsilon=0.001
-    }
+```lua
+return {
+    animations = {
+        recent_windows_close = {
+            spring = { damping_ratio = 1.0, stiffness = 800, epsilon = 0.001 },
+        },
+    },
 }
 ```
 
@@ -447,7 +476,7 @@ animations {
 Sometimes, when two animations are meant to play together synchronized, ymir will drive them both with the same configuration.
 
 For example, if a window resize causes the view to move, then that view movement animation will also use the `window-resize` configuration (rather than the `horizontal-view-movement` configuration).
-This is especially important for animated resizes to look good when using `center-focused-column "always"`.
+This is especially important for animated resizes to look good when using `center_focused_column = "always"`.
 
 As another example, resizing a window in a column vertically causes other windows to move up or down into their new position.
 This movement will use the `window-resize` configuration, rather than the `window-movement` configuration, to keep the animations synchronized.

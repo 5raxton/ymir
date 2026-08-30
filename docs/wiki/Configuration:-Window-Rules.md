@@ -7,16 +7,22 @@ Window rules are processed in order of appearance in the config file.
 This means that you can put more generic rules first, then override them for specific windows later.
 For example:
 
-```kdl
-// Set open-maximized to true for all windows.
-window-rule {
-    open-maximized true
-}
+```lua
+return {
+    window_rules = {
+        -- Set open-maximized to true for all windows.
+        {
+            open_maximized = true,
+        },
 
-// Then, for Alacritty, set open-maximized back to false.
-window-rule {
-    match app-id="Alacritty"
-    open-maximized false
+        -- Then, for Alacritty, set open-maximized back to false.
+        {
+            match = {
+                { app_id = "Alacritty" },
+            },
+            open_maximized = false,
+        },
+    },
 }
 ```
 
@@ -26,104 +32,110 @@ window-rule {
 
 Here are all matchers and properties that a window rule could have:
 
-```kdl
-window-rule {
-    match title="Firefox"
-    match app-id="Alacritty"
-    match is-active=true
-    match is-focused=false
-    match is-active-in-column=true
-    match is-floating=true
-    match is-window-cast-target=true
-    match is-urgent=true
-    match at-startup=true
+```lua
+return {
+    window_rules = {
+        {
+            match = {
+                { title = "Firefox" },
+                { app_id = "Alacritty" },
+                { is_active = true },
+                { is_focused = false },
+                { is_active_in_column = true },
+                { is_floating = true },
+                { is_window_cast_target = true },
+                { is_urgent = true },
+                { at_startup = true },
+            },
 
-    // Properties that apply once upon window opening.
-    default-column-width { proportion 0.75; }
-    default-window-height { fixed 500; }
-    open-on-output "Some Company CoolMonitor 1234"
-    open-on-workspace "chat"
-    open-maximized true
-    open-maximized-to-edges true
-    open-fullscreen true
-    open-floating true
-    open-focused false
+            -- Properties that apply once upon window opening.
+            default_column_width = { proportion = 0.75 },
+            default_window_height = { fixed = 500 },
+            open_on_output = "Some Company CoolMonitor 1234",
+            open_on_workspace = "chat",
+            open_maximized = true,
+            open_maximized_to_edges = true,
+            open_fullscreen = true,
+            open_floating = true,
+            open_focused = false,
 
-    // Properties that apply continuously.
-    draw-border-with-background false
-    opacity 0.5
-    block-out-from "screencast"
-    // block-out-from "screen-capture"
-    variable-refresh-rate true
-    default-column-display "tabbed"
-    default-floating-position x=100 y=200 relative-to="bottom-left"
-    scroll-factor 0.75
-    on-xdg-activate "focus"
+            -- Properties that apply continuously.
+            draw_border_with_background = false,
+            opacity = 0.5,
+            block_out_from = "screencast",
+            -- block_out_from = "screen-capture"
+            variable_refresh_rate = true,
+            default_column_display = "tabbed",
+            default_floating_position = { x = 100, y = 200, relative_to = "bottom-left" },
+            scroll_factor = 0.75,
+            on_xdg_activate = "focus",
 
-    focus-ring {
-        // off
-        on
-        width 4
-        active-color "#7fc8ff"
-        inactive-color "#505050"
-        urgent-color "#9b0000"
-        // active-gradient from="#80c8ff" to="#bbddff" angle=45
-        // inactive-gradient from="#505050" to="#808080" angle=45 relative-to="workspace-view"
-        // urgent-gradient from="#800" to="#a33" angle=45
-    }
+            focus_ring = {
+                -- off = true
+                on = true,
+                width = 4,
+                active_color = "#7fc8ff",
+                inactive_color = "#505050",
+                urgent_color = "#9b0000",
+                -- active_gradient = { from = "#80c8ff", to = "#bbddff", angle = 45 }
+                -- inactive_gradient = { from = "#505050", to = "#808080", angle = 45, relative_to = "workspace-view" }
+                -- urgent_gradient = { from = "#800", to = "#a33", angle = 45 }
+            },
 
-    border {
-        // Same as focus-ring.
-    }
+            border = {
+                -- Same as focus-ring.
+            },
 
-    shadow {
-        // on
-        off
-        softness 40
-        spread 5
-        offset x=0 y=5
-        draw-behind-window true
-        color "#00000064"
-        // inactive-color "#00000064"
-    }
+            shadow = {
+                -- on = true
+                off = true,
+                softness = 40,
+                spread = 5,
+                offset = { x = 0, y = 5 },
+                draw_behind_window = true,
+                color = "#00000064",
+                -- inactive_color = "#00000064"
+            },
 
-    tab-indicator {
-        active-color "red"
-        inactive-color "gray"
-        urgent-color "blue"
-        // active-gradient from="#80c8ff" to="#bbddff" angle=45
-        // inactive-gradient from="#505050" to="#808080" angle=45 relative-to="workspace-view"
-        // urgent-gradient from="#800" to="#a33" angle=45
-    }
+            tab_indicator = {
+                active_color = "red",
+                inactive_color = "gray",
+                urgent_color = "blue",
+                -- active_gradient = { from = "#80c8ff", to = "#bbddff", angle = 45 }
+                -- inactive_gradient = { from = "#505050", to = "#808080", angle = 45, relative_to = "workspace-view" }
+                -- urgent_gradient = { from = "#800", to = "#a33", angle = 45 }
+            },
 
-    geometry-corner-radius 12
-    clip-to-geometry true
-    tiled-state true
-    baba-is-float true
+            geometry_corner_radius = 12,
+            clip_to_geometry = true,
+            tiled_state = true,
+            baba_is_float = true,
 
-    background-effect {
-        xray true
-        blur true
-        noise 0.05
-        saturation 3
-    }
+            background_effect = {
+                xray = true,
+                blur = true,
+                noise = 0.05,
+                saturation = 3,
+            },
 
-    popups {
-        opacity 0.5
-        geometry-corner-radius 15
+            popups = {
+                opacity = 0.5,
+                geometry_corner_radius = 15,
 
-        background-effect {
-            xray true
-            blur true
-            noise 0.05
-            saturation 3
-        }
-    }
+                background_effect = {
+                    xray = true,
+                    blur = true,
+                    noise = 0.05,
+                    saturation = 3,
+                },
+            },
 
-    min-width 100
-    max-width 200
-    min-height 300
-    max-height 300
+            min_width = 100,
+            max_width = 200,
+            min_height = 300,
+            max_height = 300,
+        },
+    },
 }
 ```
 
@@ -132,40 +144,58 @@ window-rule {
 Each window rule can have several `match` and `exclude` directives.
 In order for the rule to apply, a window needs to match *any* of the `match` directives, and *none* of the `exclude` directives.
 
-```kdl
-window-rule {
-    // Match all Telegram windows...
-    match app-id=r#"^org\.telegram\.desktop$"#
+```lua
+return {
+    window_rules = {
+        {
+            -- Match all Telegram windows...
+            match = {
+                { app_id = "^org\\.telegram\\.desktop$" },
+            },
 
-    // ...except the media viewer window.
-    exclude title="^Media viewer$"
+            -- ...except the media viewer window.
+            exclude = {
+                { title = "^Media viewer$" },
+            },
 
-    // Properties to apply.
-    open-on-output "HDMI-A-1"
+            -- Properties to apply.
+            open_on_output = "HDMI-A-1",
+        },
+    },
 }
 ```
 
 Match and exclude directives have the same syntax.
 There can be multiple *matchers* in one directive, then the window should match all of them for the directive to apply.
 
-```kdl
-window-rule {
-    // Match Firefox windows with Gmail in title.
-    match app-id="firefox" title="Gmail"
-}
+```lua
+return {
+    window_rules = {
+        {
+            -- Match Firefox windows with Gmail in title.
+            match = {
+                { app_id = "firefox", title = "Gmail" },
+            },
+        },
 
-window-rule {
-    // Match Firefox, but only when it is active...
-    match app-id="firefox" is-active=true
+        {
+            -- Match Firefox, but only when it is active...
+            match = {
+                { app_id = "firefox", is_active = true },
 
-    // ...or match Telegram...
-    match app-id=r#"^org\.telegram\.desktop$"#
+                -- ...or match Telegram...
+                { app_id = "^org\\.telegram\\.desktop$" },
+            },
 
-    // ...but don't match the Telegram media viewer.
-    // If you open a tab in Firefox titled "Media viewer",
-    // it will not be excluded because it doesn't match the app-id
-    // of this exclude directive.
-    exclude app-id=r#"^org\.telegram\.desktop$"# title="Media viewer"
+            -- ...but don't match the Telegram media viewer.
+            -- If you open a tab in Firefox titled "Media viewer",
+            -- it will not be excluded because it doesn't match the app-id
+            -- of this exclude directive.
+            exclude = {
+                { app_id = "^org\\.telegram\\.desktop$", title = "Media viewer" },
+            },
+        },
+    },
 }
 ```
 
@@ -176,20 +206,32 @@ Let's look at the matchers in more detail.
 These are regular expressions that should match anywhere in the window title and app ID respectively.
 You can read about the supported regular expression syntax [here](https://docs.rs/regex/latest/regex/#syntax).
 
-```kdl
-// Match windows with title containing "Mozilla Firefox",
-// or windows with app ID containing "Alacritty".
-window-rule {
-    match title="Mozilla Firefox"
-    match app-id="Alacritty"
+```lua
+return {
+    window_rules = {
+        {
+            -- Match windows with title containing "Mozilla Firefox",
+            -- or windows with app ID containing "Alacritty".
+            match = {
+                { title = "Mozilla Firefox" },
+                { app_id = "Alacritty" },
+            },
+        },
+    },
 }
 ```
 
-Raw KDL strings can be helpful for writing out regular expressions:
+Regular expressions are written as plain Lua strings. Remember that a backslash character in a regular expression (like `\.`) needs to be escaped as `\\` in a Lua string:
 
-```kdl
-window-rule {
-    exclude app-id=r#"^org\.keepassxc\.KeePassXC$"#
+```lua
+return {
+    window_rules = {
+        {
+            exclude = {
+                { app_id = "^org\\.keepassxc\\.KeePassXC$" },
+            },
+        },
+    },
 }
 ```
 
@@ -212,9 +254,15 @@ Matches active windows (same windows that have the active border / focus ring co
 Every workspace on the focused monitor will have one active window.
 This means that you will usually have multiple active windows (one per workspace), and when you switch between workspaces, you can see two active windows at once.
 
-```kdl
-window-rule {
-    match is-active=true
+```lua
+return {
+    window_rules = {
+        {
+            match = {
+                { is_active = true },
+            },
+        },
+    },
 }
 ```
 
@@ -227,9 +275,15 @@ Contrary to `is-active`, there can only be a single focused window.
 Also, when opening a layer-shell application launcher or pop-up menu, the keyboard focus goes to layer-shell.
 While layer-shell has the keyboard focus, windows will not match this rule.
 
-```kdl
-window-rule {
-    match is-focused=true
+```lua
+return {
+    window_rules = {
+        {
+            match = {
+                { is_focused = true },
+            },
+        },
+    },
 }
 ```
 
@@ -245,9 +299,15 @@ It is the window that was last focused in the column, i.e. the one that will gai
 
 <sup>Since: 25.01</sup> This rule will match `true` during the initial window opening.
 
-```kdl
-window-rule {
-    match is-active-in-column=true
+```lua
+return {
+    window_rules = {
+        {
+            match = {
+                { is_active_in_column = true },
+            },
+        },
+    },
 }
 ```
 
@@ -262,9 +322,15 @@ Matches floating windows.
 > This matcher will apply only after the window is already open.
 > This means that you cannot use it to change the window opening properties like `default-window-height` or `open-on-workspace`.
 
-```kdl
-window-rule {
-    match is-floating=true
+```lua
+return {
+    window_rules = {
+        {
+            match = {
+                { is_floating = true },
+            },
+        },
+    },
 }
 ```
 
@@ -279,28 +345,34 @@ Matches `true` for windows that are target of an ongoing window screencast.
 > This only matches individual-window screencasts.
 > It will not match windows that happen to be visible in a monitor screencast, for example.
 
-```kdl
-// Indicate screencasted windows with red colors.
-window-rule {
-    match is-window-cast-target=true
+```lua
+return {
+    window_rules = {
+        {
+            -- Indicate screencasted windows with red colors.
+            match = {
+                { is_window_cast_target = true },
+            },
 
-    focus-ring {
-        active-color "#f38ba8"
-        inactive-color "#7d0d2d"
-    }
+            focus_ring = {
+                active_color = "#f38ba8",
+                inactive_color = "#7d0d2d",
+            },
 
-    border {
-        inactive-color "#7d0d2d"
-    }
+            border = {
+                inactive_color = "#7d0d2d",
+            },
 
-    shadow {
-        color "#7d0d2d70"
-    }
+            shadow = {
+                color = "#7d0d2d70",
+            },
 
-    tab-indicator {
-        active-color "#f38ba8"
-        inactive-color "#7d0d2d"
-    }
+            tab_indicator = {
+                active_color = "#f38ba8",
+                inactive_color = "#7d0d2d",
+            },
+        },
+    },
 }
 ```
 
@@ -315,9 +387,15 @@ Example:
 Can be `true` or `false`.
 Matches windows that request the user's attention.
 
-```kdl
-window-rule {
-    match is-urgent=true
+```lua
+return {
+    window_rules = {
+        {
+            match = {
+                { is_urgent = true },
+            },
+        },
+    },
 }
 ```
 
@@ -330,11 +408,17 @@ Matches during the first 60 seconds after starting ymir.
 
 This is useful for properties like `open-on-output` which you may want to apply only right after starting ymir.
 
-```kdl
-// Open windows on the HDMI-A-1 monitor at ymir startup, but not afterwards.
-window-rule {
-    match at-startup=true
-    open-on-output "HDMI-A-1"
+```lua
+return {
+    window_rules = {
+        {
+            -- Open windows on the HDMI-A-1 monitor at ymir startup, but not afterwards.
+            match = {
+                { at_startup = true },
+            },
+            open_on_output = "HDMI-A-1",
+        },
+    },
 }
 ```
 
@@ -350,16 +434,22 @@ Set the default width for the new window.
 
 This works for floating windows too, despite the word "column" in the name.
 
-```kdl
-// Give Blender and GIMP some guaranteed width on opening.
-window-rule {
-    match app-id="^blender$"
+```lua
+return {
+    window_rules = {
+        {
+            -- Give Blender and GIMP some guaranteed width on opening.
+            match = {
+                { app_id = "^blender$" },
 
-    // GIMP app ID contains the version like "gimp-2.99",
-    // so we only match the beginning (with ^) and not the end.
-    match app-id="^gimp"
+                -- GIMP app ID contains the version like "gimp-2.99",
+                -- so we only match the beginning (with ^) and not the end.
+                { app_id = "^gimp" },
+            },
 
-    default-column-width { fixed 1200; }
+            default_column_width = { fixed = 1200 },
+        },
+    },
 }
 ```
 
@@ -369,14 +459,20 @@ window-rule {
 
 Set the default height for the new window.
 
-```kdl
-// Open the Firefox picture-in-picture window as floating with 480×270 size.
-window-rule {
-    match app-id="firefox$" title="^Picture-in-Picture$"
+```lua
+return {
+    window_rules = {
+        {
+            -- Open the Firefox picture-in-picture window as floating with 480×270 size.
+            match = {
+                { app_id = "firefox$", title = "^Picture-in-Picture$" },
+            },
 
-    open-floating true
-    default-column-width { fixed 480; }
-    default-window-height { fixed 270; }
+            open_floating = true,
+            default_column_width = { fixed = 480 },
+            default_window_height = { fixed = 270 },
+        },
+    },
 }
 ```
 
@@ -388,17 +484,25 @@ If such an output does not exist, the window will open on the currently focused 
 
 If the window opens on an output that is not currently focused, the window will not be automatically focused.
 
-```kdl
-// Open Firefox and Telegram (but not its Media Viewer)
-// on a specific monitor.
-window-rule {
-    match app-id="firefox$"
-    match app-id=r#"^org\.telegram\.desktop$"#
-    exclude app-id=r#"^org\.telegram\.desktop$"# title="^Media viewer$"
+```lua
+return {
+    window_rules = {
+        {
+            -- Open Firefox and Telegram (but not its Media Viewer)
+            -- on a specific monitor.
+            match = {
+                { app_id = "firefox$" },
+                { app_id = "^org\\.telegram\\.desktop$" },
+            },
+            exclude = {
+                { app_id = "^org\\.telegram\\.desktop$", title = "^Media viewer$" },
+            },
 
-    open-on-output "HDMI-A-1"
-    // Or:
-    // open-on-output "Some Company CoolMonitor 1234"
+            open_on_output = "HDMI-A-1",
+            -- Or:
+            -- open_on_output = "Some Company CoolMonitor 1234"
+        },
+    },
 }
 ```
 
@@ -415,12 +519,18 @@ If such a workspace does not exist, the window will open on the currently focuse
 
 If the window opens on an output that is not currently focused, the window will not be automatically focused.
 
-```kdl
-// Open Fractal on the "chat" workspace.
-window-rule {
-    match app-id=r#"^org\.gnome\.Fractal$"#
+```lua
+return {
+    window_rules = {
+        {
+            -- Open Fractal on the "chat" workspace.
+            match = {
+                { app_id = "^org\\.gnome\\.Fractal$" },
+            },
 
-    open-on-workspace "chat"
+            open_on_workspace = "chat",
+        },
+    },
 }
 ```
 
@@ -428,12 +538,18 @@ window-rule {
 
 Make the window open as a maximized column.
 
-```kdl
-// Maximize Firefox by default.
-window-rule {
-    match app-id="firefox$"
+```lua
+return {
+    window_rules = {
+        {
+            -- Maximize Firefox by default.
+            match = {
+                { app_id = "firefox$" },
+            },
 
-    open-maximized true
+            open_maximized = true,
+        },
+    },
 }
 ```
 
@@ -443,17 +559,25 @@ window-rule {
 
 Make the window open [maximized to edges](./Fullscreen-and-Maximize.md).
 
-```kdl
-window-rule {
-    open-maximized-to-edges true
+```lua
+return {
+    window_rules = {
+        {
+            open_maximized_to_edges = true,
+        },
+    },
 }
 ```
 
 You can also set this to `false` to *prevent* a window from opening maximized to edges.
 
-```kdl
-window-rule {
-    open-maximized-to-edges false
+```lua
+return {
+    window_rules = {
+        {
+            open_maximized_to_edges = false,
+        },
+    },
 }
 ```
 
@@ -461,20 +585,30 @@ window-rule {
 
 Make the window open [fullscreen](./Fullscreen-and-Maximize.md).
 
-```kdl
-window-rule {
-    open-fullscreen true
+```lua
+return {
+    window_rules = {
+        {
+            open_fullscreen = true,
+        },
+    },
 }
 ```
 
 You can also set this to `false` to *prevent* a window from opening fullscreen.
 
-```kdl
-// Make the Telegram media viewer open in windowed mode.
-window-rule {
-    match app-id=r#"^org\.telegram\.desktop$"# title="^Media viewer$"
+```lua
+return {
+    window_rules = {
+        {
+            -- Make the Telegram media viewer open in windowed mode.
+            match = {
+                { app_id = "^org\\.telegram\\.desktop$", title = "^Media viewer$" },
+            },
 
-    open-fullscreen false
+            open_fullscreen = false,
+        },
+    },
 }
 ```
 
@@ -484,21 +618,31 @@ window-rule {
 
 Make the window open in the floating layout.
 
-```kdl
-// Open the Firefox picture-in-picture window as floating.
-window-rule {
-    match app-id="firefox$" title="^Picture-in-Picture$"
+```lua
+return {
+    window_rules = {
+        {
+            -- Open the Firefox picture-in-picture window as floating.
+            match = {
+                { app_id = "firefox$", title = "^Picture-in-Picture$" },
+            },
 
-    open-floating true
+            open_floating = true,
+        },
+    },
 }
 ```
 
 You can also set this to `false` to *prevent* a window from opening in the floating layout.
 
-```kdl
-// Open all windows in the tiling layout, overriding any auto-floating logic.
-window-rule {
-    open-floating false
+```lua
+return {
+    window_rules = {
+        {
+            -- Open all windows in the tiling layout, overriding any auto-floating logic.
+            open_floating = false,
+        },
+    },
 }
 ```
 
@@ -508,26 +652,38 @@ window-rule {
 
 Set this to `false` to prevent this window from being automatically focused upon opening.
 
-```kdl
-// Don't give focus to the GIMP startup splash screen.
-window-rule {
-    match app-id="^gimp" title="^GIMP Startup$"
+```lua
+return {
+    window_rules = {
+        {
+            -- Don't give focus to the GIMP startup splash screen.
+            match = {
+                { app_id = "^gimp", title = "^GIMP Startup$" },
+            },
 
-    open-focused false
+            open_focused = false,
+        },
+    },
 }
 ```
 
 You can also set this to `true` to focus the window, even if normally it wouldn't get auto-focused.
 
-```kdl
-// Always focus the KeePassXC-Browser unlock dialog.
-//
-// This dialog opens parented to the KeePassXC window rather than the browser,
-// so it doesn't get auto-focused by default.
-window-rule {
-    match app-id=r#"^org\.keepassxc\.KeePassXC$"# title="^Unlock Database - KeePassXC$"
+```lua
+return {
+    window_rules = {
+        {
+            -- Always focus the KeePassXC-Browser unlock dialog.
+            --
+            -- This dialog opens parented to the KeePassXC window rather than the browser,
+            -- so it doesn't get auto-focused by default.
+            match = {
+                { app_id = "^org\\.keepassxc\\.KeePassXC$", title = "^Unlock Database - KeePassXC$" },
+            },
 
-    open-focused true
+            open_focused = true,
+        },
+    },
 }
 ```
 
@@ -554,13 +710,19 @@ To preview and set up this rule, check the `preview-render` option in the debug 
 The built-in screenshot UI is not affected by this problem though.
 If you open the screenshot UI while screencasting, you will be able to select the area to screenshot while seeing all windows normally, but on a screencast the selection UI will display with windows blocked out.
 
-```kdl
-// Block out password managers from screencasts.
-window-rule {
-    match app-id=r#"^org\.keepassxc\.KeePassXC$"#
-    match app-id=r#"^org\.gnome\.World\.Secrets$"#
+```lua
+return {
+    window_rules = {
+        {
+            -- Block out password managers from screencasts.
+            match = {
+                { app_id = "^org\\.keepassxc\\.KeePassXC$" },
+                { app_id = "^org\\.gnome\\.World\\.Secrets$" },
+            },
 
-    block-out-from "screencast"
+            block_out_from = "screencast",
+        },
+    },
 }
 ```
 
@@ -570,9 +732,13 @@ This way you avoid accidentally showing the window on a screencast when opening 
 This setting will still let you use the interactive built-in screenshot UI, but it will block out the window from the fully automatic screenshot actions, such as `screenshot-screen` and `screenshot-window`.
 The reasoning is that with an interactive selection, you can make sure that you avoid screenshotting sensitive content.
 
-```kdl
-window-rule {
-    block-out-from "screen-capture"
+```lua
+return {
+    window_rules = {
+        {
+            block_out_from = "screen-capture",
+        },
+    },
 }
 ```
 
@@ -581,12 +747,18 @@ window-rule {
 >
 > For example, you might try to block out specific Firefox tabs like this:
 >
-> ```kdl
-> window-rule {
->     // Doesn't quite work! Try to block out the Gmail tab.
->     match app-id="firefox$" title="- Gmail "
+> ```lua
+> return {
+>     window_rules = {
+>         {
+>             -- Doesn't quite work! Try to block out the Gmail tab.
+>             match = {
+>                 { app_id = "firefox$", title = "- Gmail " },
+>             },
 >
->     block-out-from "screencast"
+>             block_out_from = "screencast",
+>         },
+>     },
 > }
 > ```
 >
@@ -614,13 +786,19 @@ Requests with a set, but invalid, serial, are always ignored, which you can chan
 
 This is useful for apps that steal focus on incoming messages or when opening popup windows like Picture-in-Picture.
 
-```kdl
-// Don't let Firefox PiP steal focus.
-window-rule {
-    match title="^Picture-in-Picture$"
+```lua
+return {
+    window_rules = {
+        {
+            -- Don't let Firefox PiP steal focus.
+            match = {
+                { title = "^Picture-in-Picture$" },
+            },
 
-    open-floating true
-    on-xdg-activate "set-urgent"
+            open_floating = true,
+            on_xdg_activate = "set-urgent",
+        },
+    },
 }
 ```
 
@@ -638,12 +816,18 @@ Also, focus ring and border with background will show through semitransparent wi
 
 Opacity can be toggled on or off for a window using the [`toggle-window-rule-opacity`](./Configuration:-Key-Bindings.md#toggle-window-rule-opacity) action.
 
-```kdl
-// Make inactive windows semitransparent.
-window-rule {
-    match is-active=false
+```lua
+return {
+    window_rules = {
+        {
+            -- Make inactive windows semitransparent.
+            match = {
+                { is_active = false },
+            },
 
-    opacity 0.95
+            opacity = 0.95,
+        },
+    },
 }
 ```
 
@@ -653,17 +837,26 @@ window-rule {
 
 If set to true, whenever this window displays on an output with on-demand VRR, it will enable VRR on that output.
 
-```kdl
-// Configure some output with on-demand VRR.
-output "HDMI-A-1" {
-    variable-refresh-rate on-demand=true
-}
+```lua
+return {
+    -- Configure some output with on-demand VRR.
+    output = {
+        {
+            name = "HDMI-A-1",
+            variable_refresh_rate = { on_demand = true },
+        },
+    },
 
-// Enable on-demand VRR when mpv displays on the output.
-window-rule {
-    match app-id="^mpv$"
+    -- Enable on-demand VRR when mpv displays on the output.
+    window_rules = {
+        {
+            match = {
+                { app_id = "^mpv$" },
+            },
 
-    variable-refresh-rate true
+            variable_refresh_rate = true,
+        },
+    },
 }
 ```
 
@@ -680,12 +873,18 @@ For example:
 - Expelling a window into its own column.
 - Moving a window from the floating layout to the tiling layout.
 
-```kdl
-// Make Evince windows open as tabbed columns.
-window-rule {
-    match app-id="^evince$"
+```lua
+return {
+    window_rules = {
+        {
+            -- Make Evince windows open as tabbed columns.
+            match = {
+                { app_id = "^evince$" },
+            },
 
-    default-column-display "tabbed"
+            default_column_display = "tabbed",
+        },
+    },
 }
 ```
 
@@ -710,34 +909,46 @@ The coordinates change direction based on `relative-to`.
 For example, by default (top-left), `x=100 y=200` will put the window 100 pixels to the right and 200 pixels down from the top-left corner.
 If you use `x=100 y=200 relative-to="bottom-left"`, it will put the window 100 pixels to the right and 200 pixels *up* from the bottom-left corner.
 
-```kdl
-// Open the Firefox picture-in-picture window at the bottom-left corner of the screen
-// with a small gap.
-window-rule {
-    match app-id="firefox$" title="^Picture-in-Picture$"
+```lua
+return {
+    window_rules = {
+        {
+            -- Open the Firefox picture-in-picture window at the bottom-left corner of the screen
+            -- with a small gap.
+            match = {
+                { app_id = "firefox$", title = "^Picture-in-Picture$" },
+            },
 
-    default-floating-position x=32 y=32 relative-to="bottom-left"
+            default_floating_position = { x = 32, y = 32, relative_to = "bottom-left" },
+        },
+    },
 }
 ```
 
 You can use single-side `relative-to` to get a dropdown-like effect.
 
-```kdl
-// Example: a "dropdown" terminal.
-window-rule {
-    // Match by "dropdown" app ID.
-    // You need to set this app ID when running your terminal, e.g.:
-    // spawn "alacritty" "--class" "dropdown"
-    match app-id="^dropdown$"
+```lua
+return {
+    window_rules = {
+        {
+            -- Example: a "dropdown" terminal.
+            -- Match by "dropdown" app ID.
+            -- You need to set this app ID when running your terminal, e.g.:
+            -- spawn "alacritty" "--class" "dropdown"
+            match = {
+                { app_id = "^dropdown$" },
+            },
 
-    // Open it as floating.
-    open-floating true
-    // Anchor to the top edge of the screen.
-    default-floating-position x=0 y=0 relative-to="top"
-    // Half of the screen high.
-    default-window-height { proportion 0.5; }
-    // 80% of the screen wide.
-    default-column-width { proportion 0.8; }
+            -- Open it as floating.
+            open_floating = true,
+            -- Anchor to the top edge of the screen.
+            default_floating_position = { x = 0, y = 0, relative_to = "top" },
+            -- Half of the screen high.
+            default_window_height = { proportion = 0.5 },
+            -- 80% of the screen wide.
+            default_column_width = { proportion = 0.8 },
+        },
+    },
 }
 ```
 
@@ -749,12 +960,18 @@ Set a scroll factor for all scroll events sent to a window.
 
 This will be multiplied with the scroll factor set for your input device in the [input section](./Configuration:-Input.md#pointing-devices).
 
-```kdl
-// Make scrolling in Firefox a bit slower.
-window-rule {
-    match app-id="firefox$"
+```lua
+return {
+    window_rules = {
+        {
+            -- Make scrolling in Firefox a bit slower.
+            match = {
+                { app_id = "firefox$" },
+            },
 
-    scroll-factor 0.75
+            scroll_factor = 0.75,
+        },
+    },
 }
 ```
 
@@ -771,9 +988,13 @@ This property can be useful for rectangular windows that do not support the xdg-
 | ------------------------------------------------ | --------------------------------------------------- |
 | ![A screenshot displaying a window with draw-border-with-background set to true](./img/simple-egl-border-with-background.png) | ![A screenshot displaying a window with draw-border-with-background set to false](./img/simple-egl-border-without-background.png) |
 
-```kdl
-window-rule {
-    draw-border-with-background false
+```lua
+return {
+    window_rules = {
+        {
+            draw_border_with_background = false,
+        },
+    },
 }
 ```
 
@@ -788,19 +1009,23 @@ These rules have the same options as the normal [`focus-ring` and `border` confi
 However, in addition to `off` to disable the border/focus ring, this window rule has an `on` flag that enables the border/focus ring for the window even if it was otherwise disabled.
 The `on` flag has precedence over the `off` flag, in case both are set.
 
-```kdl
-window-rule {
-    focus-ring {
-        off
-        width 2
-    }
-}
+```lua
+return {
+    window_rules = {
+        {
+            focus_ring = {
+                off = true,
+                width = 2,
+            },
+        },
 
-window-rule {
-    border {
-        on
-        width 8
-    }
+        {
+            border = {
+                on = true,
+                width = 8,
+            },
+        },
+    },
 }
 ```
 
@@ -815,14 +1040,20 @@ This rule has the same options as the normal [`shadow` config in the layout sect
 However, in addition to `on` to enable the shadow, this window rule has an `off` flag that disables the shadow for the window even if it was otherwise enabled.
 The `on` flag has precedence over the `off` flag, in case both are set.
 
-```kdl
-// Turn on shadows for floating windows.
-window-rule {
-    match is-floating=true
+```lua
+return {
+    window_rules = {
+        {
+            -- Turn on shadows for floating windows.
+            match = {
+                { is_floating = true },
+            },
 
-    shadow {
-        on
-    }
+            shadow = {
+                on = true,
+            },
+        },
+    },
 }
 ```
 
@@ -834,14 +1065,20 @@ Override the tab indicator options for the window.
 
 Options in this rule match the same options as the normal [`tab-indicator` config in the layout section](./Configuration:-Layout.md#tab-indicator), so check the documentation there.
 
-```kdl
-// Make KeePassXC tab have a dark red inactive color.
-window-rule {
-    match app-id=r#"^org\.keepassxc\.KeePassXC$"#
+```lua
+return {
+    window_rules = {
+        {
+            -- Make KeePassXC tab have a dark red inactive color.
+            match = {
+                { app_id = "^org\\.keepassxc\\.KeePassXC$" },
+            },
 
-    tab-indicator {
-        inactive-color "darkred"
-    }
+            tab_indicator = {
+                inactive_color = "darkred",
+            },
+        },
+    },
 }
 ```
 
@@ -854,9 +1091,13 @@ Set the corner radius of the window.
 On its own, this setting will only affect the border and the focus ring—they will round their corners to match the geometry corner radius.
 If you'd like to force-round the corners of the window itself, set [`clip-to-geometry true`](#clip-to-geometry) in addition to this setting.
 
-```kdl
-window-rule {
-    geometry-corner-radius 12
+```lua
+return {
+    window_rules = {
+        {
+            geometry_corner_radius = 12,
+        },
+    },
 }
 ```
 
@@ -867,9 +1108,18 @@ The radius is set in logical pixels, and controls the radius of the window itsel
 Instead of one radius, you can set four, for each corner.
 The order is the same as in CSS: top-left, top-right, bottom-right, bottom-left.
 
-```kdl
-window-rule {
-    geometry-corner-radius 8 8 0 0
+```lua
+return {
+    window_rules = {
+        {
+            geometry_corner_radius = {
+                top_left = 8,
+                top_right = 8,
+                bottom_right = 0,
+                bottom_left = 0,
+            },
+        },
+    },
 }
 ```
 
@@ -887,9 +1137,13 @@ This will cut out any client-side window shadows, and also round window corners 
 
 ![A screenshot showing a window with rounded corners, clipped to the visual geometry](./img/clip-to-geometry.png)
 
-```kdl
-window-rule {
-    clip-to-geometry true
+```lua
+return {
+    window_rules = {
+        {
+            clip_to_geometry = true,
+        },
+    },
 }
 ```
 
@@ -897,22 +1151,26 @@ Enable border, set [`geometry-corner-radius`](#geometry-corner-radius) and `clip
 
 ![A screenshot showing a window with rounded corners, and a border](./img/border-radius-clip.png)
 
-```kdl
-prefer-no-csd
+```lua
+return {
+    prefer_no_csd = true,
 
-layout {
-    focus-ring {
-        off
-    }
+    layout = {
+        focus_ring = {
+            off = true,
+        },
 
-    border {
-        width 2
-    }
-}
+        border = {
+            width = 2,
+        },
+    },
 
-window-rule {
-    geometry-corner-radius 12
-    clip-to-geometry true
+    window_rules = {
+        {
+            geometry_corner_radius = 12,
+            clip_to_geometry = true,
+        },
+    },
 }
 ```
 
@@ -927,12 +1185,18 @@ Windows that snap their size to a grid (e.g. terminals like [foot](https://codeb
 By default, ymir will set the tiled state to `true` together with [`prefer-no-csd`](./Configuration:-Miscellaneous.md#prefer-no-csd) in order to improve behavior for apps that don't support server-side decorations.
 You can use this window rule to override this, for example to get rectangular windows with CSD.
 
-```kdl
-// Make tiled windows rectangular while using CSD.
-window-rule {
-    match is-floating=false
+```lua
+return {
+    window_rules = {
+        {
+            -- Make tiled windows rectangular while using CSD.
+            match = {
+                { is_floating = false },
+            },
 
-    tiled-state true
+            tiled_state = true,
+        },
+    },
 }
 ```
 
@@ -944,11 +1208,17 @@ Make your windows FLOAT up and down.
 
 This is an April Fools' 2025 feature.
 
-```kdl
-window-rule {
-    match is-floating=true
+```lua
+return {
+    window_rules = {
+        {
+            match = {
+                { is_floating = true },
+            },
 
-    baba-is-float true
+            baba_is_float = true,
+        },
+    },
 }
 ```
 
@@ -971,18 +1241,24 @@ Override the background effect options for this window.
 
 See the [window effects page](./Window-Effects.md) for an overview of background effects.
 
-```kdl
-// Make floating windows use the regular blur (if enabled),
-// while tiled windows keep using the efficient xray blur.
-//
-// Warning: non-xray blur is currently experimental and has known limitations.
-// In particular, it doesn't work during window opening and closing animations.
-window-rule {
-    match is-floating=true
+```lua
+return {
+    window_rules = {
+        {
+            -- Make floating windows use the regular blur (if enabled),
+            -- while tiled windows keep using the efficient xray blur.
+            --
+            -- Warning: non-xray blur is currently experimental and has known limitations.
+            -- In particular, it doesn't work during window opening and closing animations.
+            match = {
+                { is_floating = true },
+            },
 
-    background-effect {
-        xray false
-    }
+            background_effect = {
+                xray = false,
+            },
+        },
+    },
 }
 ```
 
@@ -1016,24 +1292,30 @@ Other properties apply independently.
 >
 > For pop-ups created by your desktop shell or desktop components, use the corresponding [layer rule](./Configuration:-Layer-Rules.md#popups).
 
-```kdl
-// Blur the background behind pop-up menus in Nautilus.
-window-rule {
-    match app-id="Nautilus"
+```lua
+return {
+    window_rules = {
+        {
+            -- Blur the background behind pop-up menus in Nautilus.
+            match = {
+                { app_id = "Nautilus" },
+            },
 
-    popups {
-        // Matches the default libadwaita pop-up corner radius.
-        geometry-corner-radius 15
+            popups = {
+                -- Matches the default libadwaita pop-up corner radius.
+                geometry_corner_radius = 15,
 
-        // Note: it'll look better to set background opacity
-        // through your GTK theme CSS and not here.
-        // This is just an example that makes it look obvious.
-        opacity 0.5
+                -- Note: it'll look better to set background opacity
+                -- through your GTK theme CSS and not here.
+                -- This is just an example that makes it look obvious.
+                opacity = 0.5,
 
-        background-effect {
-            blur true
-        }
-    }
+                background_effect = {
+                    blur = true,
+                },
+            },
+        },
+    },
 }
 ```
 
@@ -1060,20 +1342,30 @@ These values instruct ymir to never ask the window to be smaller than the minimu
 >
 > This is a limitation of ymir's window height distribution algorithm.
 
-```kdl
-window-rule {
-    min-width 100
-    max-width 200
-    min-height 300
-    max-height 300
+```lua
+return {
+    window_rules = {
+        {
+            min_width = 100,
+            max_width = 200,
+            min_height = 300,
+            max_height = 300,
+        },
+    },
 }
 ```
 
-```kdl
-// Fix OBS with server-side decorations missing a minimum width.
-window-rule {
-    match app-id=r#"^com\.obsproject\.Studio$"#
+```lua
+return {
+    window_rules = {
+        {
+            -- Fix OBS with server-side decorations missing a minimum width.
+            match = {
+                { app_id = "^com\\.obsproject\\.Studio$" },
+            },
 
-    min-width 876
+            min_width = 876,
+        },
+    },
 }
 ```

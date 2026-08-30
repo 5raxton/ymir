@@ -10,7 +10,7 @@ curl -sL https://raw.githubusercontent.com/5raxton/ymir/main/scripts/install.sh 
 curl -sL https://raw.githubusercontent.com/5raxton/ymir/main/scripts/install.fish | fish
 ```
 
-On Arch it builds with `makepkg` from the PKGBUILD; on other distros it builds with `cargo` and installs into `/usr/local`. The installer seeds `~/.config/ymir/config.kdl` with the default dwindle config if absent, and installs the `ymir.desktop` session entry automatically so "Ymir" appears in your login manager (GDM, SDDM, ...). From a bare TTY you can start it directly with `ymir-session`. Re-running the installer pulls the latest `main` and rebuilds, so it also doubles as a bleeding-edge update.
+On Arch it builds with `makepkg` from the PKGBUILD; on other distros it builds with `cargo` and installs into `/usr/local`. The installer seeds `~/.config/ymir/config.lua` with the default dwindle config if absent, and installs the `ymir.desktop` session entry automatically so "Ymir" appears in your login manager (GDM, SDDM, ...). From a bare TTY you can start it directly with `ymir-session`. Re-running the installer pulls the latest `main` and rebuilds, so it also doubles as a bleeding-edge update.
 
 Alternatively, some distributions provide packaged builds of ymir — see the ["Slower and more considered start"](#slower-and-more-considered-start) section. You can also try a more out-of-the-box experience with [DankMaterialShell](https://github.com/AvengeMedia/DankMaterialShell):
 
@@ -38,7 +38,7 @@ After running these commands, log out, choose Ymir in your display manager, and 
 Or, if not using a display manager, run `ymir-session` on a TTY.
 
 The default ymir config will run Waybar, so you might get two bars on screen.
-To fix this, stop Waybar with `pkill waybar` command, then open `~/.config/ymir/config.kdl` and delete the `spawn-at-startup "waybar"` line.
+To fix this, stop Waybar with `pkill waybar` command, then open `~/.config/ymir/config.lua` and delete the `spawn_at_startup = { { command = { "waybar" } } }` line.
 
 Check the DankMaterialShell's [compositor setup page](https://danklinux.com/docs/dankmaterialshell/compositors#ymir-configuration) to learn how to configure DMS-specific binds and other ymir integrations.
 
@@ -107,11 +107,13 @@ crw-rw-rw-@ 226,129 root 14 мая 07:07 renderD129
 
 You will likely have one `render` device and two `card` devices.
 
-Open the ymir config file at `~/.config/ymir/config.kdl` and put your `render` device path like this:
+Open the ymir config file at `~/.config/ymir/config.lua` and put your `render` device path like this:
 
-```kdl
-debug {
-    render-drm-device "/dev/dri/renderD128"
+```lua
+return {
+    debug = {
+        render_drm_device = "/dev/dri/renderD128",
+    },
 }
 ```
 

@@ -9,9 +9,11 @@ All tabs in a column have the same window size, so this is useful to get more ve
 
 Use this bind to toggle a column between normal and tabbed display:
 
-```kdl
-binds {
-   Mod+W { toggle-column-tabbed-display; }
+```lua
+return {
+    binds = {
+        { key = "Mod+W", action = { name = "toggle_column_tabbed_display" } },
+    },
 }
 ```
 

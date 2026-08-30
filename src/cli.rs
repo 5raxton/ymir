@@ -13,7 +13,7 @@ use crate::utils::version;
 #[command(subcommand_value_name = "SUBCOMMAND")]
 #[command(subcommand_help_heading = "Subcommands")]
 pub struct Cli {
-    /// Path to config file (default: `$XDG_CONFIG_HOME/ymir/config.kdl`).
+    /// Path to config file (default: `$XDG_CONFIG_HOME/ymir/config.lua`).
     ///
     /// This can also be set with the `YMIR_CONFIG` environment variable. If both are set, the
     /// command line argument takes precedence.
@@ -46,7 +46,7 @@ pub enum Sub {
     },
     /// Validate the config file.
     Validate {
-        /// Path to config file (default: `$XDG_CONFIG_HOME/ymir/config.kdl`).
+        /// Path to config file (default: `$XDG_CONFIG_HOME/ymir/config.lua`).
         ///
         /// This can also be set with the `YMIR_CONFIG` environment variable. If both are set, the
         /// command line argument takes precedence.

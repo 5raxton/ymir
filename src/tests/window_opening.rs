@@ -226,55 +226,48 @@ fn check_target_output_and_workspace(
 
     let mut config = String::from(
         r##"
-output "headless-2" {
-    layout {
-        border {
-            on
-        }
-    }
-}
-
-workspace "ws-1" {
-    open-on-output "headless-1"
-}
-
-workspace "ws-2" {
-    open-on-output "headless-2"
-
-    layout {
-        border {
-            width 10
-        }
-
-        default-column-width {
-            fixed 500
-        }
-    }
-}
-
-window-rule {
-    exclude title="parent"
-
-"##,
+        return {
+            output = {
+                { name = "headless-2", layout = { border = { on = true } } },
+            },
+            workspaces = {
+                { name = "ws-1", open_on_output = "headless-1" },
+                {
+                    name = "ws-2",
+                    open_on_output = "headless-2",
+                    layout = {
+                        border = { width = 10 },
+                        default_column_width = { fixed = 500 },
+                    },
+                },
+            },
+            window_rules = {
+                {
+                    exclude = { { title = "parent" } },
+        "##,
     );
 
     if let Some(x) = open_on_workspace {
-        writeln!(config, "    open-on-workspace \"ws-{x}\"").unwrap();
+        writeln!(config, "                    open_on_workspace = \"ws-{x}\",").unwrap();
         snapshot_suffix.push(format!("ws{x}"));
     }
 
     if let Some(x) = open_on_output {
-        writeln!(config, "    open-on-output \"headless-{x}\"").unwrap();
+        writeln!(config, "                    open_on_output = \"headless-{x}\",").unwrap();
         snapshot_suffix.push(format!("out{x}"));
     }
 
     if let Some(x) = open_fullscreen {
-        writeln!(config, "    open-fullscreen {x}").unwrap();
+        writeln!(config, "                    open_fullscreen = {x},").unwrap();
 
         let x = if x == "true" { "T" } else { "F" };
         snapshot_suffix.push(format!("fs{x}"));
     }
-    config.push('}');
+    config.push_str(
+        r##"
+                },
+        "##,
+    );
 
     match &want_fullscreen {
         WantFullscreen::No => (),
@@ -291,18 +284,25 @@ window-rule {
         };
         write!(
             config,
-            "
-
-window-rule {{
-    match title=\"parent\"
-    open-on-output \"headless-{mon}\"
-}}"
+            r#"
+                {{
+                    match = {{ {{ title = "parent" }} }},
+                    open_on_output = "headless-{mon}",
+                }},
+        "#
         )
         .unwrap();
 
         snapshot_desc.push(format!("set parent: {set_parent}"));
         snapshot_suffix.push(format!("sp{set_parent}"));
     }
+
+    config.push_str(
+        r##"
+            },
+        }
+        "##,
+    );
 
     snapshot_desc.push(format!("config:{config}"));
 
@@ -521,26 +521,28 @@ fn check_target_size(
 
     let mut config = String::from(
         r##"
-window-rule {
-"##,
+        return {
+            window_rules = {
+                {
+        "##,
     );
 
     if let Some(x) = open_fullscreen {
-        writeln!(config, "    open-fullscreen {x}").unwrap();
+        writeln!(config, "                    open_fullscreen = {x},").unwrap();
 
         let x = if x == "true" { "T" } else { "F" };
         snapshot_suffix.push(format!("fs{x}"));
     }
 
     if let Some(x) = open_maximized {
-        writeln!(config, "    open-maximized {x}").unwrap();
+        writeln!(config, "                    open_maximized = {x},").unwrap();
 
         let x = if x == "true" { "T" } else { "F" };
         snapshot_suffix.push(format!("om{x}"));
     }
 
     if let Some(x) = open_floating {
-        writeln!(config, "    open-floating {x}").unwrap();
+        writeln!(config, "                    open_floating = {x},").unwrap();
 
         let x = if x == "true" { "T" } else { "F" };
         snapshot_suffix.push(format!("of{x}"));
@@ -552,7 +554,16 @@ window-rule {
             DefaultSize::Proportion(prop) => format!("proportion {prop};"),
             DefaultSize::Fixed(fixed) => format!("fixed {fixed};"),
         };
-        writeln!(config, "    default-column-width {{ {value} }}").unwrap();
+        if value.is_empty() {
+            writeln!(config, "                    default_column_width = {{}},").unwrap();
+        } else {
+            let value = value.trim_end_matches(';');
+            if let Some(prop) = value.strip_prefix("proportion ") {
+                writeln!(config, "                    default_column_width = {{ proportion = {prop} }},").unwrap();
+            } else if let Some(fixed) = value.strip_prefix("fixed ") {
+                writeln!(config, "                    default_column_width = {{ fixed = {fixed} }},").unwrap();
+            }
+        }
 
         snapshot_suffix.push(format!("dw{x}"));
     }
@@ -563,21 +574,30 @@ window-rule {
             DefaultSize::Proportion(prop) => format!("proportion {prop};"),
             DefaultSize::Fixed(fixed) => format!("fixed {fixed};"),
         };
-        writeln!(config, "    default-window-height {{ {value} }}").unwrap();
+        if value.is_empty() {
+            writeln!(config, "                    default_window_height = {{}},").unwrap();
+        } else {
+            let value = value.trim_end_matches(';');
+            if let Some(prop) = value.strip_prefix("proportion ") {
+                writeln!(config, "                    default_window_height = {{ proportion = {prop} }},").unwrap();
+            } else if let Some(fixed) = value.strip_prefix("fixed ") {
+                writeln!(config, "                    default_window_height = {{ fixed = {fixed} }},").unwrap();
+            }
+        }
 
         snapshot_suffix.push(format!("dh{x}"));
     }
 
     if border {
-        writeln!(config, "    border {{ on; }}").unwrap();
+        writeln!(config, "                    border = {{ on = true }},").unwrap();
         snapshot_suffix.push(String::from("b"));
     }
 
     if tabbed {
-        writeln!(config, "    default-column-display \"tabbed\"").unwrap();
+        writeln!(config, "                    default_column_display = \"tabbed\",").unwrap();
     }
 
-    config.push('}');
+    config.push_str("                },\n            },\n");
 
     match &want_fullscreen {
         WantFullscreen::No => (),
@@ -588,16 +608,11 @@ window-rule {
     }
 
     if tabbed {
-        config.push_str(
-            "\n
-layout {
-    tab-indicator {
-        place-within-column
-    }
-}",
-        );
+        config.push_str("            layout = { tab_indicator = { place_within_column = true } },\n");
         snapshot_suffix.push(String::from("t"));
     }
+
+    config.push_str("        }\n");
 
     snapshot_desc.push(format!("config:{config}"));
 
@@ -734,25 +749,27 @@ fn check_fullscreen_maximize(
 
     let mut config = String::from(
         r##"
-window-rule {
-"##,
+        return {
+            window_rules = {
+                {
+        "##,
     );
 
     if let Some(x) = open_fullscreen {
-        writeln!(config, "    open-fullscreen {x}").unwrap();
+        writeln!(config, "                    open_fullscreen = {x},").unwrap();
 
         let x = if x == "true" { "T" } else { "F" };
         snapshot_suffix.push(format!("fs{x}"));
     }
 
     if let Some(x) = open_maximized {
-        writeln!(config, "    open-maximized-to-edges {x}").unwrap();
+        writeln!(config, "                    open_maximized_to_edges = {x},").unwrap();
 
         let x = if x == "true" { "T" } else { "F" };
         snapshot_suffix.push(format!("tm{x}"));
     }
 
-    config.push('}');
+    config.push_str("                },\n            },\n        }\n");
 
     match &want_fullscreen {
         WantFullscreen::No => (),

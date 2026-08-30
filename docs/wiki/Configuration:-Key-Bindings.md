@@ -1,17 +1,19 @@
 ### Overview
 
-Key bindings are declared in the `binds {}` section of the config.
+Key bindings are declared in the `binds` list of the config.
 
 > [!NOTE]
 > This is one of the few sections that *does not* get automatically filled with defaults if you omit it, so make sure to copy it from the default config.
 
-Each bind is a hotkey followed by one action enclosed in curly brackets.
+Each bind maps a hotkey to one action.
 For example:
 
-```kdl
-binds {
-    Mod+Left { focus-column-left; }
-    Super+Alt+L { spawn "swaylock"; }
+```lua
+return {
+    binds = {
+        { key = "Mod+Left", action = { name = "focus_column_left" } },
+        { key = "Super+Alt+L", action = { name = "spawn", command = { "swaylock" } } },
+    },
 }
 ```
 
@@ -63,19 +65,23 @@ For this reason, most of the default keys use the `Mod` modifier.
 > So for example with US QWERTY and RU layouts configured, US QWERTY will be used for latin binds.
 
 <sup>Since: 0.1.8</sup> Binds will repeat by default (i.e. holding down a bind will make it trigger repeatedly).
-You can disable that for specific binds with `repeat=false`:
+You can disable that for specific binds with `["repeat"] = false`:
 
-```kdl
-binds {
-    Mod+T repeat=false { spawn "alacritty"; }
+```lua
+return {
+    binds = {
+        { key = "Mod+T", ["repeat"] = false, action = { name = "spawn", command = { "alacritty" } } },
+    },
 }
 ```
 
 Binds can also have a cooldown, which will rate-limit the bind and prevent it from repeatedly triggering too quickly.
 
-```kdl
-binds {
-    Mod+T cooldown-ms=500 { spawn "alacritty"; }
+```lua
+return {
+    binds = {
+        { key = "Mod+T", cooldown_ms = 500, action = { name = "spawn", command = { "alacritty" } } },
+    },
 }
 ```
 
@@ -84,26 +90,30 @@ This is mostly useful for the scroll bindings.
 ### Scroll Bindings
 
 You can bind mouse wheel scroll ticks using the following syntax.
-These binds will change direction based on the `natural-scroll` setting.
+These binds will change direction based on the `natural_scroll` setting.
 
-```kdl
-binds {
-    Mod+WheelScrollDown cooldown-ms=150 { focus-workspace-down; }
-    Mod+WheelScrollUp   cooldown-ms=150 { focus-workspace-up; }
-    Mod+WheelScrollRight                { focus-column-right; }
-    Mod+WheelScrollLeft                 { focus-column-left; }
+```lua
+return {
+    binds = {
+        { key = "Mod+WheelScrollDown", cooldown_ms = 150, action = { name = "focus_workspace_down" } },
+        { key = "Mod+WheelScrollUp",   cooldown_ms = 150, action = { name = "focus_workspace_up" } },
+        { key = "Mod+WheelScrollRight", action = { name = "focus_column_right" } },
+        { key = "Mod+WheelScrollLeft",  action = { name = "focus_column_left" } },
+    },
 }
 ```
 
 Similarly, you can bind touchpad scroll "ticks".
 Touchpad scrolling is continuous, so for these binds it is split into discrete intervals based on distance travelled.
 
-These binds are also affected by touchpad's `natural-scroll`, so these example binds are "inverted", since ymir has `natural-scroll` enabled for touchpads by default.
+These binds are also affected by touchpad's `natural_scroll`, so these example binds are "inverted", since ymir has `natural_scroll` enabled for touchpads by default.
 
-```kdl
-binds {
-    Mod+TouchpadScrollDown { spawn "wpctl" "set-volume" "@DEFAULT_AUDIO_SINK@" "0.02+"; }
-    Mod+TouchpadScrollUp   { spawn "wpctl" "set-volume" "@DEFAULT_AUDIO_SINK@" "0.02-"; }
+```lua
+return {
+    binds = {
+        { key = "Mod+TouchpadScrollDown", action = { name = "spawn", command = { "wpctl", "set-volume", "@DEFAULT_AUDIO_SINK@", "0.02+" } } },
+        { key = "Mod+TouchpadScrollUp",   action = { name = "spawn", command = { "wpctl", "set-volume", "@DEFAULT_AUDIO_SINK@", "0.02-" } } },
+    },
 }
 ```
 
@@ -116,13 +126,15 @@ For example, if you have a `Mod+WheelScrollDown` bind, then while holding `Mod`,
 
 You can bind mouse clicks using the following syntax.
 
-```kdl
-binds {
-    Mod+MouseLeft    { close-window; }
-    Mod+MouseRight   { close-window; }
-    Mod+MouseMiddle  { close-window; }
-    Mod+MouseForward { close-window; }
-    Mod+MouseBack    { close-window; }
+```lua
+return {
+    binds = {
+        { key = "Mod+MouseLeft",    action = { name = "close_window" } },
+        { key = "Mod+MouseRight",   action = { name = "close_window" } },
+        { key = "Mod+MouseMiddle",  action = { name = "close_window" } },
+        { key = "Mod+MouseForward", action = { name = "close_window" } },
+        { key = "Mod+MouseBack",    action = { name = "close_window" } },
+    },
 }
 ```
 
@@ -135,21 +147,25 @@ Note that binding `Mod+MouseLeft` or `Mod+MouseRight` will override the correspo
 <sup>Since: 25.02</sup>
 
 The hotkey overlay (the Important Hotkeys dialog) shows a hardcoded list of binds.
-You can customize this list using the `hotkey-overlay-title` property.
+You can customize this list using the `hotkey_overlay_title` property.
 
 To add a bind to the hotkey overlay, set the property to the title that you want to show:
-```kdl
-binds {
-    Mod+Shift+S hotkey-overlay-title="Toggle Dark/Light Style" { spawn "some-script.sh"; }
+```lua
+return {
+    binds = {
+        { key = "Mod+Shift+S", hotkey_overlay_title = "Toggle Dark/Light Style", action = { name = "spawn", command = { "some-script.sh" } } },
+    },
 }
 ```
 
 Binds with custom titles are listed after the hardcoded binds and before non-customized Spawn binds.
 
-To remove a hardcoded bind from the hotkey overlay, set the property to null:
-```kdl
-binds {
-    Mod+Q hotkey-overlay-title=null { close-window; }
+To remove a hardcoded bind from the hotkey overlay, set the property to `ymir.null`:
+```lua
+return {
+    binds = {
+        { key = "Mod+Q", hotkey_overlay_title = ymir.null, action = { name = "close_window" } },
+    },
 }
 ```
 
@@ -161,9 +177,11 @@ binds {
 
 Custom titles support [Pango markup](https://docs.gtk.org/Pango/pango_markup.html):
 
-```kdl
-binds {
-    Mod+Shift+S hotkey-overlay-title="<b>Toggle</b> <span foreground='red'>Dark</span>/Light Style" { spawn "some-script.sh"; }
+```lua
+return {
+    binds = {
+        { key = "Mod+Shift+S", hotkey_overlay_title = "<b>Toggle</b> <span foreground='red'>Dark</span>/Light Style", action = { name = "spawn", command = { "some-script.sh" } } },
+    },
 }
 ```
 
@@ -183,13 +201,15 @@ Run a program.
 `spawn` accepts a path to the program binary as the first argument, followed by arguments to the program.
 For example:
 
-```kdl
-binds {
-    // Run alacritty.
-    Mod+T { spawn "alacritty"; }
+```lua
+return {
+    binds = {
+        -- Run alacritty.
+        { key = "Mod+T", action = { name = "spawn", command = { "alacritty" } } },
 
-    // Run `wpctl set-volume @DEFAULT_AUDIO_SINK@ 0.1+`.
-    XF86AudioRaiseVolume { spawn "wpctl" "set-volume" "@DEFAULT_AUDIO_SINK@" "0.1+"; }
+        -- Run `wpctl set-volume @DEFAULT_AUDIO_SINK@ 0.1+`.
+        { key = "XF86AudioRaiseVolume", action = { name = "spawn", command = { "wpctl", "set-volume", "@DEFAULT_AUDIO_SINK@", "0.1+" } } },
+    },
 }
 ```
 
@@ -197,56 +217,64 @@ binds {
 >
 > <sup>Since: 0.1.5</sup>
 >
-> Spawn bindings have a special `allow-when-locked=true` property that makes them work even while the session is locked:
+> Spawn bindings have a special `allow_when_locked = true` property that makes them work even while the session is locked:
 >
-> ```kdl
-> binds {
->     // This mute bind will work even when the session is locked.
->     XF86AudioMute allow-when-locked=true { spawn "wpctl" "set-mute" "@DEFAULT_AUDIO_SINK@" "toggle"; }
+> ```lua
+> return {
+>     binds = {
+>         -- This mute bind will work even when the session is locked.
+>         { key = "XF86AudioMute", allow_when_locked = true, action = { name = "spawn", command = { "wpctl", "set-mute", "@DEFAULT_AUDIO_SINK@", "toggle" } } },
+>     },
 > }
 > ```
 
 For `spawn`, ymir *does not* use a shell to run commands, which means that you need to manually separate arguments.
 See [`spawn-sh`](#spawn-sh) below for an action that uses a shell.
 
-```kdl
-binds {
-    // Correct: every argument is in its own quotes.
-    Mod+T { spawn "alacritty" "-e" "/usr/bin/fish"; }
+```lua
+return {
+    binds = {
+        -- Correct: every argument is in its own quotes.
+        { key = "Mod+T", action = { name = "spawn", command = { "alacritty", "-e", "/usr/bin/fish" } } },
 
-    // Wrong: will interpret the whole `alacritty -e /usr/bin/fish` string as the binary path.
-    Mod+D { spawn "alacritty -e /usr/bin/fish"; }
+        -- Wrong: will interpret the whole `alacritty -e /usr/bin/fish` string as the binary path.
+        { key = "Mod+D", action = { name = "spawn", command = { "alacritty -e /usr/bin/fish" } } },
 
-    // Wrong: will pass `-e /usr/bin/fish` as one argument, which alacritty won't understand.
-    Mod+Q { spawn "alacritty" "-e /usr/bin/fish"; }
+        -- Wrong: will pass `-e /usr/bin/fish` as one argument, which alacritty won't understand.
+        { key = "Mod+Q", action = { name = "spawn", command = { "alacritty", "-e /usr/bin/fish" } } },
+    },
 }
 ```
 
 This also means that you cannot expand environment variables or `~`.
 If you need this, you can run the command through a shell manually.
 
-```kdl
-binds {
-    // Wrong: no shell expansion here. These strings will be passed literally to the program.
-    Mod+T { spawn "grim" "-o" "$MAIN_OUTPUT" "~/screenshot.png"; }
+```lua
+return {
+    binds = {
+        -- Wrong: no shell expansion here. These strings will be passed literally to the program.
+        { key = "Mod+T", action = { name = "spawn", command = { "grim", "-o", "$MAIN_OUTPUT", "~/screenshot.png" } } },
 
-    // Correct: run this through a shell manually so that it can expand the arguments.
-    // Note that the entire command is passed as a SINGLE argument,
-    // because shell will do its own argument splitting by whitespace.
-    Mod+D { spawn "sh" "-c" "grim -o $MAIN_OUTPUT ~/screenshot.png"; }
+        -- Correct: run this through a shell manually so that it can expand the arguments.
+        -- Note that the entire command is passed as a SINGLE argument,
+        -- because the shell will do its own argument splitting by whitespace.
+        { key = "Mod+D", action = { name = "spawn", command = { "sh", "-c", "grim -o $MAIN_OUTPUT ~/screenshot.png" } } },
 
-    // You can also use a shell to run multiple commands,
-    // use pipes, process substitution, and so on.
-    Mod+Q { spawn "sh" "-c" "notify-send clipboard \"$(wl-paste)\""; }
+        -- You can also use a shell to run multiple commands,
+        -- use pipes, process substitution, and so on.
+        { key = "Mod+Q", action = { name = "spawn", command = { "sh", "-c", "notify-send clipboard \"$(wl-paste)\"" } } },
+    },
 }
 ```
 
 As a special case, ymir will expand `~` to the home directory *only* at the beginning of the program name.
 
-```kdl
-binds {
-    // This will work: one ~ at the very beginning.
-    Mod+T { spawn "~/scripts/do-something.sh"; }
+```lua
+return {
+    binds = {
+        -- This will work: one ~ at the very beginning.
+        { key = "Mod+T", action = { name = "spawn", command = { "~/scripts/do-something.sh" } } },
+    },
 }
 ```
 
@@ -259,19 +287,21 @@ Run a command through the shell.
 The argument is a single string that is passed verbatim to `sh`.
 You can use shell variables, pipelines, `~` expansion, and everything else as expected.
 
-```kdl
-binds {
-    // Works with spawn-sh: all arguments in the same string.
-    Mod+D { spawn-sh "alacritty -e /usr/bin/fish"; }
+```lua
+return {
+    binds = {
+        -- Works with spawn_sh: all arguments in the same string.
+        { key = "Mod+D", action = { name = "spawn_sh", command = "alacritty -e /usr/bin/fish" } },
 
-    // Works with spawn-sh: shell variable ($MAIN_OUTPUT), ~ expansion.
-    Mod+T { spawn-sh "grim -o $MAIN_OUTPUT ~/screenshot.png"; }
+        -- Works with spawn_sh: shell variable ($MAIN_OUTPUT), ~ expansion.
+        { key = "Mod+T", action = { name = "spawn_sh", command = "grim -o $MAIN_OUTPUT ~/screenshot.png" } },
 
-    // Works with spawn-sh: process substitution.
-    Mod+Q { spawn-sh "notify-send clipboard \"$(wl-paste)\""; }
+        -- Works with spawn_sh: process substitution.
+        { key = "Mod+Q", action = { name = "spawn_sh", command = "notify-send clipboard \"$(wl-paste)\"" } },
 
-    // Works with spawn-sh: multiple commands.
-    Super+Alt+S { spawn-sh "pkill orca || exec orca"; }
+        -- Works with spawn_sh: multiple commands.
+        { key = "Super+Alt+S", action = { name = "spawn_sh", command = "pkill orca || exec orca" } },
+    },
 }
 ```
 
@@ -285,17 +315,21 @@ If you want a different shell, write it out using `spawn`, e.g. `spawn "fish" "-
 
 Exit ymir after showing a confirmation dialog to avoid accidentally triggering it.
 
-```kdl
-binds {
-    Mod+Shift+E { quit; }
+```lua
+return {
+    binds = {
+        { key = "Mod+Shift+E", action = { name = "quit" } },
+    },
 }
 ```
 
 If you want to skip the confirmation dialog, set the flag like so:
 
-```kdl
-binds {
-    Mod+Shift+E { quit skip-confirmation=true; }
+```lua
+return {
+    binds = {
+        { key = "Mod+Shift+E", action = { name = "quit", skip_confirmation = true } },
+    },
 }
 ```
 
@@ -305,9 +339,11 @@ binds {
 
 Freeze the screen for a brief moment then crossfade to the new contents.
 
-```kdl
-binds {
-    Mod+Return { do-screen-transition; }
+```lua
+return {
+    binds = {
+        { key = "Mod+Return", action = { name = "do_screen_transition" } },
+    },
 }
 ```
 
@@ -324,9 +360,11 @@ dconf write /org/gnome/desktop/interface/color-scheme "\"prefer-dark\""
 By default, the screen is frozen for 250 ms to give windows time to redraw, before the crossfade.
 You can set this delay like this:
 
-```kdl
-binds {
-    Mod+Return { do-screen-transition delay-ms=100; }
+```lua
+return {
+    binds = {
+        { key = "Mod+Return", action = { name = "do_screen_transition", delay_ms = 100 } },
+    },
 }
 ```
 
@@ -343,9 +381,11 @@ ymir msg action do-screen-transition --delay-ms 100
 Toggle the opacity window rule of the focused window.
 This only has an effect if the window's opacity window rule is already set to semitransparent.
 
-```kdl
-binds {
-    Mod+O { toggle-window-rule-opacity; }
+```lua
+return {
+    binds = {
+        { key = "Mod+O", action = { name = "toggle_window_rule_opacity" } },
+    },
 }
 ```
 
@@ -354,42 +394,47 @@ binds {
 Actions for taking screenshots.
 
 - `screenshot`: opens the built-in interactive screenshot UI.
-- `screenshot-screen`, `screenshot-window`: takes a screenshot of the focused screen or window respectively.
+- `screenshot_screen`, `screenshot_window`: takes a screenshot of the focused screen or window respectively.
 
-The screenshot is both stored to the clipboard and saved to disk, according to the [`screenshot-path` option](./Configuration:-Miscellaneous.md#screenshot-path).
+The screenshot is both stored to the clipboard and saved to disk, according to the [`screenshot_path` option](./Configuration:-Miscellaneous.md#screenshot-path).
 
-<sup>Since: 25.02</sup> You can disable saving to disk for a specific bind with the `write-to-disk=false` property:
+In the Lua config there is no per-bind way to disable saving to disk or to control the pointer; these are managed globally (saving is governed by `screenshot_path`) and inside the interactive screenshot UI (where pressing <kbd>Ctrl</kbd><kbd>C</kbd> copies to the clipboard without writing to disk, and pressing <kbd>P</kbd> toggles the pointer):
 
-```kdl
-binds {
-    Ctrl+Print { screenshot-screen write-to-disk=false; }
-    Alt+Print { screenshot-window write-to-disk=false; }
+```lua
+return {
+    binds = {
+        { key = "Ctrl+Print", action = { name = "screenshot_screen" } },
+        { key = "Alt+Print",  action = { name = "screenshot_window" } },
+    },
 }
 ```
 
 In the interactive screenshot UI, pressing <kbd>Ctrl</kbd><kbd>C</kbd> will copy the screenshot to the clipboard without writing it to disk.
 
-<sup>Since: 25.05</sup> You can hide the mouse pointer in screenshots with the `show-pointer=false` property:
+The pointer is hidden by default on screenshots (you can still show it by pressing <kbd>P</kbd> in the interactive UI):
 
-```kdl
-binds {
-    // The pointer will be hidden by default
-    // (you can still show it by pressing P).
-    Print { screenshot show-pointer=false; }
+```lua
+return {
+    binds = {
+        -- The pointer will be hidden by default
+        -- (you can still show it by pressing P).
+        { key = "Print", action = { name = "screenshot" } },
 
-    // The pointer will be hidden on the screenshot.
-    Ctrl+Print { screenshot-screen show-pointer=false; }
+        -- The pointer will be hidden on the screenshot.
+        { key = "Ctrl+Print", action = { name = "screenshot_screen" } },
+    },
 }
 ```
 
-<sup>Since: 26.04</sup> You can show the mouse pointer on window screenshots with the `show-pointer=true` property.
-The pointer will be included only if the window is currently receiving pointer input (usually this means the pointer is on top of the window).
+On window screenshots the pointer is only included if the window is currently receiving pointer input (usually this means the pointer is on top of the window):
 
-```kdl
-binds {
-    // The pointer will be visible on the screenshot
-    // if it's on top of the window.
-    Alt+Print { screenshot-window show-pointer=true; }
+```lua
+return {
+    binds = {
+        -- The pointer will be visible on the screenshot
+        -- if it's on top of the window.
+        { key = "Alt+Print", action = { name = "screenshot_window" } },
+    },
 }
 ```
 
@@ -398,27 +443,31 @@ binds {
 <sup>Since: 25.02</sup>
 
 Applications such as remote-desktop clients and software KVM switches may request that ymir stops processing its keyboard shortcuts so that they may, for example, forward the key presses as-is to a remote machine.
-`toggle-keyboard-shortcuts-inhibit` is an escape hatch that toggles the inhibitor.
+`toggle_keyboard_shortcuts_inhibit` is an escape hatch that toggles the inhibitor.
 It's a good idea to bind it, so a buggy application can't hold your session hostage.
 
-```kdl
-binds {
-    Mod+Escape { toggle-keyboard-shortcuts-inhibit; }
+```lua
+return {
+    binds = {
+        { key = "Mod+Escape", action = { name = "toggle_keyboard_shortcuts_inhibit" } },
+    },
 }
 ```
 
-You can also make certain binds ignore inhibiting with the `allow-inhibiting=false` property.
+You can also make certain binds ignore inhibiting with the `allow_inhibiting = false` property.
 They will always be handled by ymir and never passed to the window.
 
-```kdl
-binds {
-    // This bind will always work, even when using a virtual machine.
-    Super+Alt+L allow-inhibiting=false { spawn "swaylock"; }
+```lua
+return {
+    binds = {
+        -- This bind will always work, even when using a virtual machine.
+        { key = "Super+Alt+L", allow_inhibiting = false, action = { name = "spawn", command = { "swaylock" } } },
+    },
 }
 ```
 
 #### Dwindle actions
 
-The dwindle layout mode adds its own actions: `switch-column-display`, `set-column-display`, `toggle-split`, `preselect`, `promote-window`, `move-window-left`/`move-window-right`, `consume-window-into-column`, `expel-window-from-column` and `swap-window-right`/`swap-window-left`.
+The dwindle layout mode adds its own actions: `switch_column_display`, `set_column_display`, `toggle_split`, `preselect`, `promote_window`, `move_window_left`/`move_window_right`, `consume_window_into_column`, `expel_window_from_column` and `swap_window_right`/`swap_window_left`.
 The default config binds them to `Mod+Shift+D`, `Mod+Space`, `Mod+Ctrl+Space`, `Mod+Shift+Home`, `Mod+Shift+Left`/`Right`, `Mod+Comma` and `Mod+Period`.
 See the [Dwindle](./Configuration:-Dwindle.md) page for the full documentation and examples.

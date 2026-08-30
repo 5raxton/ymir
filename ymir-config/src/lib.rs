@@ -1,5 +1,10 @@
 //! ymir config parsing.
 //!
+//! The config is a Lua program, evaluated in a fresh sandboxed VM (see the `lua` module). A small
+//! prelude exposes the config API (`ymir.*`, `include_config`, tracked `dofile`/`require`) and
+//! folds the resulting data table — or the imperative calls — into a `Config` through the `*Part`
+//! types and their `MergeWith` impls.
+//!
 //! The config can be constructed from multiple files (includes). To support this, many types are
 //! split into two. For example, `Layout` and `LayoutPart` where `Layout` is the final config and
 //! `LayoutPart` is one part parsed from one config file.
@@ -7,22 +12,16 @@
 //! The convention for `Default` impls is to set the initial values before the parsing occurs.
 //! Then, parsing will update the values with those parsed from the config.
 //!
-//! The `Default` values match those from `default-config.kdl` in almost all cases, with a notable
-//! exception of `binds {}` and some window rules.
+//! The `Default` values match those from `resources/default-config.lua` in almost all cases, with
+//! a notable exception of `binds {}` and some window rules.
 
 #[macro_use]
 extern crate tracing;
 
-use std::cell::{Cell, RefCell};
-use std::collections::HashSet;
-use std::ffi::OsStr;
 use std::fs::{self, File};
 use std::io::Write as _;
 use std::path::{Path, PathBuf};
-use std::rc::Rc;
 
-use knuffel::errors::DecodeError;
-use knuffel::Decode as _;
 use miette::{miette, Context as _, IntoDiagnostic as _};
 
 #[macro_use]
@@ -37,6 +36,7 @@ pub mod gestures;
 pub mod input;
 pub mod layer_rule;
 pub mod layout;
+pub mod lua;
 pub mod misc;
 pub mod output;
 pub mod recent_windows;
@@ -55,16 +55,12 @@ pub use crate::layer_rule::LayerRule;
 pub use crate::layout::*;
 pub use crate::misc::*;
 pub use crate::output::{Output, OutputName, Outputs, Position, Vrr};
-use crate::recent_windows::RecentWindowsPart;
 pub use crate::recent_windows::{MruDirection, MruFilter, MruPreviews, MruScope, RecentWindows};
 pub use crate::utils::FloatOrInt;
-use crate::utils::{Flag, MergeWith as _};
 pub use crate::window_rule::{
     FloatingPosition, OnXdgActivate, PopupsRule, RelativeTo, ResolvedPopupsRules, WindowRule,
 };
 pub use crate::workspace::{Workspace, WorkspaceLayoutPart};
-
-const RECURSION_LIMIT: u8 = 10;
 
 #[derive(Debug, Default, PartialEq)]
 pub struct Config {
@@ -106,364 +102,22 @@ pub enum ConfigPath {
     /// Prioritize the user path, fallback to the system path, fallback to creating the user path
     /// at compositor startup.
     Regular {
-        /// User config path, usually `$XDG_CONFIG_HOME/ymir/config.kdl`.
+        /// User config path, usually `$XDG_CONFIG_HOME/ymir/config.lua`.
         user_path: PathBuf,
-        /// System config path, usually `/etc/ymir/config.kdl`.
+        /// System config path, usually `/etc/ymir/config.lua`.
         system_path: PathBuf,
     },
 }
 
-// Newtypes for putting information into the knuffel context.
-struct BasePath(PathBuf);
-struct RootBase(PathBuf);
-struct Recursion(u8);
-#[derive(Default)]
-struct Includes(Vec<PathBuf>);
-#[derive(Default)]
-struct IncludeErrors(Vec<knuffel::Error>);
-// Used for recursive include detection.
-//
-// We don't *need* it because we have a recursion limit, but it makes for nicer error messages.
-struct IncludeStack(HashSet<PathBuf>);
-struct SawMruBinds(Rc<Cell<bool>>);
-
-// Rather than listing all fields and deriving knuffel::Decode, we implement
-// knuffel::DecodeChildren by hand, since we need custom logic for every field anyway: we want to
-// merge the values into the config from the context as we go to support the positionality of
-// includes. The reason we need this type at all is because knuffel's only entry point that allows
-// setting default values on a context is `parse_with_context()` that needs a type to parse.
-pub struct ConfigPart;
-
-impl<S> knuffel::DecodeChildren<S> for ConfigPart
-where
-    S: knuffel::traits::ErrorSpan,
-{
-    fn decode_children(
-        nodes: &[knuffel::ast::SpannedNode<S>],
-        ctx: &mut knuffel::decode::Context<S>,
-    ) -> Result<Self, DecodeError<S>> {
-        let _span = tracy_client::span!("decode config file");
-
-        let config = ctx.get::<Rc<RefCell<Config>>>().unwrap().clone();
-        let includes = ctx.get::<Rc<RefCell<Includes>>>().unwrap().clone();
-        let include_errors = ctx.get::<Rc<RefCell<IncludeErrors>>>().unwrap().clone();
-        let recursion = ctx.get::<Recursion>().unwrap().0;
-        let saw_mru_binds = ctx.get::<SawMruBinds>().unwrap().0.clone();
-
-        let mut seen = HashSet::new();
-
-        for node in nodes {
-            let name = &**node.node_name;
-
-            // Within one config file, splitting sections into multiple parts is not allowed to
-            // reduce confusion. The exceptions here aren't multipart; they all add new values.
-            if !matches!(
-                name,
-                "output"
-                    | "spawn-at-startup"
-                    | "spawn-sh-at-startup"
-                    | "window-rule"
-                    | "layer-rule"
-                    | "workspace"
-                    | "include"
-            ) && !seen.insert(name)
-            {
-                ctx.emit_error(DecodeError::unexpected(
-                    &node.node_name,
-                    "node",
-                    format!("duplicate node `{name}`, single node expected"),
-                ));
-                continue;
-            }
-
-            macro_rules! m_merge {
-                ($field:ident) => {{
-                    let part = knuffel::Decode::decode_node(node, ctx)?;
-                    config.borrow_mut().$field.merge_with(&part);
-                }};
-            }
-
-            macro_rules! m_push {
-                ($field:ident) => {{
-                    let part = knuffel::Decode::decode_node(node, ctx)?;
-                    config.borrow_mut().$field.push(part);
-                }};
-            }
-
-            match name {
-                "input" => m_merge!(input),
-                "cursor" => m_merge!(cursor),
-                "clipboard" => m_merge!(clipboard),
-                "hotkey-overlay" => m_merge!(hotkey_overlay),
-                "config-notification" => m_merge!(config_notification),
-                "animations" => m_merge!(animations),
-                "blur" => m_merge!(blur),
-                "gestures" => m_merge!(gestures),
-                "overview" => m_merge!(overview),
-                "xwayland-satellite" => m_merge!(xwayland_satellite),
-                "switch-events" => m_merge!(switch_events),
-                "debug" => m_merge!(debug),
-
-                // Multipart sections.
-                "output" => {
-                    let part = Output::decode_node(node, ctx)?;
-                    config.borrow_mut().outputs.0.push(part);
-                }
-                "spawn-at-startup" => m_push!(spawn_at_startup),
-                "spawn-sh-at-startup" => m_push!(spawn_sh_at_startup),
-                "window-rule" => m_push!(window_rules),
-                "layer-rule" => m_push!(layer_rules),
-                "workspace" => m_push!(workspaces),
-
-                // Single-part sections.
-                "binds" => {
-                    let part = Binds::decode_node(node, ctx)?;
-
-                    // We replace conflicting binds, rather than error, to support the use-case
-                    // where you import some preconfigured-dots.kdl, then override some binds with
-                    // your own.
-                    let mut config = config.borrow_mut();
-                    let binds = &mut config.binds.0;
-                    // Remove existing binds matching any new bind.
-                    binds.retain(|bind| !part.0.iter().any(|new| new.key == bind.key));
-                    // Add all new binds.
-                    binds.extend(part.0);
-                }
-                "environment" => {
-                    let part = Environment::decode_node(node, ctx)?;
-                    config.borrow_mut().environment.0.extend(part.0);
-                }
-
-                "prefer-no-csd" => {
-                    config.borrow_mut().prefer_no_csd = Flag::decode_node(node, ctx)?.0
-                }
-
-                "screenshot-path" => {
-                    let part = knuffel::Decode::decode_node(node, ctx)?;
-                    config.borrow_mut().screenshot_path = part;
-                }
-
-                "layout" => {
-                    let mut part = LayoutPart::decode_node(node, ctx)?;
-
-                    // Preserve the behavior we'd always had for the border section:
-                    // - `layout {}` gives border = off
-                    // - `layout { border {} }` gives border = on
-                    // - `layout { border { off } }` gives border = off
-                    //
-                    // This behavior is inconsistent with the rest of the config where adding an
-                    // empty section generally doesn't change the outcome. Particularly, shadows
-                    // are also disabled by default (like borders), and they always had an `on`
-                    // instead of an `off` for this reason, so that writing `layout { shadow {} }`
-                    // still results in shadow = off, as it should.
-                    //
-                    // Unfortunately, the default config has always had wording that heavily
-                    // implies that `layout { border {} }` enables the borders. This wording is
-                    // sure to be present in a lot of users' configs by now, which we can't change.
-                    //
-                    // Another way to make things consistent would be to default borders to on.
-                    // However, that is annoying because it would mean changing many tests that
-                    // rely on borders being off by default. This would also contradict the
-                    // intended default borders value (off).
-                    //
-                    // So, let's just work around the problem here, preserving the original
-                    // behavior.
-                    if recursion == 0 {
-                        if let Some(border) = part.border.as_mut() {
-                            if !border.on && !border.off {
-                                border.on = true;
-                            }
-                        }
-                    }
-
-                    config.borrow_mut().layout.merge_with(&part);
-                }
-
-                "recent-windows" => {
-                    let part = RecentWindowsPart::decode_node(node, ctx)?;
-
-                    let mut config = config.borrow_mut();
-
-                    // When an MRU binds section is encountered for the first time, clear out the
-                    // default MRU binds.
-                    if !saw_mru_binds.get() && part.binds.is_some() {
-                        saw_mru_binds.set(true);
-                        config.recent_windows.binds.clear();
-                    }
-
-                    config.recent_windows.merge_with(&part);
-                }
-
-                "include" => {
-                    // Parse the path argument
-                    let mut iter_args = node.arguments.iter();
-                    let path_val = iter_args.next().ok_or_else(|| {
-                        DecodeError::missing(
-                            node,
-                            "additional argument for include path is required",
-                        )
-                    })?;
-                    let path: PathBuf = knuffel::traits::DecodeScalar::decode(path_val, ctx)?;
-
-                    // Check for extra arguments
-                    if let Some(val) = iter_args.next() {
-                        ctx.emit_error(DecodeError::unexpected(
-                            &val.literal,
-                            "argument",
-                            "unexpected argument",
-                        ));
-                    }
-
-                    // Parse the optional property
-                    let mut optional = false;
-                    for (name, val) in &node.properties {
-                        match &***name {
-                            "optional" => {
-                                optional = knuffel::traits::DecodeScalar::decode(val, ctx)?;
-                            }
-                            name_str => {
-                                ctx.emit_error(DecodeError::unexpected(
-                                    name,
-                                    "property",
-                                    format!("unexpected property `{}`", name_str.escape_default()),
-                                ));
-                            }
-                        }
-                    }
-
-                    // Check for unexpected children
-                    for child in node.children() {
-                        ctx.emit_error(DecodeError::unexpected(
-                            child,
-                            "node",
-                            format!("unexpected node `{}`", child.node_name.escape_default()),
-                        ));
-                    }
-
-                    // We use DecodeError::Missing throughout this block because it results in the
-                    // least confusing error messages while still allowing to provide a span.
-
-                    // Expand ~ into the home dir
-                    let path = if let Ok(rest) = path.strip_prefix("~") {
-                        let Some(home) = std::env::home_dir() else {
-                            ctx.emit_error(DecodeError::missing(
-                                node,
-                                format!("error retrieving home directory to expand {path:?}"),
-                            ));
-                            continue;
-                        };
-
-                        home.join(rest)
-                    } else {
-                        // Otherwise, use the current include base dir
-                        let base = ctx.get::<BasePath>().unwrap();
-                        base.0.join(path)
-                    };
-
-                    let recursion = ctx.get::<Recursion>().unwrap().0 + 1;
-                    if recursion == RECURSION_LIMIT {
-                        ctx.emit_error(DecodeError::missing(
-                            node,
-                            format!(
-                                "reached the recursion limit; \
-                                 includes cannot be {RECURSION_LIMIT} levels deep"
-                            ),
-                        ));
-                        continue;
-                    }
-
-                    let Some(filename) = path.file_name().and_then(OsStr::to_str) else {
-                        ctx.emit_error(DecodeError::missing(
-                            node,
-                            "include path doesn't have a valid file name",
-                        ));
-                        continue;
-                    };
-                    let base = path.parent().map(Path::to_path_buf).unwrap_or_default();
-
-                    // Check for recursive include for a nicer error message.
-                    let mut include_stack = ctx.get::<IncludeStack>().unwrap().0.clone();
-                    if !include_stack.insert(path.to_path_buf()) {
-                        ctx.emit_error(DecodeError::missing(
-                            node,
-                            "recursive include (file includes itself)",
-                        ));
-                        continue;
-                    }
-
-                    // Store even if the include fails to read or parse, so it gets watched.
-                    includes.borrow_mut().0.push(path.to_path_buf());
-
-                    match fs::read_to_string(&path) {
-                        Ok(text) => {
-                            // Try to get filename relative to the root base config folder for
-                            // clearer error messages.
-                            let root_base = &ctx.get::<RootBase>().unwrap().0;
-                            // Failing to strip prefix usually means absolute path; show it in full.
-                            let relative_path = path.strip_prefix(root_base).ok().unwrap_or(&path);
-                            let filename = relative_path.to_str().unwrap_or(filename);
-
-                            let part = knuffel::parse_with_context::<
-                                ConfigPart,
-                                knuffel::span::Span,
-                                _,
-                            >(filename, &text, |ctx| {
-                                ctx.set(BasePath(base));
-                                ctx.set(RootBase(root_base.clone()));
-                                ctx.set(Recursion(recursion));
-                                ctx.set(includes.clone());
-                                ctx.set(include_errors.clone());
-                                ctx.set(IncludeStack(include_stack));
-                                ctx.set(SawMruBinds(saw_mru_binds.clone()));
-                                ctx.set(config.clone());
-                            });
-
-                            match part {
-                                Ok(_) => {}
-                                Err(err) => {
-                                    include_errors.borrow_mut().0.push(err);
-
-                                    ctx.emit_error(DecodeError::missing(
-                                        node,
-                                        "failed to parse included config",
-                                    ));
-                                }
-                            }
-                        }
-                        Err(err) => {
-                            if optional && err.kind() == std::io::ErrorKind::NotFound {
-                                // Warn about missing optional includes
-                                warn!("optional include not found: {path:?}");
-                            } else {
-                                // Report all other errors normally
-                                ctx.emit_error(DecodeError::missing(
-                                    node,
-                                    format!("failed to read included config from {path:?}: {err}"),
-                                ));
-                            }
-                        }
-                    }
-                }
-
-                name => {
-                    ctx.emit_error(DecodeError::unexpected(
-                        node,
-                        "node",
-                        format!("unexpected node `{}`", name.escape_default()),
-                    ));
-                }
-            }
-        }
-
-        Ok(Self)
-    }
-}
+// The `lua` module implements the Lua VM, its prelude, and the data-table/imperative config
+// API. The `*Part` types in the section modules still provide all of the merge logic; the value
+// returned by a config program is folded into a `Config` by the module's section appliers.
 
 impl Config {
     pub fn load_default() -> ConfigParseResult<Self, miette::Report> {
         let res = Config::parse(
-            Path::new("default-config.kdl"),
-            include_str!("../../resources/default-config.kdl"),
+            Path::new("default-config.lua"),
+            include_str!("../../resources/default-config.lua"),
         );
 
         let includes_in_default = !res.includes.is_empty();
@@ -507,46 +161,20 @@ impl Config {
     }
 
     pub fn parse(path: &Path, text: &str) -> ConfigParseResult<Self, ConfigIncludeError> {
-        let base = path.parent().map(Path::to_path_buf).unwrap_or_default();
-        let filename = path
-            .file_name()
-            .and_then(OsStr::to_str)
-            .unwrap_or("config.kdl");
-
-        let config = Rc::new(RefCell::new(Config::default()));
-        let includes = Rc::new(RefCell::new(Includes(Vec::new())));
-        let include_errors = Rc::new(RefCell::new(IncludeErrors(Vec::new())));
-        let include_stack = HashSet::from([path.to_path_buf()]);
-
-        let part = knuffel::parse_with_context::<ConfigPart, knuffel::span::Span, _>(
-            filename,
-            text,
-            |ctx| {
-                ctx.set(BasePath(base.clone()));
-                ctx.set(RootBase(base));
-                ctx.set(Recursion(0));
-                ctx.set(includes.clone());
-                ctx.set(include_errors.clone());
-                ctx.set(IncludeStack(include_stack));
-                ctx.set(SawMruBinds(Rc::new(Cell::new(false))));
-                ctx.set(config.clone());
+        match lua::run_program(path, text) {
+            Ok((config, includes)) => ConfigParseResult {
+                config: Ok(config),
+                includes,
             },
-        );
-
-        let includes = includes.take().0;
-        let include_errors = include_errors.take().0;
-        let config = part
-            .map(|_| config.take())
-            .map_err(move |err| ConfigIncludeError {
-                main: err,
-                includes: include_errors,
-            });
-
-        ConfigParseResult { config, includes }
+            Err((main, includes)) => ConfigParseResult {
+                config: Err(main),
+                includes,
+            },
+        }
     }
 
     pub fn parse_mem(text: &str) -> Result<Self, ConfigIncludeError> {
-        Self::parse(Path::new("config.kdl"), text).config
+        Self::parse(Path::new("config.lua"), text).config
     }
 }
 
@@ -632,7 +260,7 @@ impl ConfigPath {
 
         *created_at = Some(path);
 
-        let default = include_bytes!("../../resources/default-config.kdl");
+        let default = include_bytes!("../../resources/default-config.lua");
 
         new_file
             .write_all(default)
@@ -660,7 +288,7 @@ mod tests {
     #[test]
     fn can_create_dwindle_config() {
         // The dwindle example config is a valid variant of the default config.
-        let source = include_str!("../../resources/dwindle-config.kdl");
+        let source = include_str!("../../resources/dwindle-config.lua");
         let config = Config::parse_mem(source).unwrap();
         assert_eq!(
             config.layout.default_column_display,
@@ -686,9 +314,13 @@ mod tests {
     fn parse_on_xdg_activate() {
         let parsed = do_parse(
             r#"
-            window-rule { on-xdg-activate "ignore"; }
-            window-rule { on-xdg-activate "set-urgent"; }
-            window-rule { on-xdg-activate "focus"; }
+            return {
+                window_rules = {
+                    { on_xdg_activate = "ignore" },
+                    { on_xdg_activate = "set-urgent" },
+                    { on_xdg_activate = "focus" },
+                },
+            }
             "#,
         );
 
@@ -710,312 +342,361 @@ mod tests {
     fn parse() {
         let parsed = do_parse(
             r##"
-            input {
-                keyboard {
-                    repeat-delay 600
-                    repeat-rate 25
-                    track-layout "window"
-                    xkb {
-                        layout "us,ru"
-                        options "grp:win_space_toggle"
-                    }
-                }
+            return {
+                input = {
+                    keyboard = {
+                        repeat_delay = 600,
+                        repeat_rate = 25,
+                        track_layout = "window",
+                        xkb = {
+                            layout = "us,ru",
+                            options = "grp:win_space_toggle",
+                        },
+                    },
 
-                touchpad {
-                    tap
-                    dwt
-                    dwtp
-                    drag true
-                    click-method "clickfinger"
-                    accel-speed 0.2
-                    accel-profile "flat"
-                    scroll-method "two-finger"
-                    scroll-button 272
-                    scroll-button-lock
-                    tap-button-map "left-middle-right"
-                    disabled-on-external-mouse
-                    scroll-factor 0.9
-                }
+                    touchpad = {
+                        tap = true,
+                        dwt = true,
+                        dwtp = true,
+                        drag = true,
+                        click_method = "clickfinger",
+                        accel_speed = 0.2,
+                        accel_profile = "flat",
+                        scroll_method = "two-finger",
+                        scroll_button = 272,
+                        scroll_button_lock = true,
+                        tap_button_map = "left-middle-right",
+                        disabled_on_external_mouse = true,
+                        scroll_factor = 0.9,
+                    },
 
-                mouse {
-                    natural-scroll
-                    accel-speed 0.4
-                    accel-profile "flat"
-                    scroll-method "no-scroll"
-                    scroll-button 273
-                    middle-emulation
-                    scroll-factor 0.2
-                }
+                    mouse = {
+                        natural_scroll = true,
+                        accel_speed = 0.4,
+                        accel_profile = "flat",
+                        scroll_method = "no-scroll",
+                        scroll_button = 273,
+                        middle_emulation = true,
+                        scroll_factor = 0.2,
+                    },
 
-                trackpoint {
-                    off
-                    natural-scroll
-                    accel-speed 0.0
-                    accel-profile "flat"
-                    scroll-method "on-button-down"
-                    scroll-button 274
-                }
+                    trackpoint = {
+                        off = true,
+                        natural_scroll = true,
+                        accel_speed = 0.0,
+                        accel_profile = "flat",
+                        scroll_method = "on-button-down",
+                        scroll_button = 274,
+                    },
 
-                trackball {
-                    off
-                    natural-scroll
-                    accel-speed 0.0
-                    accel-profile "flat"
-                    scroll-method "edge"
-                    scroll-button 275
-                    scroll-button-lock
-                    left-handed
-                    middle-emulation
-                }
+                    trackball = {
+                        off = true,
+                        natural_scroll = true,
+                        accel_speed = 0.0,
+                        accel_profile = "flat",
+                        scroll_method = "edge",
+                        scroll_button = 275,
+                        scroll_button_lock = true,
+                        left_handed = true,
+                        middle_emulation = true,
+                    },
 
-                tablet {
-                    map-to-output "eDP-1"
-                    map-to-focused-output
-                    map-to-focused-window
-                    calibration-matrix 1.0 2.0 3.0 \
-                                       4.0 5.0 6.0
-                }
+                    tablet = {
+                        map_to_output = "eDP-1",
+                        map_to_focused_output = true,
+                        map_to_focused_window = true,
+                        calibration_matrix = { 1.0, 2.0, 3.0, 4.0, 5.0, 6.0 },
+                    },
 
-                touch {
-                    map-to-output "eDP-1"
-                }
+                    touch = {
+                        map_to_output = "eDP-1",
+                    },
 
-                disable-power-key-handling
+                    disable_power_key_handling = true,
+                    warp_mouse_to_focus = true,
+                    focus_follows_mouse = true,
+                    workspace_auto_back_and_forth = true,
 
-                warp-mouse-to-focus
-                focus-follows-mouse
-                workspace-auto-back-and-forth
+                    mod_key = "Mod5",
+                    mod_key_nested = "Super",
+                },
 
-                mod-key "Mod5"
-                mod-key-nested "Super"
-            }
+                output = {
+                    {
+                        name = "eDP-1",
+                        focus_at_startup = true,
+                        scale = 2,
+                        transform = "flipped-90",
+                        position = { x = 10, y = 20 },
+                        mode = "1920x1080@144",
+                        max_bpc = "10",
+                        variable_refresh_rate = { on_demand = true },
+                        background_color = "rgba(25, 25, 102, 1.0)",
+                        hot_corners = {
+                            off = true,
+                            top_left = true,
+                            top_right = true,
+                            bottom_left = true,
+                            bottom_right = true,
+                        },
+                    },
+                    {
+                        name = "eDP-2",
+                        mode = { mode = "1920x1080@144", custom = true },
+                    },
+                    {
+                        name = "eDP-3",
+                        modeline = {
+                            clock = 173.0,
+                            hdisplay = 1920,
+                            hsync_start = 2048,
+                            hsync_end = 2248,
+                            htotal = 2576,
+                            vdisplay = 1080,
+                            vsync_start = 1083,
+                            vsync_end = 1088,
+                            vtotal = 1120,
+                            hsync_polarity = "-hsync",
+                            vsync_polarity = "+vsync",
+                        },
+                    },
+                },
 
-            output "eDP-1" {
-                focus-at-startup
-                scale 2
-                transform "flipped-90"
-                position x=10 y=20
-                mode "1920x1080@144"
-                max-bpc 10
-                variable-refresh-rate on-demand=true
-                background-color "rgba(25, 25, 102, 1.0)"
-                hot-corners {
-                    off
-                    top-left
-                    top-right
-                    bottom-left
-                    bottom-right
-                }
-            }
+                layout = {
+                    focus_ring = {
+                        width = 5,
+                        active_color = { r = 0, g = 100, b = 200, a = 255 },
+                        inactive_color = { r = 255, g = 200, b = 100, a = 0 },
+                        active_gradient = {
+                            from = "rgba(10, 20, 30, 1.0)",
+                            to = "#0080ffff",
+                            relative_to = "workspace-view",
+                        },
+                    },
 
-            output "eDP-2" {
-                mode custom=true "1920x1080@144"
-            }
+                    border = {
+                        width = 3,
+                        inactive_color = "rgba(255, 200, 100, 0.0)",
+                    },
 
-            output "eDP-3" {
-                modeline 173.00  1920 2048 2248 2576  1080 1083 1088 1120 "-hsync" "+vsync"
-            }
+                    shadow = {
+                        offset = { x = 10, y = -20 },
+                    },
 
-            layout {
-                focus-ring {
-                    width 5
-                    active-color 0 100 200 255
-                    inactive-color 255 200 100 0
-                    active-gradient from="rgba(10, 20, 30, 1.0)" to="#0080ffff" relative-to="workspace-view"
-                }
+                    tab_indicator = {
+                        width = 10,
+                        position = "top",
+                    },
 
-                border {
-                    width 3
-                    inactive-color "rgba(255, 200, 100, 0.0)"
-                }
+                    preset_column_widths = {
+                        { proportion = 0.25 },
+                        { proportion = 0.5 },
+                        { fixed = 960 },
+                        { fixed = 1280 },
+                    },
 
-                shadow {
-                    offset x=10 y=-20
-                }
+                    preset_window_heights = {
+                        { proportion = 0.25 },
+                        { proportion = 0.5 },
+                        { fixed = 960 },
+                        { fixed = 1280 },
+                    },
 
-                tab-indicator {
-                    width 10
-                    position "top"
-                }
+                    default_column_width = { proportion = 0.25 },
 
-                preset-column-widths {
-                    proportion 0.25
-                    proportion 0.5
-                    fixed 960
-                    fixed 1280
-                }
+                    gaps = 8,
 
-                preset-window-heights {
-                    proportion 0.25
-                    proportion 0.5
-                    fixed 960
-                    fixed 1280
-                }
+                    struts = { left = 1, right = 2, top = 3 },
 
-                default-column-width { proportion 0.25; }
+                    center_focused_column = "on-overflow",
 
-                gaps 8
+                    default_column_display = "tabbed",
 
-                struts {
-                    left 1
-                    right 2
-                    top 3
-                }
+                    insert_hint = {
+                        color = "rgb(255, 200, 127)",
+                        gradient = {
+                            from = "rgba(10, 20, 30, 1.0)",
+                            to = "#0080ffff",
+                            relative_to = "workspace-view",
+                        },
+                    },
+                },
 
-                center-focused-column "on-overflow"
+                spawn_at_startup = {
+                    { command = { "alacritty", "-e", "fish" } },
+                },
 
-                default-column-display "tabbed"
+                spawn_sh_at_startup = {
+                    { command = "qs -c ~/source/qs/MyAwesomeShell" },
+                },
 
-                insert-hint {
-                    color "rgb(255, 200, 127)"
-                    gradient from="rgba(10, 20, 30, 1.0)" to="#0080ffff" relative-to="workspace-view"
-                }
-            }
+                prefer_no_csd = true,
 
-            spawn-at-startup "alacritty" "-e" "fish"
-            spawn-sh-at-startup "qs -c ~/source/qs/MyAwesomeShell"
+                cursor = {
+                    xcursor_theme = "breeze_cursors",
+                    xcursor_size = 16,
+                    hide_when_typing = true,
+                    hide_after_inactive_ms = 3000,
+                },
 
-            prefer-no-csd
+                screenshot_path = "~/Screenshots/screenshot.png",
 
-            cursor {
-                xcursor-theme "breeze_cursors"
-                xcursor-size 16
-                hide-when-typing
-                hide-after-inactive-ms 3000
-            }
+                clipboard = {
+                    disable_primary = true,
+                },
 
-            screenshot-path "~/Screenshots/screenshot.png"
+                hotkey_overlay = {
+                    skip_at_startup = true,
+                },
 
-            clipboard {
-                disable-primary
-            }
+                animations = {
+                    slowdown = 2.0,
 
-            hotkey-overlay {
-                skip-at-startup
-            }
+                    workspace_switch = {
+                        spring = { damping_ratio = 1.0, stiffness = 1000, epsilon = 0.0001 },
+                    },
 
-            animations {
-                slowdown 2.0
+                    horizontal_view_movement = {
+                        easing = { duration_ms = 100, curve = "ease-out-expo" },
+                    },
 
-                workspace-switch {
-                    spring damping-ratio=1.0 stiffness=1000 epsilon=0.0001
-                }
+                    window_open = {
+                        off = true,
+                        easing = { duration_ms = 150, curve = "ease-out-expo" },
+                    },
 
-                horizontal-view-movement {
-                    duration-ms 100
-                    curve "ease-out-expo"
-                }
+                    window_close = {
+                        easing = { duration_ms = 150, curve = "cubic-bezier(0.05, 0.7, 0.1, 1)" },
+                    },
 
-                window-open { off; }
+                    recent_windows_close = {
+                        off = true,
+                        spring = { damping_ratio = 1, stiffness = 800, epsilon = 0.001 },
+                    },
+                },
 
-                window-close {
-                    curve "cubic-bezier" 0.05 0.7 0.1 1
-                }
+                gestures = {
+                    dnd_edge_view_scroll = {
+                        trigger_width = 10,
+                        max_speed = 50,
+                    },
+                },
 
-                recent-windows-close {
-                    off
-                }
-            }
+                environment = {
+                    { name = "QT_QPA_PLATFORM", value = "wayland" },
+                    { name = "DISPLAY", value = ymir.null },
+                },
 
-            gestures {
-                dnd-edge-view-scroll {
-                    trigger-width 10
-                    max-speed 50
-                }
-            }
+                window_rules = {
+                    {
+                        match = {
+                            { app_id = ".*alacritty" },
+                        },
+                        exclude = {
+                            { title = "~" },
+                            { is_active = true, is_focused = false },
+                        },
 
-            environment {
-                QT_QPA_PLATFORM "wayland"
-                DISPLAY null
-            }
+                        open_on_output = "eDP-1",
+                        open_maximized = true,
+                        open_fullscreen = false,
+                        open_floating = false,
+                        open_focused = true,
+                        default_window_height = { fixed = 500 },
+                        default_column_display = "tabbed",
+                        default_floating_position = { x = 100, y = -200, relative_to = "bottom-left" },
+                        on_xdg_activate = "ignore",
 
-            window-rule {
-                match app-id=".*alacritty"
-                exclude title="~"
-                exclude is-active=true is-focused=false
+                        focus_ring = {
+                            off = true,
+                            width = 3,
+                        },
 
-                open-on-output "eDP-1"
-                open-maximized true
-                open-fullscreen false
-                open-floating false
-                open-focused true
-                default-window-height { fixed 500; }
-                default-column-display "tabbed"
-                default-floating-position x=100 y=-200 relative-to="bottom-left"
-                on-xdg-activate "ignore"
+                        border = {
+                            on = true,
+                            width = 8.5,
+                        },
 
-                focus-ring {
-                    off
-                    width 3
-                }
+                        tab_indicator = {
+                            active_color = "#f00",
+                        },
+                    },
+                },
 
-                border {
-                    on
-                    width 8.5
-                }
+                layer_rules = {
+                    {
+                        match = { { namespace = "^notifications$" } },
+                        block_out_from = "screencast",
+                    },
+                },
 
-                tab-indicator {
-                    active-color "#f00"
-                }
-            }
+                binds = {
+                    { key = "Mod+Escape", allow_inhibiting = false, hotkey_overlay_title = "Inhibit", action = { name = "toggle_keyboard_shortcuts_inhibit" } },
+                    { key = "Mod+Shift+Escape", allow_inhibiting = false, action = { name = "toggle_keyboard_shortcuts_inhibit" } },
+                    { key = "Mod+T", allow_when_locked = true, action = { name = "spawn", command = { "alacritty" } } },
+                    { key = "Mod+Q", hotkey_overlay_title = false, action = { name = "close_window" } },
+                    { key = "Mod+Shift+H", action = { name = "focus_monitor_left" } },
+                    { key = "Mod+Shift+O", action = { name = "focus_monitor", output = "eDP-1" } },
+                    { key = "Mod+Ctrl+Shift+L", action = { name = "move_window_to_monitor_right" } },
+                    { key = "Mod+Ctrl+Alt+O", action = { name = "move_window_to_monitor", output = "eDP-1" } },
+                    { key = "Mod+Ctrl+Alt+P", action = { name = "move_column_to_monitor", output = "DP-1" } },
+                    { key = "Mod+Comma", action = { name = "consume_window_into_column" } },
+                    { key = "Mod+1", action = { name = "focus_workspace", index = 1 } },
+                    { key = "Mod+Shift+1", action = { name = "focus_workspace", workspace = "workspace-1" } },
+                    { key = "Mod+Shift+E", allow_inhibiting = false, action = { name = "quit", skip_confirmation = true } },
+                    { key = "Mod+WheelScrollDown", cooldown_ms = 150, action = { name = "focus_workspace_down" } },
+                    { key = "Super+Alt+S", allow_when_locked = true, action = { name = "spawn_sh", command = "pkill orca || exec orca" } },
+                },
 
-            layer-rule {
-                match namespace="^notifications$"
-                block-out-from "screencast"
-            }
+                switch_events = {
+                    tablet_mode_on = {
+                        spawn = {
+                            "bash",
+                            "-c",
+                            "gsettings set org.gnome.desktop.a11y.applications screen-keyboard-enabled true",
+                        },
+                    },
+                    tablet_mode_off = {
+                        spawn = {
+                            "bash",
+                            "-c",
+                            "gsettings set org.gnome.desktop.a11y.applications screen-keyboard-enabled false",
+                        },
+                    },
+                },
 
-            binds {
-                Mod+Escape hotkey-overlay-title="Inhibit" { toggle-keyboard-shortcuts-inhibit; }
-                Mod+Shift+Escape allow-inhibiting=true { toggle-keyboard-shortcuts-inhibit; }
-                Mod+T allow-when-locked=true { spawn "alacritty"; }
-                Mod+Q hotkey-overlay-title=null { close-window; }
-                Mod+Shift+H { focus-monitor-left; }
-                Mod+Shift+O { focus-monitor "eDP-1"; }
-                Mod+Ctrl+Shift+L { move-window-to-monitor-right; }
-                Mod+Ctrl+Alt+O { move-window-to-monitor "eDP-1"; }
-                Mod+Ctrl+Alt+P { move-column-to-monitor "DP-1"; }
-                Mod+Comma { consume-window-into-column; }
-                Mod+1 { focus-workspace 1; }
-                Mod+Shift+1 { focus-workspace "workspace-1"; }
-                Mod+Shift+E allow-inhibiting=false { quit skip-confirmation=true; }
-                Mod+WheelScrollDown cooldown-ms=150 { focus-workspace-down; }
-                Super+Alt+S allow-when-locked=true { spawn-sh "pkill orca || exec orca"; }
-            }
+                debug = {
+                    render_drm_device = "/dev/dri/renderD129",
+                    ignored_drm_devices = { "/dev/dri/renderD128", "/dev/dri/renderD130" },
+                },
 
-            switch-events {
-                tablet-mode-on { spawn "bash" "-c" "gsettings set org.gnome.desktop.a11y.applications screen-keyboard-enabled true"; }
-                tablet-mode-off { spawn "bash" "-c" "gsettings set org.gnome.desktop.a11y.applications screen-keyboard-enabled false"; }
-            }
+                workspaces = {
+                    {
+                        name = "workspace-1",
+                        open_on_output = "eDP-1",
+                    },
+                    { name = "workspace-2" },
+                    { name = "workspace-3" },
+                },
 
-            debug {
-                render-drm-device "/dev/dri/renderD129"
-                ignore-drm-device "/dev/dri/renderD128"
-                ignore-drm-device "/dev/dri/renderD130"
-            }
+                recent_windows = {
+                    off = true,
 
-            workspace "workspace-1" {
-                open-on-output "eDP-1"
-            }
-            workspace "workspace-2"
-            workspace "workspace-3"
+                    highlight = {
+                        padding = 15,
+                        active_color = "#00ff00",
+                    },
 
-            recent-windows {
-                off
+                    previews = {
+                        max_height = 960,
+                    },
 
-                highlight {
-                    padding 15
-                    active-color "#00ff00"
-                }
-
-                previews {
-                    max-height 960
-                }
-
-                binds {
-                    Alt+Tab { next-window; }
-                    Alt+grave { next-window filter="app-id"; }
-                    Super+Tab { next-window scope="output"; }
-                }
+                    binds = {
+                        { key = "Alt+Tab", action = { name = "next_window" } },
+                        { key = "Alt+grave", action = { name = "next_window", filter = "app-id" } },
+                        { key = "Super+Tab", action = { name = "next_window", scope = "output" } },
+                    },
+                },
             }
             "##,
         );

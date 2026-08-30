@@ -1,10 +1,9 @@
-use knuffel::errors::DecodeError;
 use ymir_ipc::{ColumnDisplay, SizeChange};
 
 use crate::appearance::{
     Border, FocusRing, InsertHint, Shadow, TabIndicator, DEFAULT_BACKGROUND_COLOR,
 };
-use crate::utils::{expect_only_children, Flag, MergeWith};
+use crate::utils::{Flag, MergeWith};
 use crate::{BorderRule, Color, FloatOrInt, InsertHintPart, ShadowRule, TabIndicatorPart};
 
 #[derive(Debug, Clone, PartialEq)]
@@ -94,44 +93,29 @@ impl MergeWith<LayoutPart> for Layout {
     }
 }
 
-#[derive(knuffel::Decode, Debug, Default, Clone, PartialEq)]
+#[derive(Debug, Default, Clone, PartialEq)]
 pub struct LayoutPart {
-    #[knuffel(child)]
     pub focus_ring: Option<BorderRule>,
-    #[knuffel(child)]
     pub border: Option<BorderRule>,
-    #[knuffel(child)]
     pub shadow: Option<ShadowRule>,
-    #[knuffel(child)]
     pub tab_indicator: Option<TabIndicatorPart>,
-    #[knuffel(child)]
     pub insert_hint: Option<InsertHintPart>,
-    #[knuffel(child, unwrap(children))]
     pub preset_column_widths: Option<Vec<PresetSize>>,
-    #[knuffel(child)]
     pub default_column_width: Option<DefaultPresetSize>,
-    #[knuffel(child, unwrap(children))]
     pub preset_window_heights: Option<Vec<PresetSize>>,
-    #[knuffel(child, unwrap(argument))]
     pub center_focused_column: Option<CenterFocusedColumn>,
-    #[knuffel(child)]
     pub always_center_single_column: Option<Flag>,
-    #[knuffel(child)]
     pub empty_workspace_above_first: Option<Flag>,
-    #[knuffel(child, unwrap(argument, str))]
     pub default_column_display: Option<ColumnDisplay>,
-    #[knuffel(child, unwrap(argument))]
     pub gaps: Option<FloatOrInt<0, 65535>>,
-    #[knuffel(child)]
     pub struts: Option<Struts>,
-    #[knuffel(child)]
     pub background_color: Option<Color>,
 }
 
-#[derive(knuffel::Decode, Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum PresetSize {
-    Proportion(#[knuffel(argument)] f64),
-    Fixed(#[knuffel(argument)] i32),
+    Proportion(f64),
+    Fixed(i32),
 }
 
 impl From<PresetSize> for SizeChange {
@@ -146,19 +130,15 @@ impl From<PresetSize> for SizeChange {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct DefaultPresetSize(pub Option<PresetSize>);
 
-#[derive(knuffel::Decode, Debug, Default, Clone, Copy, PartialEq)]
+#[derive(Debug, Default, Clone, Copy, PartialEq)]
 pub struct Struts {
-    #[knuffel(child, unwrap(argument), default)]
     pub left: FloatOrInt<-65535, 65535>,
-    #[knuffel(child, unwrap(argument), default)]
     pub right: FloatOrInt<-65535, 65535>,
-    #[knuffel(child, unwrap(argument), default)]
     pub top: FloatOrInt<-65535, 65535>,
-    #[knuffel(child, unwrap(argument), default)]
     pub bottom: FloatOrInt<-65535, 65535>,
 }
 
-#[derive(knuffel::DecodeScalar, Debug, Default, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, Default, PartialEq, Eq, Clone, Copy)]
 pub enum CenterFocusedColumn {
     /// Focusing a column will not center the column.
     #[default]
@@ -170,29 +150,3 @@ pub enum CenterFocusedColumn {
     OnOverflow,
 }
 
-impl<S> knuffel::Decode<S> for DefaultPresetSize
-where
-    S: knuffel::traits::ErrorSpan,
-{
-    fn decode_node(
-        node: &knuffel::ast::SpannedNode<S>,
-        ctx: &mut knuffel::decode::Context<S>,
-    ) -> Result<Self, DecodeError<S>> {
-        expect_only_children(node, ctx);
-
-        let mut children = node.children();
-
-        if let Some(child) = children.next() {
-            if let Some(unwanted_child) = children.next() {
-                ctx.emit_error(DecodeError::unexpected(
-                    unwanted_child,
-                    "node",
-                    "expected no more than one child",
-                ));
-            }
-            PresetSize::decode_node(child, ctx).map(Some).map(Self)
-        } else {
-            Ok(Self(None))
-        }
-    }
-}

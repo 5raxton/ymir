@@ -1,45 +1,50 @@
 ### Overview
 
 By default, ymir will attempt to turn on all connected monitors using their preferred modes.
-You can disable or adjust this with `output` sections.
+You can disable or adjust this with the `output` list.
 
 Here's what it looks like with all properties written out:
 
-```kdl
-output "eDP-1" {
-    // off
-    mode "1920x1080@120.030"
-    scale 2.0
-    transform "90"
-    position x=1280 y=0
-    variable-refresh-rate // on-demand=true
-    focus-at-startup
-    backdrop-color "#001100"
-    // max-bpc 8
+```lua
+return {
+    output = {
+        {
+            name = "eDP-1",
+            -- off = true
+            mode = "1920x1080@120.030",
+            scale = 2.0,
+            transform = "90",
+            position = { x = 1280, y = 0 },
+            variable_refresh_rate = true, -- or { on_demand = true }
+            focus_at_startup = true,
+            backdrop_color = "#001100",
+            -- max_bpc = "8",
 
-    hot-corners {
-        // off
-        top-left
-        // top-right
-        // bottom-left
-        // bottom-right
-    }
+            hot_corners = {
+                -- off = true
+                top_left = true,
+                -- top_right = true
+                -- bottom_left = true
+                -- bottom_right = true
+            },
 
-    layout {
-        // ...layout settings for eDP-1...
-    }
+            layout = {
+                -- ...layout settings for eDP-1...
+            },
 
-    // Custom modes. Caution: may damage your display.
-    // mode custom=true "1920x1080@100"
-    // modeline 173.00  1920 2048 2248 2576  1080 1083 1088 1120 "-hsync" "+vsync"
-}
-
-output "HDMI-A-1" {
-    // ...settings for HDMI-A-1...
-}
-
-output "Some Company CoolMonitor 1234" {
-    // ...settings for CoolMonitor...
+            -- Custom modes. Caution: may damage your display.
+            -- mode = { mode = "1920x1080@100", custom = true }
+            -- modeline = { clock = 173.00, hdisplay = 1920, hsync_start = 2048, hsync_end = 2248, htotal = 2576, vdisplay = 1080, vsync_start = 1083, vsync_end = 1088, vtotal = 1120, hsync_polarity = "-hsync", vsync_polarity = "+vsync" }
+        },
+        {
+            name = "HDMI-A-1",
+            -- ...settings for HDMI-A-1...
+        },
+        {
+            name = "Some Company CoolMonitor 1234",
+            -- ...settings for CoolMonitor...
+        },
+    },
 }
 ```
 
@@ -57,10 +62,15 @@ Before, they could be matched only by the connector name.
 
 This flag turns off that output entirely.
 
-```kdl
-// Turn off that monitor.
-output "HDMI-A-1" {
-    off
+```lua
+return {
+    output = {
+        {
+            -- Turn off that monitor.
+            name = "HDMI-A-1",
+            off = true,
+        },
+    },
 }
 ```
 
@@ -76,18 +86,23 @@ If the mode is omitted altogether or doesn't work, ymir will try to pick one aut
 Run `ymir msg outputs` while inside a ymir instance to list all outputs and their modes.
 The refresh rate that you set here must match *exactly*, down to the three decimal digits, to what you see in `ymir msg outputs`.
 
-```kdl
-// Set a high refresh rate for this monitor.
-// High refresh rate monitors tend to use 60 Hz as their preferred mode,
-// requiring a manual mode setting.
-output "HDMI-A-1" {
-    mode "2560x1440@143.912"
-}
-
-// Use a lower resolution on the built-in laptop monitor
-// (for example, for testing purposes).
-output "eDP-1" {
-    mode "1280x720"
+```lua
+return {
+    output = {
+        {
+            -- Set a high refresh rate for this monitor.
+            -- High refresh rate monitors tend to use 60 Hz as their preferred mode,
+            -- requiring a manual mode setting.
+            name = "HDMI-A-1",
+            mode = "2560x1440@143.912",
+        },
+        {
+            -- Use a lower resolution on the built-in laptop monitor
+            -- (for example, for testing purposes).
+            name = "eDP-1",
+            mode = "1280x720",
+        },
+    },
 }
 ```
 
@@ -95,7 +110,7 @@ output "eDP-1" {
 
 <sup>Since: 25.11</sup>
 
-You can configure a custom mode (not offered by the monitor) by setting `custom=true`.
+You can configure a custom mode (not offered by the monitor) by setting `custom = true`.
 In this case, the refresh rate is mandatory.
 
 Custom modes are not guaranteed to work.
@@ -106,10 +121,15 @@ Use at your own risk.
 > Custom modes may damage your monitor, especially if it's a CRT.
 > Follow the maximum supported limits in your monitor's instructions.
 
-```kdl
-// Use a custom mode for this display.
-output "HDMI-A-1" {
-    mode custom=true "2560x1440@143.912"
+```lua
+return {
+    output = {
+        {
+            -- Use a custom mode for this display.
+            name = "HDMI-A-1",
+            mode = { mode = "2560x1440@143.912", custom = true },
+        },
+    },
 }
 ```
 
@@ -128,10 +148,27 @@ Use at your own risk.
 > Out of spec modelines may damage your monitor, especially if it's a CRT.
 > Follow the maximum supported limits in your monitor's instructions.
 
-```kdl
-// Use a modeline for this display.
-output "eDP-3" {
-    modeline 173.00  1920 2048 2248 2576  1080 1083 1088 1120 "-hsync" "+vsync"
+```lua
+return {
+    output = {
+        {
+            -- Use a modeline for this display.
+            name = "eDP-3",
+            modeline = {
+                clock = 173.00,
+                hdisplay = 1920,
+                hsync_start = 2048,
+                hsync_end = 2248,
+                htotal = 2576,
+                vdisplay = 1080,
+                vsync_start = 1083,
+                vsync_end = 1088,
+                vtotal = 1120,
+                hsync_polarity = "-hsync",
+                vsync_polarity = "+vsync",
+            },
+        },
+    },
 }
 ```
 
@@ -141,15 +178,20 @@ Set the scale of the monitor.
 
 <sup>Since: 0.1.6</sup> If scale is unset, ymir will guess an appropriate scale based on the physical dimensions and the resolution of the monitor.
 
-<sup>Since: 0.1.7</sup> You can use fractional scale values, for example `scale 1.5` for 150% scale.
+<sup>Since: 0.1.7</sup> You can use fractional scale values, for example `scale = 1.5` for 150% scale.
 
-<sup>Since: 0.1.7</sup> Dot is no longer needed for integer scale, for example you can write `scale 2` instead of `scale 2.0`.
+<sup>Since: 0.1.7</sup> Dot is no longer needed for integer scale, for example you can write `scale = 2` instead of `scale = 2.0`.
 
 <sup>Since: 0.1.7</sup> Scale below 0 and above 10 will now fail during config parsing. Scale was previously clamped to these values anyway.
 
-```kdl
-output "eDP-1" {
-    scale 2.0
+```lua
+return {
+    output = {
+        {
+            name = "eDP-1",
+            scale = 2.0,
+        },
+    },
 }
 ```
 
@@ -160,9 +202,14 @@ Rotate the output counter-clockwise.
 Valid values are: `"normal"`, `"90"`, `"180"`, `"270"`, `"flipped"`, `"flipped-90"`, `"flipped-180"` and `"flipped-270"`.
 Values with `flipped` additionally flip the output.
 
-```kdl
-output "HDMI-A-1" {
-    transform "90"
+```lua
+return {
+    output = {
+        {
+            name = "HDMI-A-1",
+            transform = "90",
+        },
+    },
 }
 ```
 
@@ -178,9 +225,14 @@ The cursor can only move between directly adjacent outputs.
 > For example, a 3840×2160 output with scale 2.0 will have a logical size of 1920×1080, so to put another output directly adjacent to it on the right, set its x to 1920.
 > If the position is unset or results in an overlap, the output is instead placed automatically.
 
-```kdl
-output "HDMI-A-1" {
-    position x=1280 y=0
+```lua
+return {
+    output = {
+        {
+            name = "HDMI-A-1",
+            position = { x = 1280, y = 0 },
+        },
+    },
 }
 ```
 
@@ -194,7 +246,7 @@ The following algorithm is used for positioning outputs.
 1. Try to place every output with explicitly configured `position`, in order. If the output overlaps previously placed outputs, place it to the right of all previously placed outputs. In this case, ymir will also print a warning.
 1. Place every output without explicitly configured `position` by putting it to the right of all previously placed outputs.
 
-### `variable-refresh-rate`
+### `variable_refresh_rate`
 
 <sup>Since: 0.1.5</sup>
 
@@ -211,44 +263,59 @@ You can check whether an output supports VRR in `ymir msg outputs`.
 >
 > Some monitors will continuously modeset (flash black) with VRR enabled; I'm not sure if there's a way to fix it.
 
-```kdl
-output "HDMI-A-1" {
-    variable-refresh-rate
+```lua
+return {
+    output = {
+        {
+            name = "HDMI-A-1",
+            variable_refresh_rate = true,
+        },
+    },
 }
 ```
 
-<sup>Since: 0.1.9</sup> You can also set the `on-demand=true` property, which will only enable VRR when this output shows a window matching the `variable-refresh-rate` window rule.
+<sup>Since: 0.1.9</sup> You can also set the `on_demand = true` property, which will only enable VRR when this output shows a window matching the `variable-refresh-rate` window rule.
 This is helpful to avoid various issues with VRR, since it can be disabled most of the time, and only enabled for specific windows, like games or video players.
 
-```kdl
-output "HDMI-A-1" {
-    variable-refresh-rate on-demand=true
+```lua
+return {
+    output = {
+        {
+            name = "HDMI-A-1",
+            variable_refresh_rate = { on_demand = true },
+        },
+    },
 }
 ```
 
-### `focus-at-startup`
+### `focus_at_startup`
 
 <sup>Since: 25.05</sup>
 
 Focus this output by default when ymir starts.
 
-If multiple outputs with `focus-at-startup` are connected, they are prioritized in the order that they appear in the config.
+If multiple outputs with `focus_at_startup` are connected, they are prioritized in the order that they appear in the config.
 
-When none of the connected outputs are explicitly `focus-at-startup`, ymir will focus the first one sorted by name (same output sorting as used elsewhere in ymir).
+When none of the connected outputs are explicitly `focus_at_startup`, ymir will focus the first one sorted by name (same output sorting as used elsewhere in ymir).
 
-```kdl
-// Focus HDMI-A-1 by default.
-output "HDMI-A-1" {
-    focus-at-startup
-}
-
-// ...if HDMI-A-1 wasn't connected, focus DP-2 instead.
-output "DP-2" {
-    focus-at-startup
+```lua
+return {
+    output = {
+        {
+            -- Focus HDMI-A-1 by default.
+            name = "HDMI-A-1",
+            focus_at_startup = true,
+        },
+        {
+            -- ...if HDMI-A-1 wasn't connected, focus DP-2 instead.
+            name = "DP-2",
+            focus_at_startup = true,
+        },
+    },
 }
 ```
 
-### `background-color`
+### `background_color`
 
 <sup>Since: 0.1.8</sup>
 
@@ -257,15 +324,20 @@ This is visible when you're not using any background tools like swaybg.
 
 <sup>Until: 25.05</sup> The alpha channel for this color will be ignored.
 
-<sup>Since: 25.11</sup> This setting is deprecated, set `background-color` in the [output `layout {}` block](#layout-config-overrides) instead.
+<sup>Since: 25.11</sup> This setting is deprecated, set `background_color` in the [output `layout` table](#layout-config-overrides) instead.
 
-```kdl
-output "HDMI-A-1" {
-    background-color "#003300"
+```lua
+return {
+    output = {
+        {
+            name = "HDMI-A-1",
+            background_color = "#003300",
+        },
+    },
 }
 ```
 
-### `backdrop-color`
+### `backdrop_color`
 
 <sup>Since: 25.05</sup>
 
@@ -274,13 +346,18 @@ This is visible between workspaces or in the overview.
 
 The alpha channel for this color will be ignored.
 
-```kdl
-output "HDMI-A-1" {
-    backdrop-color "#001100"
+```lua
+return {
+    output = {
+        {
+            name = "HDMI-A-1",
+            backdrop_color = "#001100",
+        },
+    },
 }
 ```
 
-### `max-bpc`
+### `max_bpc`
 
 <sup>Since: next release</sup>
 
@@ -289,19 +366,24 @@ Set the maximum bits per channel (BPC) for this output.
 You *do not* need to set this option normally.
 It influences the encoding of the display signal on the wire and *is not* directly related to the color bitness or framebuffer format.
 
-Setting `max-bpc` to a low value may help if you hit a bandwidth issue (can't set a monitor configuration that works on other compositor).
+Setting `max_bpc` to a low value may help if you hit a bandwidth issue (can't set a monitor configuration that works on other compositor).
 Otherwise, you're advised to leave it unset (keeping a default, usually high value) and let the GPU driver figure things out automatically.
 
 Valid values are `6`, `8`, `10`, `12`, `14`, `16`.
 
-```kdl
-// Set 8 max-bpc on HDMI-A-1 to lower the bandwidth.
-output "HDMI-A-1" {
-    max-bpc 8
+```lua
+return {
+    output = {
+        {
+            -- Set 8 max-bpc on HDMI-A-1 to lower the bandwidth.
+            name = "HDMI-A-1",
+            max_bpc = "8",
+        },
+    },
 }
 ```
 
-### `hot-corners`
+### `hot_corners`
 
 <sup>Since: 25.11</sup>
 
@@ -312,20 +394,25 @@ Hot corners toggle the overview when you put your mouse at the very corner of a 
 
 `off` will disable the hot corners on this output, and writing specific corners will enable only those hot corners on this output.
 
-```kdl
-// Enable the bottom-left and bottom-right hot corners on HDMI-A-1.
-output "HDMI-A-1" {
-    hot-corners {
-        bottom-left
-        bottom-right
-    }
-}
-
-// Disable the hot corners on DP-2.
-output "DP-2" {
-    hot-corners {
-        off
-    }
+```lua
+return {
+    output = {
+        {
+            -- Enable the bottom-left and bottom-right hot corners on HDMI-A-1.
+            name = "HDMI-A-1",
+            hot_corners = {
+                bottom_left = true,
+                bottom_right = true,
+            },
+        },
+        {
+            -- Disable the hot corners on DP-2.
+            name = "DP-2",
+            hot_corners = {
+                off = true,
+            },
+        },
+    },
 }
 ```
 
@@ -333,50 +420,59 @@ output "DP-2" {
 
 <sup>Since: 25.11</sup>
 
-You can customize layout settings for an output with a `layout {}` block:
+You can customize layout settings for an output with a `layout` table:
 
-```kdl
-output "SomeCompany VerticalMonitor 1234" {
-    transform "90"
+```lua
+return {
+    output = {
+        {
+            name = "SomeCompany VerticalMonitor 1234",
+            transform = "90",
 
-    // Layout config overrides just for this output.
-    layout {
-        default-column-width { proportion 1.0; }
+            -- Layout config overrides just for this output.
+            layout = {
+                default_column_width = { proportion = 1.0 },
 
-        // ...any other setting.
-    }
-}
+                -- ...any other setting.
+            },
+        },
+        {
+            name = "SomeCompany UltrawideMonitor 1234",
+            -- Narrower proportions and more presets for an ultrawide.
+            layout = {
+                default_column_width = { proportion = 0.25 },
 
-output "SomeCompany UltrawideMonitor 1234" {
-    // Narrower proportions and more presets for an ultrawide.
-    layout {
-        default-column-width { proportion 0.25; }
-
-        preset-column-widths {
-            proportion 0.2
-            proportion 0.25
-            proportion 0.5
-            proportion 0.75
-            proportion 0.8
-        }
-    }
+                preset_column_widths = {
+                    { proportion = 0.2 },
+                    { proportion = 0.25 },
+                    { proportion = 0.5 },
+                    { proportion = 0.75 },
+                    { proportion = 0.8 },
+                },
+            },
+        },
+    },
 }
 ```
 
-It accepts all the same options as [the top-level `layout {}` block](./Configuration:-Layout.md).
+It accepts all the same options as [the top-level `layout` table](./Configuration:-Layout.md).
 
 In order to unset a flag, write it with `false`, e.g.:
 
-```kdl
-layout {
-    // Enabled globally.
-    always-center-single-column
-}
-
-output "eDP-1" {
-    layout {
-        // Unset on this output.
-        always-center-single-column false
-    }
+```lua
+return {
+    layout = {
+        -- Enabled globally.
+        always_center_single_column = true,
+    },
+    output = {
+        {
+            name = "eDP-1",
+            layout = {
+                -- Unset on this output.
+                always_center_single_column = false,
+            },
+        },
+    },
 }
 ```

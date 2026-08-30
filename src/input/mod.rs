@@ -752,15 +752,15 @@ impl State {
                     self.ymir.do_screen_transition(renderer, delay_ms);
                 });
             }
-            Action::ScreenshotScreen(write_to_disk, show_pointer, path) => {
+            Action::ScreenshotScreen(path) => {
                 let active = self.ymir.layout.active_output().cloned();
                 if let Some(active) = active {
                     self.backend.with_primary_renderer(|renderer| {
                         if let Err(err) = self.ymir.screenshot(
                             renderer,
                             &active,
-                            write_to_disk,
-                            show_pointer,
+                            true,
+                            true,
                             path,
                         ) {
                             warn!("error taking screenshot: {err:?}");
@@ -786,11 +786,11 @@ impl State {
                 self.ymir.screenshot_ui.toggle_pointer();
                 self.ymir.queue_redraw_all();
             }
-            Action::Screenshot(show_cursor, path) => {
-                self.open_screenshot_ui(show_cursor, path);
+            Action::Screenshot(path) => {
+                self.open_screenshot_ui(true, path);
                 self.ymir.cancel_mru();
             }
-            Action::ScreenshotWindow(write_to_disk, show_pointer, path) => {
+            Action::ScreenshotWindow(path) => {
                 let focus = self.ymir.layout.focus_with_output();
                 if let Some((mapped, output)) = focus {
                     self.backend.with_primary_renderer(|renderer| {
@@ -798,8 +798,8 @@ impl State {
                             renderer,
                             output,
                             mapped,
-                            write_to_disk,
-                            show_pointer,
+                            true,
+                            false,
                             path,
                         ) {
                             warn!("error taking screenshot: {err:?}");

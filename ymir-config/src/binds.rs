@@ -1,10 +1,7 @@
-use std::collections::hash_map::Entry;
-use std::collections::HashMap;
 use std::str::FromStr;
 use std::time::Duration;
 
 use bitflags::bitflags;
-use knuffel::errors::DecodeError;
 use miette::miette;
 use ymir_ipc::{
     ColumnDisplay, LayoutSwitchTarget, PositionChange, SizeChange, SplitDirection,
@@ -15,7 +12,7 @@ use smithay::input::keyboard::xkb::{keysym_from_name, KEYSYM_CASE_INSENSITIVE, K
 use smithay::input::keyboard::Keysym;
 
 use crate::recent_windows::{MruDirection, MruFilter, MruScope};
-use crate::utils::{expect_only_children, MergeWith};
+use crate::utils::MergeWith;
 
 /// Direction of a dwindle split (used for the `preselect` action).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -116,15 +113,11 @@ bitflags! {
     }
 }
 
-#[derive(knuffel::Decode, Debug, Default, Clone, PartialEq)]
+#[derive(Debug, Default, Clone, PartialEq)]
 pub struct SwitchBinds {
-    #[knuffel(child)]
     pub lid_open: Option<SwitchAction>,
-    #[knuffel(child)]
     pub lid_close: Option<SwitchAction>,
-    #[knuffel(child)]
     pub tablet_mode_on: Option<SwitchAction>,
-    #[knuffel(child)]
     pub tablet_mode_off: Option<SwitchAction>,
 }
 
@@ -140,17 +133,15 @@ impl MergeWith<SwitchBinds> for SwitchBinds {
     }
 }
 
-#[derive(knuffel::Decode, Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct SwitchAction {
-    #[knuffel(child, unwrap(arguments))]
     pub spawn: Vec<String>,
 }
 
 // Remember to add new actions to the CLI enum too.
-#[derive(knuffel::Decode, Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Action {
-    Quit(#[knuffel(property(name = "skip-confirmation"), default)] bool),
-    #[knuffel(skip)]
+    Quit(bool),
     ChangeVt(i32),
     Suspend,
     PowerOffMonitors,
@@ -158,35 +149,26 @@ pub enum Action {
     ToggleDebugTint,
     DebugToggleOpaqueRegions,
     DebugToggleDamage,
-    Spawn(#[knuffel(arguments)] Vec<String>),
-    SpawnSh(#[knuffel(argument)] String),
-    DoScreenTransition(#[knuffel(property(name = "delay-ms"))] Option<u16>),
-    #[knuffel(skip)]
+    Spawn(Vec<String>),
+    SpawnSh(String),
+    DoScreenTransition(Option<u16>),
     ConfirmScreenshot {
         write_to_disk: bool,
     },
-    #[knuffel(skip)]
     CancelScreenshot,
-    #[knuffel(skip)]
     ScreenshotTogglePointer,
     Screenshot(
-        #[knuffel(property(name = "show-pointer"), default = true)] bool,
-        // Path; not settable from knuffel
+        // Path; not settable from config
         Option<String>,
     ),
     ScreenshotScreen(
-        #[knuffel(property(name = "write-to-disk"), default = true)] bool,
-        #[knuffel(property(name = "show-pointer"), default = true)] bool,
-        // Path; not settable from knuffel
+        // Path; not settable from config
         Option<String>,
     ),
     ScreenshotWindow(
-        #[knuffel(property(name = "write-to-disk"), default = true)] bool,
-        #[knuffel(property(name = "show-pointer"), default = false)] bool,
-        // Path; not settable from knuffel
+        // Path; not settable from config
         Option<String>,
     ),
-    #[knuffel(skip)]
     ScreenshotWindowById {
         id: u64,
         write_to_disk: bool,
@@ -195,29 +177,23 @@ pub enum Action {
     },
     ToggleKeyboardShortcutsInhibit,
     CloseWindow,
-    #[knuffel(skip)]
     CloseWindowById(u64),
     FullscreenWindow,
-    #[knuffel(skip)]
     FullscreenWindowById(u64),
     ToggleWindowedFullscreen,
-    #[knuffel(skip)]
     ToggleWindowedFullscreenById(u64),
-    #[knuffel(skip)]
     FocusWindow(u64),
-    FocusWindowInColumn(#[knuffel(argument)] u8),
+    FocusWindowInColumn(u8),
     FocusWindowPrevious,
     FocusColumnLeft,
-    #[knuffel(skip)]
     FocusColumnLeftUnderMouse,
     FocusColumnRight,
-    #[knuffel(skip)]
     FocusColumnRightUnderMouse,
     FocusColumnFirst,
     FocusColumnLast,
     FocusColumnRightOrFirst,
     FocusColumnLeftOrLast,
-    FocusColumn(#[knuffel(argument)] usize),
+    FocusColumn(usize),
     FocusWindowOrMonitorUp,
     FocusWindowOrMonitorDown,
     FocusColumnOrMonitorLeft,
@@ -240,7 +216,7 @@ pub enum Action {
     MoveColumnToLast,
     MoveColumnLeftOrToMonitorLeft,
     MoveColumnRightOrToMonitorRight,
-    MoveColumnToIndex(#[knuffel(argument)] usize),
+    MoveColumnToIndex(usize),
     MoveWindowDown,
     MoveWindowUp,
     MoveWindowLeft,
@@ -248,90 +224,79 @@ pub enum Action {
     MoveWindowDownOrToWorkspaceDown,
     MoveWindowUpOrToWorkspaceUp,
     ConsumeOrExpelWindowLeft,
-    #[knuffel(skip)]
     ConsumeOrExpelWindowLeftById(u64),
     ConsumeOrExpelWindowRight,
-    #[knuffel(skip)]
     ConsumeOrExpelWindowRightById(u64),
     ConsumeWindowIntoColumn,
     ExpelWindowFromColumn,
     ToggleSplit,
-    Preselect(#[knuffel(argument, str)] Direction),
+    Preselect(Direction),
     PromoteWindow,
     SwapWindowLeft,
     SwapWindowRight,
     ToggleColumnTabbedDisplay,
     SwitchColumnDisplay,
-    SetColumnDisplay(#[knuffel(argument, str)] ColumnDisplay),
+    SetColumnDisplay(ColumnDisplay),
     CenterColumn,
     CenterWindow,
-    #[knuffel(skip)]
     CenterWindowById(u64),
     CenterVisibleColumns,
     FocusWorkspaceDown,
-    #[knuffel(skip)]
     FocusWorkspaceDownUnderMouse,
     FocusWorkspaceUp,
-    #[knuffel(skip)]
     FocusWorkspaceUpUnderMouse,
-    FocusWorkspace(#[knuffel(argument)] WorkspaceReference),
+    FocusWorkspace(WorkspaceReference),
     FocusWorkspacePrevious,
-    MoveWindowToWorkspaceDown(#[knuffel(property(name = "focus"), default = true)] bool),
-    MoveWindowToWorkspaceUp(#[knuffel(property(name = "focus"), default = true)] bool),
+    MoveWindowToWorkspaceDown(bool),
+    MoveWindowToWorkspaceUp(bool),
     MoveWindowToWorkspace(
-        #[knuffel(argument)] WorkspaceReference,
-        #[knuffel(property(name = "focus"), default = true)] bool,
+        WorkspaceReference,
+        bool,
     ),
-    #[knuffel(skip)]
     MoveWindowToWorkspaceById {
         window_id: u64,
         reference: WorkspaceReference,
         focus: bool,
     },
-    MoveColumnToWorkspaceDown(#[knuffel(property(name = "focus"), default = true)] bool),
-    MoveColumnToWorkspaceUp(#[knuffel(property(name = "focus"), default = true)] bool),
+    MoveColumnToWorkspaceDown(bool),
+    MoveColumnToWorkspaceUp(bool),
     MoveColumnToWorkspace(
-        #[knuffel(argument)] WorkspaceReference,
-        #[knuffel(property(name = "focus"), default = true)] bool,
+        WorkspaceReference,
+        bool,
     ),
     MoveWorkspaceDown,
     MoveWorkspaceUp,
-    MoveWorkspaceToIndex(#[knuffel(argument)] usize),
-    #[knuffel(skip)]
+    MoveWorkspaceToIndex(usize),
     MoveWorkspaceToIndexByRef {
         new_idx: usize,
         reference: WorkspaceReference,
     },
-    #[knuffel(skip)]
     MoveWorkspaceToMonitorByRef {
         output_name: String,
         reference: WorkspaceReference,
     },
-    MoveWorkspaceToMonitor(#[knuffel(argument)] String),
-    SetWorkspaceName(#[knuffel(argument)] String),
-    #[knuffel(skip)]
+    MoveWorkspaceToMonitor(String),
+    SetWorkspaceName(String),
     SetWorkspaceNameByRef {
         name: String,
         reference: WorkspaceReference,
     },
     UnsetWorkspaceName,
-    #[knuffel(skip)]
-    UnsetWorkSpaceNameByRef(#[knuffel(argument)] WorkspaceReference),
+    UnsetWorkSpaceNameByRef(WorkspaceReference),
     FocusMonitorLeft,
     FocusMonitorRight,
     FocusMonitorDown,
     FocusMonitorUp,
     FocusMonitorPrevious,
     FocusMonitorNext,
-    FocusMonitor(#[knuffel(argument)] String),
+    FocusMonitor(String),
     MoveWindowToMonitorLeft,
     MoveWindowToMonitorRight,
     MoveWindowToMonitorDown,
     MoveWindowToMonitorUp,
     MoveWindowToMonitorPrevious,
     MoveWindowToMonitorNext,
-    MoveWindowToMonitor(#[knuffel(argument)] String),
-    #[knuffel(skip)]
+    MoveWindowToMonitor(String),
     MoveWindowToMonitorById {
         id: u64,
         output: String,
@@ -342,43 +307,35 @@ pub enum Action {
     MoveColumnToMonitorUp,
     MoveColumnToMonitorPrevious,
     MoveColumnToMonitorNext,
-    MoveColumnToMonitor(#[knuffel(argument)] String),
-    SetWindowWidth(#[knuffel(argument, str)] SizeChange),
-    #[knuffel(skip)]
+    MoveColumnToMonitor(String),
+    SetWindowWidth(SizeChange),
     SetWindowWidthById {
         id: u64,
         change: SizeChange,
     },
-    SetWindowHeight(#[knuffel(argument, str)] SizeChange),
-    #[knuffel(skip)]
+    SetWindowHeight(SizeChange),
     SetWindowHeightById {
         id: u64,
         change: SizeChange,
     },
     ResetWindowHeight,
-    #[knuffel(skip)]
     ResetWindowHeightById(u64),
     SwitchPresetColumnWidth,
     SwitchPresetColumnWidthBack,
     SwitchPresetWindowWidth,
     SwitchPresetWindowWidthBack,
-    #[knuffel(skip)]
     SwitchPresetWindowWidthById(u64),
-    #[knuffel(skip)]
     SwitchPresetWindowWidthBackById(u64),
     SwitchPresetWindowHeight,
     SwitchPresetWindowHeightBack,
-    #[knuffel(skip)]
     SwitchPresetWindowHeightById(u64),
-    #[knuffel(skip)]
     SwitchPresetWindowHeightBackById(u64),
     MaximizeColumn,
     MaximizeWindowToEdges,
-    #[knuffel(skip)]
     MaximizeWindowToEdgesById(u64),
-    SetColumnWidth(#[knuffel(argument, str)] SizeChange),
+    SetColumnWidth(SizeChange),
     ExpandColumnToAvailableWidth,
-    SwitchLayout(#[knuffel(argument, str)] LayoutSwitchTarget),
+    SwitchLayout(LayoutSwitchTarget),
     ShowHotkeyOverlay,
     MoveWorkspaceToMonitorLeft,
     MoveWorkspaceToMonitorRight,
@@ -387,63 +344,44 @@ pub enum Action {
     MoveWorkspaceToMonitorPrevious,
     MoveWorkspaceToMonitorNext,
     ToggleWindowFloating,
-    #[knuffel(skip)]
     ToggleWindowFloatingById(u64),
     MoveWindowToFloating,
-    #[knuffel(skip)]
     MoveWindowToFloatingById(u64),
     MoveWindowToTiling,
-    #[knuffel(skip)]
     MoveWindowToTilingById(u64),
     FocusFloating,
     FocusTiling,
     SwitchFocusBetweenFloatingAndTiling,
-    #[knuffel(skip)]
     MoveFloatingWindowById {
         id: Option<u64>,
         x: PositionChange,
         y: PositionChange,
     },
     ToggleWindowRuleOpacity,
-    #[knuffel(skip)]
     ToggleWindowRuleOpacityById(u64),
     SetDynamicCastWindow,
-    #[knuffel(skip)]
     SetDynamicCastWindowById(u64),
-    SetDynamicCastMonitor(#[knuffel(argument)] Option<String>),
+    SetDynamicCastMonitor(Option<String>),
     ClearDynamicCastTarget,
-    #[knuffel(skip)]
     StopCast(u64),
     ToggleOverview,
     OpenOverview,
     CloseOverview,
-    #[knuffel(skip)]
     ToggleWindowUrgent(u64),
-    #[knuffel(skip)]
     SetWindowUrgent(u64),
-    #[knuffel(skip)]
     UnsetWindowUrgent(u64),
-    #[knuffel(skip)]
-    LoadConfigFile(#[knuffel(argument)] Option<String>),
-    #[knuffel(skip)]
+    LoadConfigFile(Option<String>),
     MruAdvance {
         direction: MruDirection,
         scope: Option<MruScope>,
         filter: Option<MruFilter>,
     },
-    #[knuffel(skip)]
     MruConfirm,
-    #[knuffel(skip)]
     MruCancel,
-    #[knuffel(skip)]
     MruCloseCurrentWindow,
-    #[knuffel(skip)]
     MruFirst,
-    #[knuffel(skip)]
     MruLast,
-    #[knuffel(skip)]
     MruSetScope(MruScope),
-    #[knuffel(skip)]
     MruCycleScope,
 }
 
@@ -456,20 +394,21 @@ impl From<ymir_ipc::Action> for Action {
             ymir_ipc::Action::Spawn { command } => Self::Spawn(command),
             ymir_ipc::Action::SpawnSh { command } => Self::SpawnSh(command),
             ymir_ipc::Action::DoScreenTransition { delay_ms } => Self::DoScreenTransition(delay_ms),
-            ymir_ipc::Action::Screenshot { show_pointer, path } => {
-                Self::Screenshot(show_pointer, path)
-            }
-            ymir_ipc::Action::ScreenshotScreen {
-                write_to_disk,
-                show_pointer,
+            ymir_ipc::Action::Screenshot {
+                show_pointer: _,
                 path,
-            } => Self::ScreenshotScreen(write_to_disk, show_pointer, path),
+            } => Self::Screenshot(path),
+            ymir_ipc::Action::ScreenshotScreen {
+                write_to_disk: _,
+                show_pointer: _,
+                path,
+            } => Self::ScreenshotScreen(path),
             ymir_ipc::Action::ScreenshotWindow {
                 id: None,
-                write_to_disk,
-                show_pointer,
+                write_to_disk: _,
+                show_pointer: _,
                 path,
-            } => Self::ScreenshotWindow(write_to_disk, show_pointer, path),
+            } => Self::ScreenshotWindow(path),
             ymir_ipc::Action::ScreenshotWindow {
                 id: Some(id),
                 write_to_disk,
@@ -785,223 +724,8 @@ impl From<WorkspaceReferenceArg> for WorkspaceReference {
     }
 }
 
-impl<S: knuffel::traits::ErrorSpan> knuffel::DecodeScalar<S> for WorkspaceReference {
-    fn type_check(
-        type_name: &Option<knuffel::span::Spanned<knuffel::ast::TypeName, S>>,
-        ctx: &mut knuffel::decode::Context<S>,
-    ) {
-        if let Some(type_name) = &type_name {
-            ctx.emit_error(DecodeError::unexpected(
-                type_name,
-                "type name",
-                "no type name expected for this node",
-            ));
-        }
-    }
 
-    fn raw_decode(
-        val: &knuffel::span::Spanned<knuffel::ast::Literal, S>,
-        ctx: &mut knuffel::decode::Context<S>,
-    ) -> Result<WorkspaceReference, DecodeError<S>> {
-        match &**val {
-            knuffel::ast::Literal::String(ref s) => Ok(WorkspaceReference::Name(s.clone().into())),
-            knuffel::ast::Literal::Int(ref value) => match value.try_into() {
-                Ok(v) => Ok(WorkspaceReference::Index(v)),
-                Err(e) => {
-                    ctx.emit_error(DecodeError::conversion(val, e));
-                    Ok(WorkspaceReference::Index(0))
-                }
-            },
-            _ => {
-                ctx.emit_error(DecodeError::unsupported(
-                    val,
-                    "Unsupported value, only numbers and strings are recognized",
-                ));
-                Ok(WorkspaceReference::Index(0))
-            }
-        }
-    }
-}
 
-impl<S> knuffel::Decode<S> for Binds
-where
-    S: knuffel::traits::ErrorSpan,
-{
-    fn decode_node(
-        node: &knuffel::ast::SpannedNode<S>,
-        ctx: &mut knuffel::decode::Context<S>,
-    ) -> Result<Self, DecodeError<S>> {
-        expect_only_children(node, ctx);
-
-        let mut seen_keys: HashMap<Key, &knuffel::ast::SpannedNode<S>> = HashMap::new();
-
-        let mut binds = Vec::new();
-
-        for child in node.children() {
-            match Bind::decode_node(child, ctx) {
-                Err(e) => {
-                    ctx.emit_error(e);
-                }
-                Ok(bind) => {
-                    match seen_keys.entry(bind.key) {
-                        Entry::Occupied(entry) => {
-                            // Even though it's technically incorrect, we use
-                            // `DecodeError::Missing` here because it labels the bind with
-                            // "node starts here", which is the least bad option
-                            ctx.emit_error(DecodeError::missing(
-                                entry.get(),
-                                "keybind first defined here",
-                            ));
-
-                            ctx.emit_error(DecodeError::unexpected(
-                                &child.node_name,
-                                "keybind",
-                                "duplicate keybind later defined here",
-                            ));
-                        }
-                        Entry::Vacant(entry) => {
-                            entry.insert(child);
-                            binds.push(bind);
-                        }
-                    }
-                }
-            }
-        }
-
-        Ok(Self(binds))
-    }
-}
-
-impl<S> knuffel::Decode<S> for Bind
-where
-    S: knuffel::traits::ErrorSpan,
-{
-    fn decode_node(
-        node: &knuffel::ast::SpannedNode<S>,
-        ctx: &mut knuffel::decode::Context<S>,
-    ) -> Result<Self, DecodeError<S>> {
-        if let Some(type_name) = &node.type_name {
-            ctx.emit_error(DecodeError::unexpected(
-                type_name,
-                "type name",
-                "no type name expected for this node",
-            ));
-        }
-
-        for val in node.arguments.iter() {
-            ctx.emit_error(DecodeError::unexpected(
-                &val.literal,
-                "argument",
-                "no arguments expected for this node",
-            ));
-        }
-
-        let key = node
-            .node_name
-            .parse::<Key>()
-            .map_err(|e| DecodeError::conversion(&node.node_name, e.wrap_err("invalid keybind")))?;
-
-        let mut repeat = true;
-        let mut cooldown = None;
-        let mut allow_when_locked = false;
-        let mut allow_when_locked_node = None;
-        let mut allow_inhibiting = true;
-        let mut hotkey_overlay_title = None;
-        for (name, val) in &node.properties {
-            match &***name {
-                "repeat" => {
-                    repeat = knuffel::traits::DecodeScalar::decode(val, ctx)?;
-                }
-                "cooldown-ms" => {
-                    cooldown = Some(Duration::from_millis(
-                        knuffel::traits::DecodeScalar::decode(val, ctx)?,
-                    ));
-                }
-                "allow-when-locked" => {
-                    allow_when_locked = knuffel::traits::DecodeScalar::decode(val, ctx)?;
-                    allow_when_locked_node = Some(name);
-                }
-                "allow-inhibiting" => {
-                    allow_inhibiting = knuffel::traits::DecodeScalar::decode(val, ctx)?;
-                }
-                "hotkey-overlay-title" => {
-                    hotkey_overlay_title = Some(knuffel::traits::DecodeScalar::decode(val, ctx)?);
-                }
-                name_str => {
-                    ctx.emit_error(DecodeError::unexpected(
-                        name,
-                        "property",
-                        format!("unexpected property `{}`", name_str.escape_default()),
-                    ));
-                }
-            }
-        }
-
-        let mut children = node.children();
-
-        // If the action is invalid but the key is fine, we still want to return something.
-        // That way, the parent can handle the existence of duplicate keybinds,
-        // even if their contents are not valid.
-        let dummy = Self {
-            key,
-            action: Action::Spawn(vec![]),
-            repeat: true,
-            cooldown: None,
-            allow_when_locked: false,
-            allow_inhibiting: true,
-            hotkey_overlay_title: None,
-        };
-
-        if let Some(child) = children.next() {
-            for unwanted_child in children {
-                ctx.emit_error(DecodeError::unexpected(
-                    unwanted_child,
-                    "node",
-                    "only one action is allowed per keybind",
-                ));
-            }
-            match Action::decode_node(child, ctx) {
-                Ok(action) => {
-                    if !matches!(action, Action::Spawn(_) | Action::SpawnSh(_)) {
-                        if let Some(node) = allow_when_locked_node {
-                            ctx.emit_error(DecodeError::unexpected(
-                                node,
-                                "property",
-                                "allow-when-locked can only be set on spawn binds",
-                            ));
-                        }
-                    }
-
-                    // The toggle-inhibit action must always be uninhibitable.
-                    // Otherwise, it would be impossible to trigger it.
-                    if matches!(action, Action::ToggleKeyboardShortcutsInhibit) {
-                        allow_inhibiting = false;
-                    }
-
-                    Ok(Self {
-                        key,
-                        action,
-                        repeat,
-                        cooldown,
-                        allow_when_locked,
-                        allow_inhibiting,
-                        hotkey_overlay_title,
-                    })
-                }
-                Err(e) => {
-                    ctx.emit_error(e);
-                    Ok(dummy)
-                }
-            }
-        } else {
-            ctx.emit_error(DecodeError::missing(
-                node,
-                "expected an action for this keybind",
-            ));
-            Ok(dummy)
-        }
-    }
-}
 
 impl FromStr for Key {
     type Err = miette::Error;

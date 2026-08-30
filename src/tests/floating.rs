@@ -903,9 +903,13 @@ fn floating_doesnt_store_maximized_size() {
 #[test]
 fn floating_respects_non_fixed_min_max_rule() {
     let config = r##"
-window-rule {
-    min-width 200
-    max-width 300
+return {
+    window_rules = {
+        {
+            min_width = 200,
+            max_width = 300,
+        },
+    },
 }
 "##;
     let config = Config::parse_mem(config).unwrap();
@@ -1205,8 +1209,10 @@ fn unmaximize_to_same_size_windowed_fullscreen_floating() {
 #[test]
 fn unfullscreen_to_same_size_same_bounds_floating() {
     let config = r##"
-layout {
-    gaps 0
+return {
+    layout = {
+        gaps = 0,
+    },
 }
 "##;
     let config = Config::parse_mem(config).unwrap();
@@ -1249,8 +1255,10 @@ layout {
 #[test]
 fn unmaximize_to_same_size_same_bounds_floating() {
     let config = r##"
-layout {
-    gaps 0
+return {
+    layout = {
+        gaps = 0,
+    },
 }
 "##;
     let config = Config::parse_mem(config).unwrap();

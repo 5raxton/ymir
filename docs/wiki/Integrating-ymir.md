@@ -3,17 +3,17 @@ First, for creating a ymir package, see the [Packaging](./Packaging-ymir.md) pag
 
 ### Configuration
 
-Ymir will load configuration from `$XDG_CONFIG_HOME/ymir/config.kdl` or `~/.config/ymir/config.kdl`, falling back to `/etc/ymir/config.kdl`.
-If both of these files are missing, ymir will create `$XDG_CONFIG_HOME/ymir/config.kdl` with the contents of [the default configuration file](https://github.com/5raxton/ymir/blob/main/resources/default-config.kdl), which are embedded into the ymir binary at build time.
+Ymir will load configuration from `$XDG_CONFIG_HOME/ymir/config.lua` or `~/.config/ymir/config.lua`, falling back to `/etc/ymir/config.lua`.
+If both of these files are missing, ymir will create `$XDG_CONFIG_HOME/ymir/config.lua` with the contents of [the default configuration file](https://github.com/5raxton/ymir/blob/main/resources/default-config.lua), which are embedded into the ymir binary at build time.
 
-This means that you can customize your distribution defaults by creating `/etc/ymir/config.kdl`.
+This means that you can customize your distribution defaults by creating `/etc/ymir/config.lua`.
 When this file is present, ymir *will not* automatically create a config at `~/.config/ymir/`, so you'll need to direct your users how to do it themselves.
 
-Keep in mind that we update the default config in new releases, so if you have a custom `/etc/ymir/config.kdl`, you likely want to inspect and apply the relevant changes too.
+Keep in mind that we update the default config in new releases, so if you have a custom `/etc/ymir/config.lua`, you likely want to inspect and apply the relevant changes too.
 
 The default configuration locations can be overridden with the `YMIR_CONFIG` environment variable.
 
-<sup>Since: 26.04</sup> You can also change the configuration path at runtime via the ymir IPC or using the command `ymir msg action load-config-file --path <path-to-config.kdl>`.
+<sup>Since: 26.04</sup> You can also change the configuration path at runtime via the ymir IPC or using the command `ymir msg action load-config-file --path <path-to-config.lua>`.
 
 <sup>Since: 25.11</sup> You can split the ymir config file into multiple files using [`include`](./Configuration:-Include.md).
 

@@ -1,6 +1,6 @@
 use std::error::Error;
 use std::fmt;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use miette::Diagnostic;
 
@@ -16,13 +16,79 @@ pub struct ConfigParseResult<T, E> {
     pub includes: Vec<PathBuf>,
 }
 
+/// An error that occurs while parsing a Lua config program.
+///
+/// This is either a Lua evaluation error (the traceback text) or a collection of validation
+/// diagnostics (one `section.key: message` line per offending key).
+#[derive(Debug)]
+pub enum ConfigError {
+    /// A Lua runtime error; `path` is the config file (or include) that failed to evaluate.
+    Lua { path: PathBuf, message: String },
+    /// One or more validation errors, e.g. `input.keyboard.repeat-rate: expected a number`.
+    Validation { path: PathBuf, messages: Vec<String> },
+}
+
+impl ConfigError {
+    pub fn runtime(path: impl Into<PathBuf>, message: impl Into<String>) -> Self {
+        Self::Lua {
+            path: path.into(),
+            message: message.into(),
+        }
+    }
+
+    pub fn validation(path: impl Into<PathBuf>, messages: Vec<String>) -> Self {
+        Self::Validation {
+            path: path.into(),
+            messages,
+        }
+    }
+
+    pub fn path(&self) -> Option<&Path> {
+        match self {
+            Self::Lua { path, .. } | Self::Validation { path, .. } => Some(path),
+        }
+    }
+}
+
+impl fmt::Display for ConfigError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Lua { path, message } => {
+                write!(f, "error in {:?}:\n{message}", path.display())
+            }
+            Self::Validation { path, messages } => {
+                write!(f, "error in {:?}:", path.display())?;
+                for message in messages {
+                    write!(f, "\n  {message}")?;
+                }
+                Ok(())
+            }
+        }
+    }
+}
+
+impl Error for ConfigError {}
+
+impl Diagnostic for ConfigError {
+    fn code<'a>(&'a self) -> Option<Box<dyn fmt::Display + 'a>> {
+        Some(Box::new(match self {
+            Self::Lua { .. } => "ymir::config::lua",
+            Self::Validation { .. } => "ymir::config::validation",
+        }))
+    }
+
+    fn source_code(&self) -> Option<&dyn miette::SourceCode> {
+        None
+    }
+}
+
 /// Error type that chains main errors with include errors.
 ///
 /// Allows miette's Report formatting to have main + include errors all in one.
 #[derive(Debug)]
 pub struct ConfigIncludeError {
-    pub main: knuffel::Error,
-    pub includes: Vec<knuffel::Error>,
+    pub main: ConfigError,
+    pub includes: Vec<ConfigError>,
 }
 
 impl<T, E> ConfigParseResult<T, E> {

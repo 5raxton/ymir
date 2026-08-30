@@ -1,9 +1,6 @@
-use std::collections::HashSet;
-
-use knuffel::errors::DecodeError;
 use smithay::input::keyboard::Keysym;
 
-use crate::utils::{expect_only_children, MergeWith};
+use crate::utils::MergeWith;
 use crate::{Action, Bind, Color, FloatOrInt, Key, Modifiers, Trigger};
 
 #[derive(Debug, PartialEq)]
@@ -29,21 +26,14 @@ impl Default for RecentWindows {
     }
 }
 
-#[derive(knuffel::Decode, Debug, Default, PartialEq)]
+#[derive(Debug, Default, PartialEq)]
 pub struct RecentWindowsPart {
-    #[knuffel(child)]
     pub on: bool,
-    #[knuffel(child)]
     pub off: bool,
-    #[knuffel(child, unwrap(argument))]
     pub debounce_ms: Option<u16>,
-    #[knuffel(child, unwrap(argument))]
     pub open_delay_ms: Option<u16>,
-    #[knuffel(child)]
     pub highlight: Option<MruHighlightPart>,
-    #[knuffel(child)]
     pub previews: Option<MruPreviewsPart>,
-    #[knuffel(child)]
     pub binds: Option<MruBinds>,
 }
 
@@ -86,15 +76,11 @@ impl Default for MruHighlight {
     }
 }
 
-#[derive(knuffel::Decode, Debug, Default, PartialEq)]
+#[derive(Debug, Default, PartialEq)]
 pub struct MruHighlightPart {
-    #[knuffel(child)]
     pub active_color: Option<Color>,
-    #[knuffel(child)]
     pub urgent_color: Option<Color>,
-    #[knuffel(child, unwrap(argument))]
     pub padding: Option<FloatOrInt<0, 65535>>,
-    #[knuffel(child, unwrap(argument))]
     pub corner_radius: Option<FloatOrInt<0, 65535>>,
 }
 
@@ -120,11 +106,9 @@ impl Default for MruPreviews {
     }
 }
 
-#[derive(knuffel::Decode, Debug, Default, PartialEq)]
+#[derive(Debug, Default, PartialEq)]
 pub struct MruPreviewsPart {
-    #[knuffel(child, unwrap(argument))]
     pub max_height: Option<FloatOrInt<1, 65535>>,
-    #[knuffel(child, unwrap(argument))]
     pub max_scale: Option<FloatOrInt<0, 1>>,
 }
 
@@ -167,7 +151,7 @@ pub enum MruDirection {
     Backward,
 }
 
-#[derive(knuffel::DecodeScalar, Clone, Copy, Debug, Default, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub enum MruScope {
     /// All windows.
     #[default]
@@ -178,26 +162,19 @@ pub enum MruScope {
     Workspace,
 }
 
-#[derive(knuffel::DecodeScalar, Clone, Copy, Debug, Default, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub enum MruFilter {
     /// All windows.
     #[default]
-    #[knuffel(skip)]
     All,
     /// Windows with the same app id as the active window.
     AppId,
 }
 
-#[derive(knuffel::Decode, Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum MruAction {
-    NextWindow(
-        #[knuffel(property(name = "scope"))] Option<MruScope>,
-        #[knuffel(property(name = "filter"), default)] MruFilter,
-    ),
-    PreviousWindow(
-        #[knuffel(property(name = "scope"))] Option<MruScope>,
-        #[knuffel(property(name = "filter"), default)] MruFilter,
-    ),
+    NextWindow(Option<MruScope>, MruFilter),
+    PreviousWindow(Option<MruScope>, MruFilter),
 }
 
 impl From<MruAction> for Action {
@@ -252,150 +229,4 @@ fn default_binds() -> Vec<Bind> {
     rv
 }
 
-impl<S> knuffel::Decode<S> for MruBinds
-where
-    S: knuffel::traits::ErrorSpan,
-{
-    fn decode_node(
-        node: &knuffel::ast::SpannedNode<S>,
-        ctx: &mut knuffel::decode::Context<S>,
-    ) -> Result<Self, DecodeError<S>> {
-        expect_only_children(node, ctx);
 
-        let mut seen_keys = HashSet::new();
-
-        let mut binds = Vec::new();
-
-        for child in node.children() {
-            match MruBind::decode_node(child, ctx) {
-                Ok(bind) => {
-                    if !seen_keys.insert(bind.key) {
-                        ctx.emit_error(DecodeError::unexpected(
-                            &child.node_name,
-                            "keybind",
-                            "duplicate keybind",
-                        ));
-                        continue;
-                    }
-
-                    binds.push(bind);
-                }
-                Err(e) => {
-                    ctx.emit_error(e);
-                }
-            }
-        }
-
-        Ok(Self(binds))
-    }
-}
-
-impl<S> knuffel::Decode<S> for MruBind
-where
-    S: knuffel::traits::ErrorSpan,
-{
-    fn decode_node(
-        node: &knuffel::ast::SpannedNode<S>,
-        ctx: &mut knuffel::decode::Context<S>,
-    ) -> Result<Self, DecodeError<S>> {
-        if let Some(type_name) = &node.type_name {
-            ctx.emit_error(DecodeError::unexpected(
-                type_name,
-                "type name",
-                "no type name expected for this node",
-            ));
-        }
-
-        for val in node.arguments.iter() {
-            ctx.emit_error(DecodeError::unexpected(
-                &val.literal,
-                "argument",
-                "no arguments expected for this node",
-            ));
-        }
-
-        let key = node
-            .node_name
-            .parse::<Key>()
-            .map_err(|e| DecodeError::conversion(&node.node_name, e.wrap_err("invalid keybind")))?;
-
-        // A modifier is required because MRU remains on screen as long as any modifier is held.
-        if key.modifiers.is_empty() {
-            ctx.emit_error(DecodeError::unexpected(
-                &node.node_name,
-                "keybind",
-                "keybind must have a modifier key",
-            ));
-        }
-
-        // FIXME: To support this, all the mods_with_mouse_binds()/mods_with_wheel_binds()/etc.
-        // will need to learn about recent-windows bindings.
-        if !matches!(key.trigger, Trigger::Keysym(_)) {
-            ctx.emit_error(DecodeError::unexpected(
-                &node.node_name,
-                "key",
-                "key must be a keyboard key (others are unsupported here for now)",
-            ));
-        }
-
-        let mut allow_inhibiting = true;
-        let mut hotkey_overlay_title = None;
-        for (name, val) in &node.properties {
-            match &***name {
-                "allow-inhibiting" => {
-                    allow_inhibiting = knuffel::traits::DecodeScalar::decode(val, ctx)?;
-                }
-                "hotkey-overlay-title" => {
-                    hotkey_overlay_title = Some(knuffel::traits::DecodeScalar::decode(val, ctx)?);
-                }
-                name_str => {
-                    ctx.emit_error(DecodeError::unexpected(
-                        name,
-                        "property",
-                        format!("unexpected property `{}`", name_str.escape_default()),
-                    ));
-                }
-            }
-        }
-
-        let mut children = node.children();
-
-        // If the action is invalid but the key is fine, we still want to return something.
-        // That way, the parent can handle the existence of duplicate keybinds,
-        // even if their contents are not valid.
-        let dummy = Self {
-            key,
-            action: MruAction::NextWindow(None, MruFilter::All),
-            allow_inhibiting: true,
-            hotkey_overlay_title: None,
-        };
-
-        if let Some(child) = children.next() {
-            for unwanted_child in children {
-                ctx.emit_error(DecodeError::unexpected(
-                    unwanted_child,
-                    "node",
-                    "only one action is allowed per keybind",
-                ));
-            }
-            match MruAction::decode_node(child, ctx) {
-                Ok(action) => Ok(Self {
-                    key,
-                    action,
-                    allow_inhibiting,
-                    hotkey_overlay_title,
-                }),
-                Err(e) => {
-                    ctx.emit_error(e);
-                    Ok(dummy)
-                }
-            }
-        } else {
-            ctx.emit_error(DecodeError::missing(
-                node,
-                "expected an action for this keybind",
-            ));
-            Ok(dummy)
-        }
-    }
-}

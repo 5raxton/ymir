@@ -102,7 +102,7 @@ curl -sL https://raw.githubusercontent.com/5raxton/ymir/main/scripts/install.fis
 ```
 
 On Arch it builds with `makepkg` from the bundled PKGBUILD; elsewhere it builds with `cargo`
-and installs into `/usr/local`. It seeds `~/.config/ymir/config.kdl` with the dwindle example
+and installs into `/usr/local`. It seeds `~/.config/ymir/config.lua` with the dwindle example
 config if absent, and installs the `ymir.desktop` session entry so "Ymir" appears in your login
 manager (GDM, SDDM, ...). From a bare TTY you can start it with `ymir-session`. Re-running the
 installer pulls the latest `main` and rebuilds, so it doubles as an updater.
@@ -113,7 +113,7 @@ installer pulls the latest `main` and rebuilds, so it doubles as an updater.
 cargo build --release
 ```
 
-On first start, ymir creates a config at `~/.config/ymir/config.kdl` based on the embedded
+On first start, ymir creates a config at `~/.config/ymir/config.lua` based on the embedded
 default config (which enables dwindle). Start it with `target/release/ymir --session` from an
 unlocked TTY. Development shells are also provided via `nix develop`.
 
@@ -133,7 +133,7 @@ size.
 | `Mod+Shift+Left` / `Mod+Shift+Right` (also `H`/`L`) | move-window-left/right: swap the focused window with its spatial neighbor |
 | `Mod+Comma` / `Mod+Period` | consume-window-into-column / expel-window-from-column |
 
-See the [default config](resources/default-config.kdl) for the full list of bindings.
+See the [default config](resources/default-config.lua) for the full list of bindings.
 
 ## Documentation
 

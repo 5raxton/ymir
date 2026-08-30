@@ -7,7 +7,7 @@
 #   - cleans stale build/download artifacts from previous runs
 #   - builds and installs ymir (makepkg on Arch, cargo + /usr/local elsewhere)
 #   - installs the session .desktop file and ports/config units automatically
-#   - seeds ~/.config/ymir/config.kdl with the dwindle example config if absent
+#   - seeds ~/.config/ymir/config.lua with the dwindle example config if absent
 #
 # Safe to re-run any time: each run pulls the latest main, cleans stale
 # artifacts, and does a fresh build, so it also serves as a full update.
@@ -19,7 +19,7 @@ BRANCH="${YMIR_BRANCH:-main}"
 PREFIX="${YMIR_PREFIX:-/usr/local}"
 DESKTOP_DIR="${YMIR_DESKTOP_DIR:-/usr/share/wayland-sessions}"
 CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/ymir"
-CONFIG_FILE="$CONFIG_DIR/config.kdl"
+CONFIG_FILE="$CONFIG_DIR/config.lua"
 
 log()  { printf '\033[1;34m>>>\033[0m %s\n' "$*"; }
 die()  { printf '\033[1;31merror:\033[0m %s\n' "$*" >&2; exit 1; }
@@ -238,11 +238,11 @@ fi
 if [[ ! -e "$CONFIG_FILE" ]]; then
     log "Seeding $CONFIG_FILE with the dwindle example config"
     mkdir -p "$CONFIG_DIR"
-    if [[ -f "$REPO_DIR/resources/dwindle-config.kdl" ]]; then
-        cp "$REPO_DIR/resources/dwindle-config.kdl" "$CONFIG_FILE"
+    if [[ -f "$REPO_DIR/resources/dwindle-config.lua" ]]; then
+        cp "$REPO_DIR/resources/dwindle-config.lua" "$CONFIG_FILE"
     else
         # Fall back to the default config if the dwindle example is absent.
-        cp "$REPO_DIR/resources/default-config.kdl" "$CONFIG_FILE"
+        cp "$REPO_DIR/resources/default-config.lua" "$CONFIG_FILE"
     fi
 fi
 

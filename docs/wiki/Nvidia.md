@@ -46,9 +46,11 @@ The fix shipped in the driver at the time of writing uses a value of 0, while th
 
 If you have screencast glitches or flickering on NVIDIA, set this in the ymir config:
 
-```kdl,must-fail
-debug {
-    wait-for-frame-completion-in-pipewire
+```lua,must-fail
+return {
+    debug = {
+        wait_for_frame_completion_in_pipewire = true,
+    },
 }
 ```
 

@@ -2,24 +2,24 @@
 
 You can find documentation for various sections of the config on these wiki pages:
 
-* [`input {}`](./Configuration:-Input.md)
-* [`output "eDP-1" {}`](./Configuration:-Outputs.md)
-* [`binds {}`](./Configuration:-Key-Bindings.md)
-* [`switch-events {}`](./Configuration:-Switch-Events.md)
-* [`layout {}`](./Configuration:-Layout.md)
+* [`input`](./Configuration:-Input.md)
+* [`output`](./Configuration:-Outputs.md)
+* [`binds`](./Configuration:-Key-Bindings.md)
+* [`switch_events`](./Configuration:-Switch-Events.md)
+* [`layout`](./Configuration:-Layout.md)
 * [top-level options](./Configuration:-Miscellaneous.md)
-* [`window-rule {}`](./Configuration:-Window-Rules.md)
-* [`layer-rule {}`](./Configuration:-Layer-Rules.md)
-* [`animations {}`](./Configuration:-Animations.md)
-* [`gestures {}`](./Configuration:-Gestures.md)
-* [`recent-windows {}`](./Configuration:-Recent-Windows.md)
-* [`debug {}`](./Configuration:-Debug-Options.md)
-* [`include "other.kdl"`](./Configuration:-Include.md)
+* [`window_rules`](./Configuration:-Window-Rules.md)
+* [`layer_rules`](./Configuration:-Layer-Rules.md)
+* [`animations`](./Configuration:-Animations.md)
+* [`gestures`](./Configuration:-Gestures.md)
+* [`recent_windows`](./Configuration:-Recent-Windows.md)
+* [`debug`](./Configuration:-Debug-Options.md)
+* [`include_config`](./Configuration:-Include.md)
 
 ### Loading
 
-Ymir will load configuration from `$XDG_CONFIG_HOME/ymir/config.kdl` or `~/.config/ymir/config.kdl`, falling back to `/etc/ymir/config.kdl`.
-If both of these files are missing, ymir will create `$XDG_CONFIG_HOME/ymir/config.kdl` with the contents of [the default configuration file](https://github.com/5raxton/ymir/blob/main/resources/default-config.kdl), which are embedded into the ymir binary at build time.
+Ymir will load configuration from `$XDG_CONFIG_HOME/ymir/config.lua` or `~/.config/ymir/config.lua`, falling back to `/etc/ymir/config.lua`.
+If both of these files are missing, ymir will create `$XDG_CONFIG_HOME/ymir/config.lua` with the contents of [the default configuration file](https://github.com/5raxton/ymir/blob/main/resources/default-config.lua), which are embedded into the ymir binary at build time.
 Please use the default configuration file as the starting point for your custom configuration.
 
 The configuration is live-reloaded.
@@ -37,44 +37,60 @@ If `$YMIR_CONFIG` is set to an empty string, it is ignored and the default confi
 
 ### Syntax
 
-The config is written in [KDL].
+The config is a Lua file that returns a single table describing the settings.
+Each section is a Lua table, and keys are `snake_case` (kebab-case is also accepted).
+For example:
+
+```lua
+return {
+    input = {
+        keyboard = { repeat_delay = 600 },
+    },
+}
+```
 
 #### Comments
 
-Lines starting with `//` are comments; they are ignored.
+Lines starting with `--` are comments; they are ignored.
 
-Also, you can put `/-` in front of a section to comment out the entire section:
+You can also comment out an entire section by commenting out every line of it:
 
-```kdl
-/-output "eDP-1" {
-    // Everything inside here is ignored.
-    // The display won't be turned off
-    // as the whole section is commented out.
-    off
+```lua
+return {
+    -- output = {
+    --     -- Everything inside here is ignored.
+    --     -- The display won't be turned off
+    --     -- as the whole section is commented out.
+    --     { name = "eDP-1", off = true },
+    -- },
 }
 ```
 
 #### Flags
 
-Toggle options in ymir are commonly represented as flags.
-Writing out the flag enables it, and omitting it or commenting it out disables it.
+Toggle options in ymir are represented as `true`/`false` values.
+Setting the key to `true` enables it, and omitting it (or setting it to `false`) disables it.
 For example:
 
-```kdl
-// "Focus follows mouse" is enabled.
-input {
-    focus-follows-mouse
+```lua
+return {
+    input = {
+        -- "Focus follows mouse" is enabled.
+        focus_follows_mouse = true,
 
-    // Other settings...
+        -- Other settings...
+    },
 }
 ```
 
-```kdl
-// "Focus follows mouse" is disabled.
-input {
-    // focus-follows-mouse
+```lua
+return {
+    input = {
+        -- "Focus follows mouse" is commented out, so it is disabled.
+        -- focus_follows_mouse = true,
 
-    // Other settings...
+        -- Other settings...
+    },
 }
 ```
 
@@ -82,58 +98,57 @@ input {
 
 Most sections cannot be repeated. For example:
 
-```kdl
-// This is valid: every section appears once.
-input {
-    keyboard {
-        // ...
-    }
+```lua
+return {
+    input = {
+        keyboard = {
+            -- ...
+        },
 
-    touchpad {
-        // ...
-    }
+        touchpad = {
+            -- ...
+        },
+    },
 }
 ```
 
-```kdl,must-fail
-// This is NOT valid: input section appears twice.
-input {
-    keyboard {
-        // ...
-    }
+```lua,must-fail
+-- This is NOT valid: the input section appears twice.
+ymir.input {
+    keyboard = {
+        -- ...
+    },
 }
 
-input {
-    touchpad {
-        // ...
-    }
+ymir.input {
+    touchpad = {
+        -- ...
+    },
 }
 ```
 
 Exceptions are, for example, sections that configure different devices by name:
 
 <!-- NOTE: this may break in the future -->
-```kdl
-output "eDP-1" {
-    // ...
-}
+```lua
+return {
+    output = {
+        { name = "eDP-1" },
 
-// This is valid: this section configures a different output.
-output "HDMI-A-1" {
-    // ...
-}
+        -- This is valid: this entry configures a different output.
+        { name = "HDMI-A-1" },
 
-// This is NOT valid: "eDP-1" already appeared above.
-// It will either throw a config parsing error, or otherwise not work.
-output "eDP-1" {
-    // ...
+        -- This is NOT valid: "eDP-1" already appeared above.
+        -- It will either throw a config parsing error, or otherwise not work.
+        { name = "eDP-1" },
+    },
 }
 ```
 
 ### Defaults
 
 Omitting most of the sections of the config file will leave you with the default values for that section.
-A notable exception is [`binds {}`](./Configuration:-Key-Bindings.md): they do not get filled with defaults, so make sure you do not erase this section.
+A notable exception is [`binds`](./Configuration:-Key-Bindings.md): they do not get filled with defaults, so make sure you do not erase this section.
 
 ### Breaking Change Policy
 
@@ -148,5 +163,3 @@ This is not a blanket rule, I will consider the potential impact of every breaki
 Keep in mind that the breaking change policy applies only to ymir releases.
 Commits between releases can and do occasionally break the config as new features are ironed out.
 However, I do try to limit these, since several people are running git builds.
-
-[KDL]: https://kdl.dev/

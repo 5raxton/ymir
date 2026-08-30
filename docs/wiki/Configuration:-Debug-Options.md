@@ -9,37 +9,38 @@ They are not meant for normal use.
 
 Here are all the options at a glance:
 
-```kdl
-debug {
-    preview-render "screencast"
-    // preview-render "screen-capture"
-    enable-overlay-planes
-    disable-cursor-plane
-    disable-direct-scanout
-    restrict-primary-scanout-to-matching-format
-    force-disable-connectors-on-resume
-    render-drm-device "/dev/dri/renderD129"
-    ignore-drm-device "/dev/dri/renderD128"
-    ignore-drm-device "/dev/dri/renderD130"
-    force-pipewire-invalid-modifier
-    dbus-interfaces-in-non-session-instances
-    wait-for-frame-completion-before-queueing
-    emulate-zero-presentation-time
-    disable-resize-throttling
-    disable-transactions
-    keep-laptop-panel-on-when-lid-is-closed
-    disable-monitor-names
-    strict-new-window-focus-policy
-    honor-xdg-activation-with-invalid-serial
-    skip-cursor-only-updates-during-vrr
-    deactivate-unfocused-windows
-    disable-10bit-output
-}
+```lua
+return {
+    debug = {
+        preview_render = "screencast",
+        -- preview_render = "screen-capture",
+        enable_overlay_planes = true,
+        disable_cursor_plane = true,
+        disable_direct_scanout = true,
+        restrict_primary_scanout_to_matching_format = true,
+        force_disable_connectors_on_resume = true,
+        render_drm_device = "/dev/dri/renderD129",
+        ignored_drm_devices = { "/dev/dri/renderD128", "/dev/dri/renderD130" },
+        force_pipewire_invalid_modifier = true,
+        dbus_interfaces_in_non_session_instances = true,
+        wait_for_frame_completion_before_queueing = true,
+        emulate_zero_presentation_time = true,
+        disable_resize_throttling = true,
+        disable_transactions = true,
+        keep_laptop_panel_on_when_lid_is_closed = true,
+        disable_monitor_names = true,
+        strict_new_window_focus_policy = true,
+        honor_xdg_activation_with_invalid_serial = true,
+        skip_cursor_only_updates_during_vrr = true,
+        deactivate_unfocused_windows = true,
+        disable_10bit_output = true,
+    },
 
-binds {
-    Mod+Shift+Ctrl+T { toggle-debug-tint; }
-    Mod+Shift+Ctrl+O { debug-toggle-opaque-regions; }
-    Mod+Shift+Ctrl+D { debug-toggle-damage; }
+    binds = {
+        { key = "Mod+Shift+Ctrl+T", action = { name = "toggle_debug_tint" } },
+        { key = "Mod+Shift+Ctrl+O", action = { name = "debug_toggle_opaque_regions" } },
+        { key = "Mod+Shift+Ctrl+D", action = { name = "debug_toggle_damage" } },
+    },
 }
 ```
 
@@ -49,10 +50,12 @@ Make ymir render the monitors the same way as for a screencast or a screen captu
 
 Useful for previewing the `block-out-from` window rule.
 
-```kdl
-debug {
-    preview-render "screencast"
-    // preview-render "screen-capture"
+```lua
+return {
+    debug = {
+        preview_render = "screencast",
+        -- preview_render = "screen-capture",
+    },
 }
 ```
 
@@ -63,9 +66,11 @@ May cause frame drops during some animations on some hardware (which is why it i
 
 Direct scanout into the primary plane is always enabled.
 
-```kdl
-debug {
-    enable-overlay-planes
+```lua
+return {
+    debug = {
+        enable_overlay_planes = true,
+    },
 }
 ```
 
@@ -76,9 +81,11 @@ The cursor will be rendered together with the rest of the frame.
 
 Useful to work around driver bugs on specific hardware.
 
-```kdl
-debug {
-    disable-cursor-plane
+```lua
+return {
+    debug = {
+        disable_cursor_plane = true,
+    },
 }
 ```
 
@@ -86,9 +93,11 @@ debug {
 
 Disable direct scanout to both the primary plane and the overlay planes.
 
-```kdl
-debug {
-    disable-direct-scanout
+```lua
+return {
+    debug = {
+        disable_direct_scanout = true,
+    },
 }
 ```
 
@@ -100,9 +109,11 @@ This flag may prevent unexpected bandwidth changes when going between compositio
 The plan is to make it default in the future, when we implement a way to tell the clients the composition swapchain format.
 As is, it may prevent some clients (mpv on my machine) from scanning out to the primary plane.
 
-```kdl
-debug {
-    restrict-primary-scanout-to-matching-format
+```lua
+return {
+    debug = {
+        restrict_primary_scanout_to_matching_format = true,
+    },
 }
 ```
 
@@ -115,9 +126,11 @@ This causes a modeset/screen blank on all outputs.
 
 If ymir rendering is corrupted, or monitors don't light up after a TTY switch, you can try this flag.
 
-```kdl
-debug {
-    force-disable-connectors-on-resume
+```lua
+return {
+    debug = {
+        force_disable_connectors_on_resume = true,
+    },
 }
 ```
 
@@ -127,9 +140,11 @@ Override the DRM device that ymir will use for all rendering.
 
 You can set this to make ymir use a different primary GPU than the default one.
 
-```kdl
-debug {
-    render-drm-device "/dev/dri/renderD129"
+```lua
+return {
+    debug = {
+        render_drm_device = "/dev/dri/renderD129",
+    },
 }
 ```
 
@@ -140,10 +155,11 @@ debug {
 List DRM devices that ymir will ignore.
 Useful for GPU passthrough when you don't want ymir to open a certain device.
 
-```kdl
-debug {
-    ignore-drm-device "/dev/dri/renderD128"
-    ignore-drm-device "/dev/dri/renderD130"
+```lua
+return {
+    debug = {
+        ignored_drm_devices = { "/dev/dri/renderD128", "/dev/dri/renderD130" },
+    },
 }
 ```
 
@@ -155,9 +171,11 @@ Forces PipeWire screencasting to use the invalid modifier, even when DRM offers 
 
 Useful for testing the invalid modifier code path that is hit by drivers that don't support modifiers.
 
-```kdl
-debug {
-    force-pipewire-invalid-modifier
+```lua
+return {
+    debug = {
+        force_pipewire_invalid_modifier = true,
+    },
 }
 ```
 
@@ -169,9 +187,11 @@ Useful for testing screencasting changes without having to relogin.
 
 The main ymir instance will *not* currently take back the interfaces when you close the test instance, so you will need to relogin in the end to make screencasting work again.
 
-```kdl
-debug {
-    dbus-interfaces-in-non-session-instances
+```lua
+return {
+    debug = {
+        dbus_interfaces_in_non_session_instances = true,
+    },
 }
 ```
 
@@ -181,9 +201,11 @@ Wait until every frame is done rendering before handing it over to DRM.
 
 Useful for diagnosing certain synchronization and performance problems.
 
-```kdl
-debug {
-    wait-for-frame-completion-before-queueing
+```lua
+return {
+    debug = {
+        wait_for_frame_completion_before_queueing = true,
+    },
 }
 ```
 
@@ -193,9 +215,11 @@ Emulate zero (unknown) presentation time returned from DRM.
 
 This is a thing on NVIDIA proprietary drivers, so this flag can be used to test that ymir doesn't break too hard on those systems.
 
-```kdl
-debug {
-    emulate-zero-presentation-time
+```lua
+return {
+    debug = {
+        emulate_zero_presentation_time = true,
+    },
 }
 ```
 
@@ -210,9 +234,11 @@ This is required for resize transactions to work properly, and it also helps cer
 
 Disabling resize throttling will send resizes to windows as fast as possible, which is potentially very fast (for example, on a 1000 Hz mouse).
 
-```kdl
-debug {
-    disable-resize-throttling
+```lua
+return {
+    debug = {
+        disable_resize_throttling = true,
+    },
 }
 ```
 
@@ -228,9 +254,11 @@ For example, all windows in a column must resize at the same time to maintain th
 Transactions make ymir wait until all windows finish resizing before showing them all on screen in one, synchronized frame.
 For them to work properly, resize throttling shouldn't be disabled (with the previous debug flag).
 
-```kdl
-debug {
-    disable-transactions
+```lua
+return {
+    debug = {
+        disable_transactions = true,
+    },
 }
 ```
 
@@ -241,9 +269,11 @@ debug {
 By default, ymir will disable the internal laptop monitor when the laptop lid is closed.
 This flag turns off this behavior and will leave the internal laptop monitor on.
 
-```kdl
-debug {
-    keep-laptop-panel-on-when-lid-is-closed
+```lua
+return {
+    debug = {
+        keep_laptop_panel_on_when_lid_is_closed = true,
+    },
 }
 ```
 
@@ -255,9 +285,11 @@ Disables the make/model/serial monitor names, as if ymir fails to read them from
 
 Use this flag to work around a crash present in 0.1.9 and 0.1.10 when connecting two monitors with matching make/model/serial.
 
-```kdl
-debug {
-    disable-monitor-names
+```lua
+return {
+    debug = {
+        disable_monitor_names = true,
+    },
 }
 ```
 
@@ -268,9 +300,11 @@ debug {
 Disables heuristic automatic focusing for new windows.
 Only windows that activate themselves with a valid xdg-activation token will be focused.
 
-```kdl
-debug {
-    strict-new-window-focus-policy
+```lua
+return {
+    debug = {
+        strict_new_window_focus_policy = true,
+    },
 }
 ```
 
@@ -289,9 +323,11 @@ Use the [`on-xdg-activate` window rule](./Configuration:-Window-Rules.md#on-xdg-
 Amusingly, clicking on a notification sends the app a perfectly valid activation token from the notification daemon, but these apps seem to simply ignore it.
 Maybe in the future these apps/toolkits (Electron, Qt) are fixed, making this debug flag unnecessary.
 
-```kdl
-debug {
-    honor-xdg-activation-with-invalid-serial
+```lua
+return {
+    debug = {
+        honor_xdg_activation_with_invalid_serial = true,
+    },
 }
 ```
 
@@ -305,9 +341,11 @@ Useful for games where the cursor isn't drawn internally to prevent erratic VRR 
 
 Note that the current implementation has some issues, for example when there's nothing redrawing the screen (like a game), the rendering will appear to completely freeze (since cursor movements won't cause redraws).
 
-```kdl
-debug {
-    skip-cursor-only-updates-during-vrr
+```lua
+return {
+    debug = {
+        skip_cursor_only_updates_during_vrr = true,
+    },
 }
 ```
 
@@ -321,9 +359,11 @@ Ymir keeps the Activated state on unfocused workspaces and invisible tabbed wind
 Set this debug flag to work around these problems.
 It will cause ymir to drop the Activated state for all unfocused windows.
 
-```kdl
-debug {
-    deactivate-unfocused-windows
+```lua
+return {
+    debug = {
+        deactivate_unfocused_windows = true,
+    },
 }
 ```
 
@@ -336,9 +376,11 @@ However, this can currently cause problems on some Intel + NVIDIA mixed-GPU setu
 
 Until this is fixed in Smithay, you can disable 10-bit color formats by setting this debug flag.
 
-```kdl
-debug {
-    disable-10bit-output
+```lua
+return {
+    debug = {
+        disable_10bit_output = true,
+    },
 }
 ```
 
@@ -352,9 +394,11 @@ Tints all surfaces green, unless they are being directly scanned out.
 
 Useful to check if direct scanout is working.
 
-```kdl
-binds {
-    Mod+Shift+Ctrl+T { toggle-debug-tint; }
+```lua
+return {
+    binds = {
+        { key = "Mod+Shift+Ctrl+T", action = { name = "toggle_debug_tint" } },
+    },
 }
 ```
 
@@ -366,9 +410,11 @@ Tints regions marked as opaque with blue and the rest of the render elements wit
 
 Useful to check how Wayland surfaces and internal render elements mark their parts as opaque, which is a rendering performance optimization.
 
-```kdl
-binds {
-    Mod+Shift+Ctrl+O { debug-toggle-opaque-regions; }
+```lua
+return {
+    binds = {
+        { key = "Mod+Shift+Ctrl+O", action = { name = "debug_toggle_opaque_regions" } },
+    },
 }
 ```
 
@@ -378,8 +424,10 @@ binds {
 
 Tints damaged regions with red.
 
-```kdl
-binds {
-    Mod+Shift+Ctrl+D { debug-toggle-damage; }
+```lua
+return {
+    binds = {
+        { key = "Mod+Shift+Ctrl+D", action = { name = "debug_toggle_damage" } },
+    },
 }
 ```

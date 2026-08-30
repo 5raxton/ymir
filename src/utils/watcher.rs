@@ -378,11 +378,11 @@ mod tests {
 
     #[test]
     fn change_file() -> Result {
-        TestPath::Explicit("ymir/config.kdl")
-            .setup(|sh| sh.write_file("ymir/config.kdl", "a"))
+        TestPath::Explicit("ymir/config.lua")
+            .setup(|sh| sh.write_file("ymir/config.lua", "a"))
             .assert_initial("a")
             .run(|sh, test| {
-                sh.write_file("ymir/config.kdl", "b")?;
+                sh.write_file("ymir/config.lua", "b")?;
                 test.assert_changed_to("b");
 
                 Ok(())
@@ -391,11 +391,11 @@ mod tests {
 
     #[test]
     fn overwrite_but_dont_change_file() -> Result {
-        TestPath::Explicit("ymir/config.kdl")
-            .setup(|sh| sh.write_file("ymir/config.kdl", "a"))
+        TestPath::Explicit("ymir/config.lua")
+            .setup(|sh| sh.write_file("ymir/config.lua", "a"))
             .assert_initial("a")
             .run(|sh, test| {
-                sh.write_file("ymir/config.kdl", "a")?;
+                sh.write_file("ymir/config.lua", "a")?;
                 test.assert_changed_to("a");
 
                 Ok(())
@@ -404,11 +404,11 @@ mod tests {
 
     #[test]
     fn touch_file() -> Result {
-        TestPath::Explicit("ymir/config.kdl")
-            .setup(|sh| sh.write_file("ymir/config.kdl", "a"))
+        TestPath::Explicit("ymir/config.lua")
+            .setup(|sh| sh.write_file("ymir/config.lua", "a"))
             .assert_initial("a")
             .run(|sh, test| {
-                cmd!(sh, "touch ymir/config.kdl").run()?;
+                cmd!(sh, "touch ymir/config.lua").run()?;
                 test.assert_changed_to("a");
 
                 Ok(())
@@ -417,11 +417,11 @@ mod tests {
 
     #[test]
     fn create_file() -> Result {
-        TestPath::Explicit("ymir/config.kdl")
+        TestPath::Explicit("ymir/config.lua")
             .setup(|sh| sh.create_dir("ymir"))
             .assert_initial_not_exists()
             .run(|sh, test| {
-                sh.write_file("ymir/config.kdl", "a")?;
+                sh.write_file("ymir/config.lua", "a")?;
                 test.assert_changed_to("a");
 
                 Ok(())
@@ -430,10 +430,10 @@ mod tests {
 
     #[test]
     fn create_dir_and_file() -> Result {
-        TestPath::Explicit("ymir/config.kdl")
+        TestPath::Explicit("ymir/config.lua")
             .without_setup()
             .run(|sh, test| {
-                sh.write_file("ymir/config.kdl", "a")?;
+                sh.write_file("ymir/config.lua", "a")?;
                 test.assert_changed_to("a");
 
                 Ok(())
@@ -442,14 +442,14 @@ mod tests {
 
     #[test]
     fn change_linked_file() -> Result {
-        TestPath::Explicit("ymir/config.kdl")
+        TestPath::Explicit("ymir/config.lua")
             .setup(|sh| {
-                sh.write_file("ymir/config2.kdl", "a")?;
-                cmd!(sh, "ln -sf config2.kdl ymir/config.kdl").run()
+                sh.write_file("ymir/config2.lua", "a")?;
+                cmd!(sh, "ln -sf config2.lua ymir/config.lua").run()
             })
             .assert_initial("a")
             .run(|sh, test| {
-                sh.write_file("ymir/config2.kdl", "b")?;
+                sh.write_file("ymir/config2.lua", "b")?;
                 test.assert_changed_to("b");
 
                 Ok(())
@@ -458,14 +458,14 @@ mod tests {
 
     #[test]
     fn change_file_in_linked_dir() -> Result {
-        TestPath::Explicit("ymir/config.kdl")
+        TestPath::Explicit("ymir/config.lua")
             .setup(|sh| {
-                sh.write_file("ymir2/config.kdl", "a")?;
+                sh.write_file("ymir2/config.lua", "a")?;
                 cmd!(sh, "ln -s ymir2 ymir").run()
             })
             .assert_initial("a")
             .run(|sh, test| {
-                sh.write_file("ymir2/config.kdl", "b")?;
+                sh.write_file("ymir2/config.lua", "b")?;
                 test.assert_changed_to("b");
 
                 Ok(())
@@ -474,11 +474,11 @@ mod tests {
 
     #[test]
     fn remove_file() -> Result {
-        TestPath::Explicit("ymir/config.kdl")
-            .setup(|sh| sh.write_file("ymir/config.kdl", "a"))
+        TestPath::Explicit("ymir/config.lua")
+            .setup(|sh| sh.write_file("ymir/config.lua", "a"))
             .assert_initial("a")
             .run(|sh, test| {
-                sh.remove_path("ymir/config.kdl")?;
+                sh.remove_path("ymir/config.lua")?;
                 test.assert_unchanged();
 
                 Ok(())
@@ -487,8 +487,8 @@ mod tests {
 
     #[test]
     fn remove_dir() -> Result {
-        TestPath::Explicit("ymir/config.kdl")
-            .setup(|sh| sh.write_file("ymir/config.kdl", "a"))
+        TestPath::Explicit("ymir/config.lua")
+            .setup(|sh| sh.write_file("ymir/config.lua", "a"))
             .assert_initial("a")
             .run(|sh, test| {
                 sh.remove_path("ymir")?;
@@ -500,12 +500,12 @@ mod tests {
 
     #[test]
     fn recreate_file() -> Result {
-        TestPath::Explicit("ymir/config.kdl")
-            .setup(|sh| sh.write_file("ymir/config.kdl", "a"))
+        TestPath::Explicit("ymir/config.lua")
+            .setup(|sh| sh.write_file("ymir/config.lua", "a"))
             .assert_initial("a")
             .run(|sh, test| {
-                sh.remove_path("ymir/config.kdl")?;
-                sh.write_file("ymir/config.kdl", "b")?;
+                sh.remove_path("ymir/config.lua")?;
+                sh.write_file("ymir/config.lua", "b")?;
                 test.assert_changed_to("b");
 
                 Ok(())
@@ -514,15 +514,15 @@ mod tests {
 
     #[test]
     fn recreate_dir() -> Result {
-        TestPath::Explicit("ymir/config.kdl")
+        TestPath::Explicit("ymir/config.lua")
             .setup(|sh| {
-                sh.write_file("ymir/config.kdl", "a")?;
+                sh.write_file("ymir/config.lua", "a")?;
                 Ok(())
             })
             .assert_initial("a")
             .run(|sh, test| {
                 sh.remove_path("ymir")?;
-                sh.write_file("ymir/config.kdl", "b")?;
+                sh.write_file("ymir/config.lua", "b")?;
                 test.assert_changed_to("b");
 
                 Ok(())
@@ -531,11 +531,11 @@ mod tests {
 
     #[test]
     fn swap_dir() -> Result {
-        TestPath::Explicit("ymir/config.kdl")
-            .setup(|sh| sh.write_file("ymir/config.kdl", "a"))
+        TestPath::Explicit("ymir/config.lua")
+            .setup(|sh| sh.write_file("ymir/config.lua", "a"))
             .assert_initial("a")
             .run(|sh, test| {
-                sh.write_file("ymir2/config.kdl", "b")?;
+                sh.write_file("ymir2/config.lua", "b")?;
                 sh.remove_path("ymir")?;
                 cmd!(sh, "mv ymir2 ymir").run()?;
                 test.assert_changed_to("b");
@@ -546,14 +546,14 @@ mod tests {
 
     #[test]
     fn swap_dir_link() -> Result {
-        TestPath::Explicit("ymir/config.kdl")
+        TestPath::Explicit("ymir/config.lua")
             .setup(|sh| {
-                sh.write_file("ymir2/config.kdl", "a")?;
+                sh.write_file("ymir2/config.lua", "a")?;
                 cmd!(sh, "ln -s ymir2 ymir").run()
             })
             .assert_initial("a")
             .run(|sh, test| {
-                sh.write_file("ymir3/config.kdl", "b")?;
+                sh.write_file("ymir3/config.lua", "b")?;
                 sh.remove_path("ymir")?;
                 cmd!(sh, "ln -s ymir3 ymir").run()?;
                 test.assert_changed_to("b");
@@ -564,15 +564,15 @@ mod tests {
 
     #[test]
     fn change_included_file() -> Result {
-        TestPath::Explicit("ymir/config.kdl")
+        TestPath::Explicit("ymir/config.lua")
             .setup(|sh| {
-                sh.write_file("ymir/config.kdl", "include \"colors.kdl\"")?;
-                sh.write_file("ymir/colors.kdl", "// Colors")
+                sh.write_file("ymir/config.lua", "include_config(\"colors.lua\")")?;
+                sh.write_file("ymir/colors.lua", "-- Colors")
             })
-            .assert_initial("include \"colors.kdl\"")
+            .assert_initial("include_config(\"colors.lua\")")
             .run(|sh, test| {
-                sh.write_file("ymir/colors.kdl", "// Updated colors")?;
-                test.assert_changed_to("include \"colors.kdl\"");
+                sh.write_file("ymir/colors.lua", "-- Updated colors")?;
+                test.assert_changed_to("include_config(\"colors.lua\")");
 
                 Ok(())
             })
@@ -580,15 +580,15 @@ mod tests {
 
     #[test]
     fn remove_included_file() -> Result {
-        TestPath::Explicit("ymir/config.kdl")
+        TestPath::Explicit("ymir/config.lua")
             .setup(|sh| {
-                sh.write_file("ymir/config.kdl", "include \"colors.kdl\"")?;
-                sh.write_file("ymir/colors.kdl", "// Colors")
+                sh.write_file("ymir/config.lua", "include_config(\"colors.lua\")")?;
+                sh.write_file("ymir/colors.lua", "-- Colors")
             })
-            .assert_initial("include \"colors.kdl\"")
+            .assert_initial("include_config(\"colors.lua\")")
             .run(|sh, test| {
-                sh.remove_path("ymir/colors.kdl")?;
-                test.assert_changed_to("include \"colors.kdl\"");
+                sh.remove_path("ymir/colors.lua")?;
+                test.assert_changed_to("include_config(\"colors.lua\")");
 
                 Ok(())
             })
@@ -596,16 +596,16 @@ mod tests {
 
     #[test]
     fn nested_includes() -> Result {
-        TestPath::Explicit("ymir/config.kdl")
+        TestPath::Explicit("ymir/config.lua")
             .setup(|sh| {
-                sh.write_file("ymir/config.kdl", "include \"a.kdl\"")?;
-                sh.write_file("ymir/a.kdl", "include \"b.kdl\"")?;
-                sh.write_file("ymir/b.kdl", "// b content")
+                sh.write_file("ymir/config.lua", "include_config(\"a.lua\")")?;
+                sh.write_file("ymir/a.lua", "include_config(\"b.lua\")")?;
+                sh.write_file("ymir/b.lua", "return {}")
             })
-            .assert_initial("include \"a.kdl\"")
+            .assert_initial("include_config(\"a.lua\")")
             .run(|sh, test| {
-                sh.write_file("ymir/b.kdl", "// updated b")?;
-                test.assert_changed_to("include \"a.kdl\"");
+                sh.write_file("ymir/b.lua", "-- updated b")?;
+                test.assert_changed_to("include_config(\"a.lua\")");
 
                 Ok(())
             })
@@ -613,15 +613,15 @@ mod tests {
 
     #[test]
     fn broken_include_still_gets_watched() -> Result {
-        TestPath::Explicit("ymir/config.kdl")
+        TestPath::Explicit("ymir/config.lua")
             .setup(|sh| {
-                sh.write_file("ymir/config.kdl", "include \"colors.kdl\"")?;
-                sh.write_file("ymir/colors.kdl", "broken")
+                sh.write_file("ymir/config.lua", "include_config(\"colors.lua\")")?;
+                sh.write_file("ymir/colors.lua", "broken")
             })
-            .assert_initial("include \"colors.kdl\"")
+            .assert_initial("include_config(\"colors.lua\")")
             .run(|sh, test| {
-                sh.write_file("ymir/colors.kdl", "// Fixed")?;
-                test.assert_changed_to("include \"colors.kdl\"");
+                sh.write_file("ymir/colors.lua", "-- Fixed")?;
+                test.assert_changed_to("include_config(\"colors.lua\")");
 
                 Ok(())
             })
@@ -643,22 +643,22 @@ mod tests {
 
     #[test]
     fn swap_just_link() -> Result {
-        TestPath::Explicit("ymir/config.kdl")
+        TestPath::Explicit("ymir/config.lua")
             .setup_any(|sh| {
                 let dir = sh.current_dir().join("ymir");
 
                 sh.create_dir(&dir)?;
 
-                create_epoch(dir.join("config2.kdl"), "a")?;
-                create_epoch(dir.join("config3.kdl"), "b")?;
+                create_epoch(dir.join("config2.lua"), "a")?;
+                create_epoch(dir.join("config3.lua"), "b")?;
 
-                cmd!(sh, "ln -s config2.kdl ymir/config.kdl").run()?;
+                cmd!(sh, "ln -s config2.lua ymir/config.lua").run()?;
 
                 Ok(())
             })
             .assert_initial("a")
             .run(|sh, test| {
-                cmd!(sh, "ln -sf config3.kdl ymir/config.kdl").run()?;
+                cmd!(sh, "ln -sf config3.lua ymir/config.lua").run()?;
                 test.assert_changed_to("b");
 
                 Ok(())
@@ -668,31 +668,31 @@ mod tests {
     #[test]
     fn swap_many_regular() -> Result {
         TestPath::Regular {
-            user_path: "user-ymir/config.kdl",
-            system_path: "system-ymir/config.kdl",
+            user_path: "user-ymir/config.lua",
+            system_path: "system-ymir/config.lua",
         }
-        .setup(|sh| sh.write_file("system-ymir/config.kdl", "system config"))
+        .setup(|sh| sh.write_file("system-ymir/config.lua", "system config"))
         .assert_initial("system config")
         .run(|sh, test| {
-            sh.write_file("user-ymir/config.kdl", "user config")?;
+            sh.write_file("user-ymir/config.lua", "user config")?;
             test.assert_changed_to("user config");
 
-            cmd!(sh, "touch system-ymir/config.kdl").run()?;
+            cmd!(sh, "touch system-ymir/config.lua").run()?;
             test.assert_unchanged();
 
             sh.remove_path("system-ymir")?;
             test.assert_unchanged();
 
-            sh.write_file("system-ymir/config.kdl", "new system config")?;
+            sh.write_file("system-ymir/config.lua", "new system config")?;
             test.assert_unchanged();
 
             sh.remove_path("user-ymir")?;
             test.assert_changed_to("new system config");
 
-            sh.write_file("system-ymir/config.kdl", "updated system config")?;
+            sh.write_file("system-ymir/config.lua", "updated system config")?;
             test.assert_changed_to("updated system config");
 
-            sh.write_file("user-ymir/config.kdl", "new user config")?;
+            sh.write_file("user-ymir/config.lua", "new user config")?;
             test.assert_changed_to("new user config");
 
             Ok(())
@@ -702,8 +702,8 @@ mod tests {
     #[test]
     fn swap_many_links_regular_like_nix() -> Result {
         TestPath::Regular {
-            user_path: "user-ymir/config.kdl",
-            system_path: "system-ymir/config.kdl",
+            user_path: "user-ymir/config.lua",
+            system_path: "system-ymir/config.lua",
         }
         .setup_any(|sh| {
             let store = sh.current_dir().join("store");
@@ -724,28 +724,28 @@ mod tests {
             let store = sh.current_dir().join("store");
             test.assert_unchanged();
 
-            cmd!(sh, "ln -s {store}/gen1 user-ymir/config.kdl").run()?;
+            cmd!(sh, "ln -s {store}/gen1 user-ymir/config.lua").run()?;
             test.assert_changed_to("gen 1");
 
-            cmd!(sh, "ln -s {store}/gen2 system-ymir/config.kdl").run()?;
+            cmd!(sh, "ln -s {store}/gen2 system-ymir/config.lua").run()?;
             test.assert_unchanged();
 
-            cmd!(sh, "unlink user-ymir/config.kdl").run()?;
+            cmd!(sh, "unlink user-ymir/config.lua").run()?;
             test.assert_changed_to("gen 2");
 
-            cmd!(sh, "ln -s {store}/gen3 user-ymir/config.kdl").run()?;
+            cmd!(sh, "ln -s {store}/gen3 user-ymir/config.lua").run()?;
             test.assert_changed_to("gen 3");
 
-            cmd!(sh, "ln -sf {store}/gen1 system-ymir/config.kdl").run()?;
+            cmd!(sh, "ln -sf {store}/gen1 system-ymir/config.lua").run()?;
             test.assert_unchanged();
 
-            cmd!(sh, "unlink system-ymir/config.kdl").run()?;
+            cmd!(sh, "unlink system-ymir/config.lua").run()?;
             test.assert_unchanged();
 
-            cmd!(sh, "ln -s {store}/gen1 system-ymir/config.kdl").run()?;
+            cmd!(sh, "ln -s {store}/gen1 system-ymir/config.lua").run()?;
             test.assert_unchanged();
 
-            cmd!(sh, "unlink user-ymir/config.kdl").run()?;
+            cmd!(sh, "unlink user-ymir/config.lua").run()?;
             test.assert_changed_to("gen 1");
 
             Ok(())

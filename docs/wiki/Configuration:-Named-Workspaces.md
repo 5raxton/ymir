@@ -95,3 +95,34 @@ workspace "uncentered" {
     }
 }
 ```
+
+### Non-creating layout tags for default workspaces
+
+<sup>Since: 25.12</sup>
+
+A workspace entry whose name is a plain number is a **non-creating layout rule**: instead of
+creating a named workspace, it applies its `layout {}` block to the Nth *default* (unnamed)
+workspace of every monitor, matching how you address workspaces with `focus-workspace N`.
+
+```kdl
+// The first default workspace of every monitor runs dwindle; nothing is created.
+workspace "1" {
+    layout {
+        default-column-display "dwindle"
+    }
+}
+
+// The second default workspace gets wider gaps.
+workspace "2" {
+    layout {
+        gaps 32
+    }
+}
+```
+
+Rules like these never create a workspace called `"1"` or `"2"`. They apply to unnamed workspaces
+by their 1-based position (default workspace number), and leave named workspaces alone. `open-on-output`,
+if present on such an entry, is ignored.
+
+Named workspaces configured with a *non-numeric* name (like `"browser"`) are unaffected: they keep
+creating a real named workspace as described above.

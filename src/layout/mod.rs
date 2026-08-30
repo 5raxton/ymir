@@ -375,6 +375,22 @@ pub struct Layout<W: LayoutElement> {
     overview_progress: Option<OverviewProgress>,
     /// Configurable properties of the layout.
     options: Rc<Options>,
+    /// Non-creating `workspace "<number>" { layout { ... } }` rules keyed on default workspace
+    /// positions (`"1"` targets the 1st default workspace of every monitor, and so on).
+    default_workspace_layout_rules: Vec<(usize, Option<LayoutPart>)>,
+}
+
+/// The 1-based default workspace index targeted by a numeric workspace config name, if any.
+///
+/// A workspace entry named purely by digits (`"1"`, `"2"`, ...) is a non-creating layout rule:
+/// it applies its `layout {}` to the Nth default (unnamed) workspace of every monitor instead of
+/// creating a named workspace. Everything else (including `"0"`) stays a regular named workspace.
+pub fn workspace_default_index(name: &str) -> Option<usize> {
+    if name.is_empty() || !name.bytes().all(|b| b.is_ascii_digit()) {
+        return None;
+    }
+
+    name.parse::<usize>().ok().filter(|&n| n >= 1)
 }
 
 #[derive(Debug)]
@@ -731,15 +747,28 @@ impl<W: LayoutElement> Layout<W> {
             overview_open: false,
             overview_progress: None,
             options: Rc::new(options),
+            default_workspace_layout_rules: vec![],
         }
     }
 
     fn with_options_and_workspaces(clock: Clock, config: &Config, options: Options) -> Self {
         let opts = Rc::new(options);
 
+        // Numeric workspace entries are non-creating layout rules keyed on default workspace
+        // positions, so they never become named workspaces.
+        let default_workspace_layout_rules: Vec<(usize, Option<LayoutPart>)> = config
+            .workspaces
+            .iter()
+            .filter_map(|ws| {
+                workspace_default_index(&ws.name.0)
+                    .map(|index| (index, ws.layout.clone().map(|x| x.0)))
+            })
+            .collect();
+
         let workspaces = config
             .workspaces
             .iter()
+            .filter(|ws| workspace_default_index(&ws.name.0).is_none())
             .map(|ws| {
                 Workspace::new_with_config_no_outputs(Some(ws.clone()), clock.clone(), opts.clone())
             })
@@ -756,6 +785,7 @@ impl<W: LayoutElement> Layout<W> {
             overview_open: false,
             overview_progress: None,
             options: opts,
+            default_workspace_layout_rules,
         }
     }
 
@@ -864,7 +894,11 @@ impl<W: LayoutElement> Layout<W> {
                     active_monitor_idx: 0,
                 }
             }
-        }
+        };
+
+        // Default workspaces only exist once there are outputs, so apply the numeric
+        // default-workspace layout rules to the freshly created monitors as well.
+        self.apply_default_workspace_layout_rules();
     }
 
     pub fn remove_output(&mut self, output: &Output) {
@@ -3023,6 +3057,18 @@ pub fn toggle_column_tabbed_display(&mut self) {
     }
 
     pub fn update_config(&mut self, config: &Config) {
+        // Re-read the non-creating numeric workspace rules; then make sure workspaces that were
+        // created since the last pass (newly connected outputs) pick them up.
+        self.default_workspace_layout_rules = config
+            .workspaces
+            .iter()
+            .filter_map(|ws| {
+                workspace_default_index(&ws.name.0)
+                    .map(|index| (index, ws.layout.clone().map(|x| x.0)))
+            })
+            .collect();
+        self.apply_default_workspace_layout_rules();
+
         // Update workspace-specific config for all named workspaces.
         for ws in self.workspaces_mut() {
             let Some(name) = ws.name() else { continue };
@@ -3032,6 +3078,31 @@ pub fn toggle_column_tabbed_display(&mut self) {
         }
 
         self.update_options(Options::from_config(config));
+    }
+
+    /// Apply the non-creating `workspace "<number>" { layout { ... } }` rules: the `layout {}` of
+    /// workspace "N" goes to the Nth default (unnamed) workspace of every monitor. Named
+    /// workspaces are never touched by these rules.
+    fn apply_default_workspace_layout_rules(&mut self) {
+        let rules = self.default_workspace_layout_rules.clone();
+        if rules.is_empty() {
+            return;
+        }
+
+        match &mut self.monitor_set {
+            MonitorSet::Normal { monitors, .. } => {
+                for mon in monitors {
+                    apply_rules_to_workspaces(&mut mon.workspaces, &rules, |ws, layout| {
+                        ws.update_layout_config(layout)
+                    });
+                }
+            }
+            MonitorSet::NoOutputs { workspaces } => {
+                apply_rules_to_workspaces(workspaces, &rules, |ws, layout| {
+                    ws.update_layout_config(layout)
+                });
+            }
+        }
     }
 
     fn update_options(&mut self, options: Options) {
@@ -5071,6 +5142,33 @@ pub fn toggle_column_tabbed_display(&mut self) {
 impl<W: LayoutElement> Default for MonitorSet<W> {
     fn default() -> Self {
         Self::NoOutputs { workspaces: vec![] }
+    }
+}
+
+fn apply_rules_to_workspaces<W: LayoutElement>(
+    workspaces: &mut [Workspace<W>],
+    rules: &[(usize, Option<LayoutPart>)],
+    apply: impl Fn(&mut Workspace<W>, Option<LayoutPart>),
+) {
+    // Numeric rules address the workspace by its 1-based position among the *unnamed* (default)
+    // workspaces of a monitor, so names never get clobbered by a default-workspace tag.
+    let mut unnamed_seen = 0usize;
+    let mut matched: Vec<(usize, Option<LayoutPart>)> = Vec::new();
+
+    for (ws_idx, ws) in workspaces.iter().enumerate() {
+        if ws.name().is_some() {
+            continue;
+        }
+        unnamed_seen += 1;
+        for (rule_num, layout) in rules {
+            if *rule_num == unnamed_seen {
+                matched.push((ws_idx, layout.clone()));
+            }
+        }
+    }
+
+    for (ws_idx, layout) in matched {
+        apply(&mut workspaces[ws_idx], layout);
     }
 }
 

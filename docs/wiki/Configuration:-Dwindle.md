@@ -30,6 +30,16 @@ The mode you pick with `switch-column-display` is remembered **per workspace for
 
 To change the *default* mode for all new columns, use [`default-column-display`](./Configuration:-Layout.md#default-column-display). You can also set it per-window with a [window rule](./Configuration:-Window-Rules.md#default-column-display), or per [output](./Configuration:-Outputs.md#layout-config-overrides) / [named workspace](./Configuration:-Named-Workspaces.md#layout-config-overrides) via layout config overrides.
 
+To make a *default* workspace dwindle without creating a named workspace, use a numeric [layout tag](./Configuration:-Named-Workspaces.md#non-creating-layout-tags-for-default-workspaces):
+
+```kdl
+workspace "1" {
+    layout {
+        default-column-display "dwindle"
+    }
+}
+```
+
 ### How new windows split
 
 When a window opens in a dwindle column, the focused leaf's region is sliced into two:

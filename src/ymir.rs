@@ -143,7 +143,8 @@ use crate::layer::MappedLayer;
 use crate::layout::tile::TileRenderElement;
 use crate::layout::workspace::{Workspace, WorkspaceId};
 use crate::layout::{
-    HitType, Layout, LayoutElement as _, LayoutElementRenderElement, MonitorRenderElement,
+    workspace_default_index, HitType, Layout, LayoutElement as _, LayoutElementRenderElement,
+    MonitorRenderElement,
 };
 use crate::ymir_render_elements;
 use crate::protocols::ext_workspace::{self, ExtWorkspaceManagerState};
@@ -1454,9 +1455,13 @@ impl State {
 
         self.ymir.config_error_notification.hide();
 
-        // Find & orphan removed named workspaces.
+        // Find & orphan removed named workspaces. Numeric entries are non-creating layout rules
+        // keyed on default workspace positions, so they never become named workspaces.
         let mut removed_workspaces: Vec<String> = vec![];
         for ws in &self.ymir.config.borrow().workspaces {
+            if workspace_default_index(&ws.name.0).is_some() {
+                continue;
+            }
             if !config.workspaces.iter().any(|w| w.name == ws.name) {
                 removed_workspaces.push(ws.name.0.clone());
             }
@@ -1470,9 +1475,11 @@ impl State {
             mapped.update_config(&config);
         }
 
-        // Create new named workspaces.
+        // Create new named workspaces (numeric entries are non-creating layout rules).
         for ws_config in &config.workspaces {
-            self.ymir.layout.ensure_named_workspace(ws_config);
+            if workspace_default_index(&ws_config.name.0).is_none() {
+                self.ymir.layout.ensure_named_workspace(ws_config);
+            }
         }
 
         let rate = 1.0 / config.animations.slowdown.max(0.001);

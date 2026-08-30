@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Ymir — a scrollable-tiling Wayland compositor</title>
-    <meta name="description" content="Ymir is a scrollable-tiling Wayland compositor with a resizable dwindle layout. Windows tile into a binary tree; opening a window never resizes the ones you already have open." />
+    <meta name="description" content="Ymir is a scrollable-tiling Wayland compositor with dwindle-style binary tiling. Windows live in columns on an infinite strip; inside a column each new window halves only the focused one." />
     <link rel="stylesheet" href="styles.css" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -31,12 +31,12 @@
     <main id="top">
         <section class="hero">
             <div class="container">
-                <p class="hero__eyebrow">A scrollable-tiling Wayland compositor</p>
+                <p class="hero__eyebrow">A scrollable-tiling Wayland compositor, dwindle by default</p>
                 <h1 class="hero__title">Arrange windows without the <span class="accent">resize chaos</span>.</h1>
                 <p class="hero__sub">
                     Ymir tiles your windows into a resizable dwindle tree on an infinite
-                    strip. Opening a new window <strong>never</strong> resizes the ones you
-                    already have open.
+                    strip. Each new window halves only the focused one — everything else
+                    in your layout <strong>stays put</strong>.
                 </p>
                 <div class="hero__actions">
                     <a class="btn btn--primary" href="#start">Get started</a>
@@ -78,8 +78,8 @@
                         <p>Columns flow to the right. Nothing ever overflows onto the next monitor.</p>
                     </div>
                     <div class="masonry__item">
-                        <h3>Never resizes</h3>
-                        <p>New windows claim only empty space. Your existing layout stays put.</p>
+                        <h3>Predictable splits</h3>
+                        <p>Dwindle splits only the focused window, and dividers are clamped to every window's minimum size.</p>
                     </div>
                     <div class="masonry__item">
                         <h3>Dynamic workspaces</h3>
@@ -100,13 +100,13 @@
                     <h2>Windows are a quiet, ordered place.</h2>
                     <p>
                         Ymir arranges windows in columns on an infinite strip going to the
-                        right. It is built from the ground up for scrollable tiling, with dynamic
-                        workspaces, an overview, gestures, gradient borders, background blur, and
-                        live-reloading configuration.
+                        right. It is built for scrollable tiling and tiling layouts alike, with
+                        dynamic workspaces, an overview, gestures, gradient borders, background
+                        blur, and live-reloading configuration.
                     </p>
                     <p>
                         Its <strong>Dwindle</strong> column mode layers a resizable binary tiling
-                        tree on top of that scrollable foundation — the best of both worlds.
+                        tree on top of that scrollable foundation — and it is on by default.
                     </p>
                 </div>
                 <ul class="section__list">
@@ -116,7 +116,7 @@
                     <li>Touchpad and mouse gestures</li>
                     <li>Group windows into tabs</li>
                     <li>Gradient borders with Oklab and Oklch</li>
-                    <li>Background blur for windows and shell surfaces</li>
+                    <li>Per-workspace layout config, including numeric workspace tags</li>
                     <li>Works with screen readers</li>
                 </ul>
             </div>
@@ -129,7 +129,7 @@
                     <h2>Binary tiling that behaves.</h2>
                     <p>
                         Windows split off the focused window into a resizable binary tree, Hyprland-style.
-                        Move the focused window with its spatial neighbor in any direction.
+                        Swap the focused window with its spatial neighbor, or flip the split orientation at any time.
                     </p>
                 </div>
                 <div class="dwindle__cards">
@@ -150,8 +150,8 @@
                     <article class="card">
                         <h3>Switch anytime</h3>
                         <p>
-                            Toggle between dwindle and classic scrollable tiling live with
-                            <code>Mod+Shift+D</code>.
+                            Cycle the focused column between dwindle, scrollable and tabbed
+                            live with <code>Mod+Shift+D</code>.
                         </p>
                     </article>
                 </div>
@@ -169,10 +169,10 @@
                     <div class="feature"><h4>Overview</h4><p>Zoom out workspaces and windows.</p></div>
                     <div class="feature"><h4>Screenshot UI</h4><p>Built in, no tools needed.</p></div>
                     <div class="feature"><h4>Gestures</h4><p>Overview, workspaces, columns, resize.</p></div>
-                    <div class="feature"><h4>Dynamic workspaces</h4><p>Always an empty one waiting.</p></div>
+                    <div class="feature"><h4>Recent windows</h4><p>Alt+Tab-style switcher with live previews.</p></div>
                     <div class="feature"><h4>Background blur</h4><p>For windows and layer-shell surfaces.</p></div>
                     <div class="feature"><h4>Live config</h4><p>Reloads on the fly.</p></div>
-                    <div class="feature"><h4>Screen readers</h4><p>Accessible by default.</p></div>
+                    <div class="feature"><h4>Screen readers</h4><p>Accessibility via accesskit/dbus.</p></div>
                 </div>
             </div>
         </section>
@@ -188,8 +188,10 @@
                     <div class="key"><kbd>Mod</kbd><kbd>Shift</kbd><kbd>Right</kbd><span>move window right in the dwindle tree</span></div>
                     <div class="key"><kbd>Mod</kbd><kbd>Ctrl</kbd><kbd>Up</kbd><span>move window up in a column</span></div>
                     <div class="key"><kbd>Mod</kbd><kbd>Ctrl</kbd><kbd>Down</kbd><span>move window down in a column</span></div>
-                    <div class="key"><kbd>Mod</kbd><kbd>Shift</kbd><kbd>Space</kbd><span>toggle split direction</span></div>
-                    <div class="key"><kbd>Mod</kbd><kbd>Shift</kbd><kbd>D</kbd><span>switch between dwindle and scrollable</span></div>
+                    <div class="key"><kbd>Mod</kbd><kbd>Space</kbd><span>flip the split orientation</span></div>
+                    <div class="key"><kbd>Mod</kbd><kbd>Ctrl</kbd><kbd>Space</kbd><span>preselect the next split's direction</span></div>
+                    <div class="key"><kbd>Mod</kbd><kbd>Shift</kbd><kbd>Home</kbd><span>promote the focused window to the head of the tree</span></div>
+                    <div class="key"><kbd>Mod</kbd><kbd>Shift</kbd><kbd>D</kbd><span>cycle dwindle, scrollable and tabbed</span></div>
                 </div>
             </div>
         </section>
@@ -200,16 +202,17 @@
                     <p class="eyebrow">Get started</p>
                     <h2>Ymir is ready to tile.</h2>
                     <p>
-                        Ymir builds with <code>cargo</code> and installs into <code>/usr/local</code>,
-                        or straight from the AUR/PKGBUILD on Arch. It seeds your config with the
-                        dwindle example and sets up a login-manager session for you.
+                        On Arch, Ymir builds with <code>makepkg</code> from the bundled PKGBUILD.
+                        On any distro, the installer detects it, installs dependencies, builds and
+                        installs into <code>/usr/local</code>. It seeds your config with the dwindle
+                        default and sets up a login-manager session entry for you.
                     </p>
                 </div>
-                <pre class="code"><code><span class="c"># Arch</span>
+                <pre class="code"><code><span class="c"># Arch, at the repo root</span>
 makepkg -si
 
-<span class="c"># or with Cargo</span>
-cargo install --path .</code></pre>
+<span class="c"># or on any distro</span>
+curl -sL https://raw.githubusercontent.com/5raxton/ymir/main/scripts/install.sh | bash</code></pre>
             </div>
         </section>
     </main>

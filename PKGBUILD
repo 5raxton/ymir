@@ -56,7 +56,7 @@ optdepends=(
     'xdg-desktop-portal-gtk: file chooser portal'
     'ydotool: synthetic input for night manipulation scripts'
 )
-source=("$pkgname::git+ssh://git@github.com/5raxton/ymir.git#branch=main")
+source=("$pkgname::git+https://github.com/5raxton/ymir.git#branch=main")
 sha256sums=('SKIP')
 
 build() {

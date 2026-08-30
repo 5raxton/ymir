@@ -162,8 +162,9 @@ Sets the default display mode for new columns.
 Can be `normal`, `tabbed` or `dwindle`.
 
 Dwindle is ymir's default out of the box: new windows split off the focused
-window into a resizable binary tree. Set it to `normal` (scrollable columns)
-or `tabbed` to change the default.
+window into a binary-split tree. Set it to `normal` (scrollable columns) or
+`tabbed` to change the default. See the [Dwindle](./Configuration:-Dwindle.md)
+page for the full documentation of the dwindle mode.
 
 You can switch between dwindle and scrollable layout at runtime with the
 `switch-column-display` action (bound to Mod+Shift+D in the default config),

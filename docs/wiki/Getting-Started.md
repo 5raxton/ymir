@@ -1,6 +1,18 @@
 ## Quick start
 
-Use these commands to install ymir with [DankMaterialShell](https://github.com/AvengeMedia/DankMaterialShell) for a fairly out-of-the-box experience.
+ymir ships a multi-distro installer script that detects your distro (Arch, Fedora, Debian/Ubuntu, openSUSE), installs the required build/runtime dependencies, clones the latest `main`, and builds & installs the compositor:
+
+```sh
+# bash/zsh
+curl -sL https://raw.githubusercontent.com/5raxton/ymir/main/scripts/install.sh | bash
+
+# fish
+curl -sL https://raw.githubusercontent.com/5raxton/ymir/main/scripts/install.fish | fish
+```
+
+On Arch it builds with `makepkg` from the PKGBUILD; on other distros it builds with `cargo` and installs into `/usr/local`. The installer seeds `~/.config/ymir/config.kdl` with the default dwindle config if absent, and installs the `ymir.desktop` session entry automatically so "Ymir" appears in your login manager (GDM, SDDM, ...). From a bare TTY you can start it directly with `ymir-session`. Re-running the installer pulls the latest `main` and rebuilds, so it also doubles as a bleeding-edge update.
+
+Alternatively, some distributions provide packaged builds of ymir — see the ["Slower and more considered start"](#slower-and-more-considered-start) section. You can also try a more out-of-the-box experience with [DankMaterialShell](https://github.com/AvengeMedia/DankMaterialShell):
 
 Fedora:
 ```
@@ -32,8 +44,9 @@ Check the DankMaterialShell's [compositor setup page](https://danklinux.com/docs
 
 ## Slower and more considered start
 
-The easiest way to get ymir is to install one of the distribution packages.
-Here are some of them: [Fedora COPR](https://copr.fedorainfracloud.org/coprs/yalter/ymir/) and [nightly COPR](https://copr.fedorainfracloud.org/coprs/yalter/ymir-git/) (which I maintain myself), [NixOS Flake](https://github.com/epireyn/ymir-flake) (maintained fork of [sodiboo/ymir-flake](https://github.com/sodiboo/ymir-flake)), and some more from repology below, including a [pacstall package](https://pacstall.dev/packages/ymir/) for Debian-based distros.
+Aside from the official installer above, ymir is available as a number of distribution packages maintained by the community.
+Here are some of them: [Fedora COPR](https://copr.fedorainfracloud.org/coprs/yalter/ymir/) and [nightly COPR](https://copr.fedorainfracloud.org/coprs/yalter/ymir-git/), [NixOS Flake](https://github.com/epireyn/ymir-flake) (maintained fork of [sodiboo/ymir-flake](https://github.com/sodiboo/ymir-flake)), and some more from repology below, including a [pacstall package](https://pacstall.dev/packages/ymir/) for Debian-based distros.
+This repository also ships its own [flake.nix](https://github.com/5raxton/ymir/blob/main/flake.nix) and an [Arch PKGBUILD](https://github.com/5raxton/ymir/blob/main/PKGBUILD).
 See the [Building](#building) section if you'd like to compile ymir yourself and the [Packaging ymir](./Packaging-ymir.md) page if you want to package ymir.
 
 [![Packaging status](https://repology.org/badge/vertical-allrepos/ymir.svg)](https://repology.org/project/ymir/versions)
@@ -123,6 +136,8 @@ When running in a window, the Mod key is <kbd>Alt</kbd>.
 
 The general system is: if a hotkey switches somewhere, then adding <kbd>Ctrl</kbd> will move the focused window or column there.
 
+The default column layout is [Dwindle](./Configuration:-Dwindle.md): new windows split off the focused window into a binary-split tree. You can switch a column back to classic scrollable tiling at any time with <kbd>Mod</kbd><kbd>Shift</kbd><kbd>D</kbd>.
+
 | Hotkey | Description |
 | ------ | ----------- |
 | <kbd>Mod</kbd><kbd>Shift</kbd><kbd>/</kbd> | Show a list of important ymir hotkeys |
@@ -138,7 +153,9 @@ The general system is: if a hotkey switches somewhere, then adding <kbd>Ctrl</kb
 | <kbd>Mod</kbd><kbd>Ctrl</kbd><kbd>L</kbd> or <kbd>Mod</kbd><kbd>Ctrl</kbd><kbd>→</kbd> | Move the focused column to the right |
 | <kbd>Mod</kbd><kbd>Ctrl</kbd><kbd>J</kbd> or <kbd>Mod</kbd><kbd>Ctrl</kbd><kbd>↓</kbd> | Move the focused window below in a column |
 | <kbd>Mod</kbd><kbd>Ctrl</kbd><kbd>K</kbd> or <kbd>Mod</kbd><kbd>Ctrl</kbd><kbd>↑</kbd> | Move the focused window above in a column |
-| <kbd>Mod</kbd><kbd>Shift</kbd><kbd>H</kbd><kbd>J</kbd><kbd>K</kbd><kbd>L</kbd> or <kbd>Mod</kbd><kbd>Shift</kbd><kbd>←</kbd><kbd>↓</kbd><kbd>↑</kbd><kbd>→</kbd> | Focus the monitor to the side |
+| <kbd>Mod</kbd><kbd>Shift</kbd><kbd>Down</kbd> or <kbd>Mod</kbd><kbd>Shift</kbd><kbd>J</kbd> | Focus the monitor below |
+| <kbd>Mod</kbd><kbd>Shift</kbd><kbd>Up</kbd> or <kbd>Mod</kbd><kbd>Shift</kbd><kbd>K</kbd> | Focus the monitor above |
+| <kbd>Mod</kbd><kbd>Shift</kbd><kbd>←</kbd><kbd>→</kbd> or <kbd>Mod</kbd><kbd>Shift</kbd><kbd>H</kbd><kbd>L</kbd> | Move the focused window spatially in the dwindle tree |
 | <kbd>Mod</kbd><kbd>Ctrl</kbd><kbd>Shift</kbd><kbd>H</kbd><kbd>J</kbd><kbd>K</kbd><kbd>L</kbd> or <kbd>Mod</kbd><kbd>Ctrl</kbd><kbd>Shift</kbd><kbd>←</kbd><kbd>↓</kbd><kbd>↑</kbd><kbd>→</kbd> | Move the focused column to the monitor to the side |
 | <kbd>Mod</kbd><kbd>U</kbd> or <kbd>Mod</kbd><kbd>PageDown</kbd> | Switch to the workspace below |
 | <kbd>Mod</kbd><kbd>I</kbd> or <kbd>Mod</kbd><kbd>PageUp</kbd> | Switch to the workspace above |
@@ -148,6 +165,10 @@ The general system is: if a hotkey switches somewhere, then adding <kbd>Ctrl</kb
 | <kbd>Mod</kbd><kbd>Shift</kbd><kbd>I</kbd> or <kbd>Mod</kbd><kbd>Shift</kbd><kbd>PageUp</kbd> | Move the focused workspace up |
 | <kbd>Mod</kbd><kbd>[</kbd> | Consume or expel the focused window to the left |
 | <kbd>Mod</kbd><kbd>]</kbd> | Consume or expel the focused window to the right |
+| <kbd>Mod</kbd><kbd>Shift</kbd><kbd>D</kbd> | Switch the focused column between dwindle and scrollable tiling |
+| <kbd>Mod</kbd><kbd>Space</kbd> | Toggle the split orientation of the container holding the focused window (dwindle) |
+| <kbd>Mod</kbd><kbd>Ctrl</kbd><kbd>Space</kbd> | Preselect the split direction for the next window in the focused column (dwindle) |
+| <kbd>Mod</kbd><kbd>Shift</kbd><kbd>Home</kbd> | Move the focused window to the head of its dwindle tree |
 | <kbd>Mod</kbd><kbd>R</kbd> and <kbd>Mod</kbd><kbd>Shift</kbd><kbd>R</kbd> | Toggle between preset column widths forward and back |
 | <kbd>Mod</kbd><kbd>M</kbd> | Maximize window |
 | <kbd>Mod</kbd><kbd>C</kbd> | Center column within view |

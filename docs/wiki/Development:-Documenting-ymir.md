@@ -1,8 +1,8 @@
 ymir's documentation files are found in `docs/wiki/` and should be viewable and browsable in at least three systems:
 
 - The GitHub repo's markdown file preview
-- [The GitHub repo's wiki](https://github.com/ymir-wm/ymir/wiki)
-- [The documentation site](https://ymir-wm.github.io/ymir/)
+- [The GitHub repo's wiki](https://github.com/5raxton/ymir/wiki)
+- [The documentation site](https://5raxton.github.io/ymir/)
 
 ## The GitHub repo's wiki
 

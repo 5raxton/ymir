@@ -416,3 +416,9 @@ binds {
     Super+Alt+L allow-inhibiting=false { spawn "swaylock"; }
 }
 ```
+
+#### Dwindle actions
+
+The dwindle layout mode adds its own actions: `switch-column-display`, `set-column-display`, `toggle-split`, `preselect`, `promote-window`, `move-window-left`/`move-window-right`, `consume-window-into-column`, `expel-window-from-column` and `swap-window-right`/`swap-window-left`.
+The default config binds them to `Mod+Shift+D`, `Mod+Space`, `Mod+Ctrl+Space`, `Mod+Shift+Home`, `Mod+Shift+Left`/`Right`, `Mod+Comma` and `Mod+Period`.
+See the [Dwindle](./Configuration:-Dwindle.md) page for the full documentation and examples.

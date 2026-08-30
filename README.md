@@ -39,24 +39,23 @@ When a monitor disconnects, its workspaces will move to another monitor, but upo
 
 ### Dwindle column mode
 
-On top of the scrollable layout, ymir ships **Dwindle** as its default layout mode: a binary-split, resizable tiling layout inside the scrollable tiling paradigm.
+On top of the scrollable layout, ymir ships **Dwindle** as its default layout mode: a binary-split tiling layout inside the scrollable tiling paradigm. Read the docs at [Configuration: Dwindle](docs/wiki/Configuration:-Dwindle.md).
 
-Dwindle is on by default. New windows split off the focused window into a resizable binary tree.
+Dwindle is on by default. New windows split off the focused window into a binary tree.
 
 Dwindle and classic scrollable tiling are fully switchable at runtime: press `Mod+Shift+D` to toggle the focused column between the two layout modes. A ready-made config is also provided at [resources/dwindle-config.kdl](resources/dwindle-config.kdl).
 
-Once in dwindle mode, windows split the current window into two periodically: the focused node keeps half its size and shrinks into its corner, while the newly opened window takes the freed-up half.
+When a window opens in a dwindle column, the focused window's region is split in two: the focused window keeps the top-left half and shrinks into its corner, while the newly opened window takes the freed-up half. By default, wide regions split side-by-side (the new window lands to the right) and tall or square regions stack (the new window lands at the bottom); you can also preselect a fixed split direction beforehand. New splits start at an equal 50/50 size.
 
 Key bindings (see the example config for the full list):
 
 | Key combo | Action |
 | --- | --- |
 | `Mod+Shift+D` | switch-column-display: toggle the focused column between dwindle and scrollable layout |
-| `Mod+Space` | toggle-split: cycle the split direction of the active window (right/up) |
-| `Mod+Ctrl+Space` | preselect the split side where the next window will open |
-| `Mod+Shift+Home` | promote-window: swap the active node with its sibling's position |
-| `Mod+Shift+Left/Right` | move-window-left/right: swap the focused window with its spatial neighbor in the dwindle tree |
-| `Mod+Shift+H/L` | move-window-left/right (keyboard-row aliases) |
+| `Mod+Space` | toggle-split: flip the split orientation of the focused window's container (side-by-side ↔ stacked) |
+| `Mod+Ctrl+Space` | preselect the split direction for the next window opened in the column (bottom in the default bind) |
+| `Mod+Shift+Home` | promote-window: move the focused window to the head (leftmost) of the dwindle tree |
+| `Mod+Shift+Left/Right` | move-window-left/right: swap the focused window with its spatial neighbor in the dwindle tree (also `Mod+Shift+H/L`) |
 | `Mod+Comma` | consume-window-into-column |
 | `Mod+Period` | expel-window-from-column |
 
@@ -102,6 +101,7 @@ The wiki contains detailed documentation on configuration, key bindings, window 
 - [Configuration introduction](docs/wiki/Configuration:-Introduction.md)
 - [Key bindings](docs/wiki/Configuration:-Key-Bindings.md)
 - [Layout configuration](docs/wiki/Configuration:-Layout.md)
+- [Dwindle layout](docs/wiki/Configuration:-Dwindle.md)
 - [Window rules](docs/wiki/Configuration:-Window-Rules.md)
 - [IPC](docs/wiki/IPC.md)
 - [FAQ](docs/wiki/FAQ.md)

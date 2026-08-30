@@ -4,7 +4,7 @@ First, for creating a ymir package, see the [Packaging](./Packaging-ymir.md) pag
 ### Configuration
 
 Ymir will load configuration from `$XDG_CONFIG_HOME/ymir/config.kdl` or `~/.config/ymir/config.kdl`, falling back to `/etc/ymir/config.kdl`.
-If both of these files are missing, ymir will create `$XDG_CONFIG_HOME/ymir/config.kdl` with the contents of [the default configuration file](https://github.com/ymir-wm/ymir/blob/main/resources/default-config.kdl), which are embedded into the ymir binary at build time.
+If both of these files are missing, ymir will create `$XDG_CONFIG_HOME/ymir/config.kdl` with the contents of [the default configuration file](https://github.com/5raxton/ymir/blob/main/resources/default-config.kdl), which are embedded into the ymir binary at build time.
 
 This means that you can customize your distribution defaults by creating `/etc/ymir/config.kdl`.
 When this file is present, ymir *will not* automatically create a config at `~/.config/ymir/`, so you'll need to direct your users how to do it themselves.
@@ -36,7 +36,7 @@ Make sure your system installer sets the keyboard layout via systemd-localed, an
 ### Autostart
 
 Ymir works with the normal systemd autostart.
-The default [ymir.service](https://github.com/ymir-wm/ymir/blob/main/resources/ymir.service) brings up `graphical-session.target` as well as `xdg-desktop-autostart.target`.
+The default [ymir.service](https://github.com/5raxton/ymir/blob/main/resources/ymir.service) brings up `graphical-session.target` as well as `xdg-desktop-autostart.target`.
 
 To make a program run at ymir startup without editing the ymir config, you can either link its .desktop to `~/.config/autostart/`, or use a .service file with `WantedBy=graphical-session.target`.
 See the [example systemd setup](./Example-systemd-Setup.md) page for some examples.

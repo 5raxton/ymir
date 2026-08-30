@@ -19,7 +19,7 @@ You can find documentation for various sections of the config on these wiki page
 ### Loading
 
 Ymir will load configuration from `$XDG_CONFIG_HOME/ymir/config.kdl` or `~/.config/ymir/config.kdl`, falling back to `/etc/ymir/config.kdl`.
-If both of these files are missing, ymir will create `$XDG_CONFIG_HOME/ymir/config.kdl` with the contents of [the default configuration file](https://github.com/ymir-wm/ymir/blob/main/resources/default-config.kdl), which are embedded into the ymir binary at build time.
+If both of these files are missing, ymir will create `$XDG_CONFIG_HOME/ymir/config.kdl` with the contents of [the default configuration file](https://github.com/5raxton/ymir/blob/main/resources/default-config.kdl), which are embedded into the ymir binary at build time.
 Please use the default configuration file as the starting point for your custom configuration.
 
 The configuration is live-reloaded.

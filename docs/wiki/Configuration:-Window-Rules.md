@@ -610,7 +610,7 @@ Values:
 The default behavior, when this rule is unset, picks between focusing and marking the window urgent based on the serial that the application provides when creating the activation token.
 Requests with a valid serial focus the target window, and requests without a serial mark it urgent.
 
-Requests with a set, but invalid, serial, are always ignored, which you can change with the [`honor-xdg-activation-with-invalid-serial`](https://ymir-wm.github.io/ymir/Configuration%3A-Debug-Options.html#honor-xdg-activation-with-invalid-serial) debug flag.
+Requests with a set, but invalid, serial, are always ignored, which you can change with the [`honor-xdg-activation-with-invalid-serial`](https://5raxton.github.io/ymir/Configuration%3A-Debug-Options.html#honor-xdg-activation-with-invalid-serial) debug flag.
 
 This is useful for apps that steal focus on incoming messages or when opening popup windows like Picture-in-Picture.
 
@@ -672,7 +672,7 @@ window-rule {
 <sup>Since: 25.02</sup>
 
 Set the default display mode for columns created from this window.
-Can be `normal` or `tabbed`.
+Can be `normal`, `tabbed` or `dwindle` (see the [Dwindle](./Configuration:-Dwindle.md) page for dwindle mode).
 
 This is used any time a window goes into its own column.
 For example:

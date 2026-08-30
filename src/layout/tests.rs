@@ -1969,6 +1969,496 @@ fn dwindle_interactive_resize_left_child_edge() {
 }
 
 #[test]
+fn dwindle_resize_moves_outer_divider_seen_from_deep_leaf() {
+    let options = Options {
+        layout: ymir_config::Layout {
+            default_column_display: ymir_ipc::ColumnDisplay::Dwindle,
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+
+    // Build V_root{ H{0, V{2,3}}, 1 } by opening windows on specific leaves: leaf 3 is the
+    // deepest one, nested under the vertical split V{2,3} as its Second child. Leaf 3's right
+    // edge is therefore the ROOT divider — the nearest matching-axis split (V{2,3}) shares its
+    // OTHER edge with window 3, so the old width=26ab logic left the real root divider dead.
+    let mut layout = check_ops_with_options(
+        options,
+        [
+            Op::AddOutput(0),
+            Op::AddWindow { params: TestWindowParams::new(0) },
+            Op::AddWindow { params: TestWindowParams::new(1) },
+            Op::FocusWindow(0),
+            Op::AddWindow { params: TestWindowParams::new(2) },
+            Op::AddWindow { params: TestWindowParams::new(3) },
+        ],
+    );
+    check_ops_on_layout(&mut layout, [Op::CompleteAnimations]);
+
+    let width_of = |layout: &Layout<TestWindow>, id: usize| -> f64 {
+        layout
+            .windows()
+            .find(|(_, win)| *win.id() == id)
+            .unwrap()
+            .1
+            .requested_size()
+            .unwrap()
+            .w as f64
+    };
+
+    let before0 = width_of(&layout, 0);
+    let before1 = width_of(&layout, 1);
+
+    // Dragging leaf 3's right edge rightward must move the ROOT divider: window 0 (root First)
+    // grows and window 1 (root Second) shrinks by the same amount.
+    let w3 = 3usize;
+    assert!(layout.interactive_resize_begin(w3, ResizeEdge::RIGHT));
+    layout.interactive_resize_update(&w3, Point::from((120., 0.)));
+    layout.interactive_resize_end(&w3);
+    check_ops_on_layout(&mut layout, [Op::CompleteAnimations]);
+
+    let after0 = width_of(&layout, 0);
+    let after1 = width_of(&layout, 1);
+
+    assert!(
+        (after0 - before0 - 120.).abs() < 2.,
+        "root divider should move right by the drag: {before0} -> {after0}"
+    );
+    assert!(
+        (before1 - after1 - 120.).abs() < 2.,
+        "right column should shrink by the drag: {before1} -> {after1}"
+    );
+    assert_eq!(
+        after0 + after1,
+        before0 + before1,
+        "total width must be preserved: {before0:?}+{before1:?} -> {after0:?}+{after1:?}"
+    );
+}
+
+#[test]
+fn normal_mode_interactive_resize_resizes_column_not_tree() {
+    // The scrollable (Normal) mode must resize the column width, not a divider ratio: the
+    // accompanying dwindle test asserts the total tiled width is preserved; here it must NOT be.
+    let mut layout = check_ops_with_options(
+        Options::default(),
+        [
+            Op::AddOutput(0),
+            Op::AddWindow { params: TestWindowParams::new(0) },
+            Op::AddWindow { params: TestWindowParams::new(1) },
+            Op::FocusWindow(0),
+        ],
+    );
+    check_ops_on_layout(&mut layout, [Op::CompleteAnimations]);
+
+    let width_of = |layout: &Layout<TestWindow>, id: usize| -> f64 {
+        layout
+            .windows()
+            .find(|(_, win)| *win.id() == id)
+            .unwrap()
+            .1
+            .requested_size()
+            .unwrap()
+            .w as f64
+    };
+
+    let before0 = width_of(&layout, 0);
+    let before1 = width_of(&layout, 1);
+    let width_before = before0 + before1;
+
+    let w0 = 0usize;
+    assert!(layout.interactive_resize_begin(w0, ResizeEdge::RIGHT));
+    // Normal mode uses the absolute-from-start delta: a single frame moves the column by 120px.
+    layout.interactive_resize_update(&w0, Point::from((120., 0.)));
+    layout.interactive_resize_end(&w0);
+    check_ops_on_layout(&mut layout, [Op::CompleteAnimations]);
+
+    let after0 = width_of(&layout, 0);
+    let after1 = width_of(&layout, 1);
+
+    assert!(
+        (after0 - before0 - 120.).abs() < 3.,
+        "the resized column should grow by the drag: {before0} -> {after0}"
+    );
+    assert_eq!(
+        after1, before1,
+        "an untouched neighbor window must not change: {before1} -> {after1}"
+    );
+    // Unlike dwindle mode (where the resized total tiled width is preserved because a divider
+    // moves), the scrollable/canvas resize adds width: the total is NOT preserved.
+    assert_ne!(
+        after0 + after1,
+        width_before,
+        "normal resize must change the total tiled width (dwindle-only behavior is ratio-based)"
+    );
+}
+
+#[test]
+fn dwindle_resize_grab_zones_follow_real_divider() {
+    let options = Options {
+        layout: ymir_config::Layout {
+            default_column_display: ymir_ipc::ColumnDisplay::Dwindle,
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+
+    // V_root{ H{0, V{2,3}}, 1 }: window 3's right edge is the ROOT divider.
+    let mut layout = check_ops_with_options(
+        options,
+        [
+            Op::AddOutput(0),
+            Op::AddWindow { params: TestWindowParams::new(0) },
+            Op::AddWindow { params: TestWindowParams::new(1) },
+            Op::FocusWindow(0),
+            Op::AddWindow { params: TestWindowParams::new(2) },
+            Op::AddWindow { params: TestWindowParams::new(3) },
+        ],
+    );
+    check_ops_on_layout(&mut layout, [Op::CompleteAnimations]);
+
+    let (tile3_pos, tile3_size) = {
+        let (tile, pos, _) = layout
+            .active_workspace()
+            .unwrap()
+            .tiles_with_render_positions()
+            .find(|(tile, ..)| *tile.window().id() == 3)
+            .unwrap();
+        (pos, tile.window().requested_size().unwrap().to_f64())
+    };
+
+    let workspace = layout.active_workspace().unwrap();
+    // Near window 3's right edge (the root divider): the grab zone must report the RIGHT edge,
+    // even though that divider belongs to an OUTER split the leaf isn't directly a child of.
+    let near_right = Point::from((tile3_pos.x + tile3_size.w - 2., tile3_pos.y + tile3_size.h / 2.));
+    assert_eq!(
+        workspace.resize_edges_under(near_right),
+        Some(ResizeEdge::RIGHT),
+        "the outer divider zone must be grabbable from window 3"
+    );
+    // Near its left edge: the inner divider (V{2,3}) zone.
+    let near_left = Point::from((tile3_pos.x + 2., tile3_pos.y + tile3_size.h / 2.));
+    assert_eq!(
+        workspace.resize_edges_under(near_left),
+        Some(ResizeEdge::LEFT),
+        "the inner divider zone must be grabbable from window 3"
+    );
+    // The middle of the tile is not a resize zone.
+    let center = Point::from((tile3_pos.x + tile3_size.w / 2., tile3_pos.y + tile3_size.h / 2.));
+    assert_eq!(workspace.resize_edges_under(center), None);
+
+    // And the same zone radii apply to a leaf of the OTHER dimension (top edge of window 3 is the
+    // H divider above the bottom row).
+    let near_top = Point::from((tile3_pos.x + tile3_size.w / 2., tile3_pos.y + 2.));
+    assert_eq!(workspace.resize_edges_under(near_top), Some(ResizeEdge::TOP));
+}
+
+#[test]
+fn normal_and_dwindle_resize_stay_separate() {
+    // A column toggled to dwindle and back must not mutate the stored width: dwindle runs
+    // full-width off the tree, and leaving it hands the width back untouched.
+    let mut layout = check_ops_with_options(
+        Options::default(),
+        [
+            Op::AddOutput(0),
+            Op::AddWindow { params: TestWindowParams::new(0) },
+            Op::AddWindow { params: TestWindowParams::new(1) },
+            Op::FocusWindow(0),
+        ],
+    );
+    check_ops_on_layout(&mut layout, [Op::CompleteAnimations]);
+
+    let width_of = |layout: &Layout<TestWindow>, id: usize| -> f64 {
+        layout
+            .windows()
+            .find(|(_, win)| *win.id() == id)
+            .unwrap()
+            .1
+            .requested_size()
+            .unwrap()
+            .w as f64
+    };
+
+    let normal_width = width_of(&layout, 0);
+
+    // Toggle the focused column into dwindle: it becomes full width.
+    layout.set_column_display(ymir_ipc::ColumnDisplay::Dwindle);
+    check_ops_on_layout(&mut layout, [Op::CompleteAnimations]);
+    let dwindle_width = width_of(&layout, 0);
+    assert!(
+        dwindle_width > normal_width,
+        "dwindle spans the work area: {normal_width} -> {dwindle_width}"
+    );
+
+    // Resizing in dwindle moves tree ratios (total width preserved), not the stored column width.
+    layout.interactive_resize_begin(0usize, ResizeEdge::RIGHT);
+    layout.interactive_resize_update(&0usize, Point::from((120., 0.)));
+    layout.interactive_resize_end(&0usize);
+    check_ops_on_layout(&mut layout, [Op::CompleteAnimations]);
+    let after_drag = width_of(&layout, 0);
+    assert!(
+        (after_drag - dwindle_width).abs() < 2.,
+        "dwindle drag should grow window 0's share, keeping the box full width"
+    );
+
+    // Toggle back to Normal: the restored column uses its stored width, not the dwindle box.
+    layout.set_column_display(ymir_ipc::ColumnDisplay::Normal);
+    check_ops_on_layout(&mut layout, [Op::CompleteAnimations]);
+    let restored = width_of(&layout, 0);
+    assert!(
+        (restored - normal_width).abs() < 2.,
+        "leaving dwindle must restore the stored column width: {normal_width} -> {restored}"
+    );
+}
+
+#[test]
+fn normal_mode_interactive_resize_left_edge_grows_column() {
+    // Mirror of `dwindle_interactive_resize_left_child_edge` for the scrollable layout: a LEFT
+    // edge drag grows the touched window's COLUMN (absolute sizing), leaves the neighbor column
+    // untouched, and changes the total tiled width (no divider-ratio preservation).
+    let mut layout = check_ops_with_options(
+        Options::default(),
+        [
+            Op::AddOutput(0),
+            Op::AddWindow { params: TestWindowParams::new(0) },
+            Op::AddWindow { params: TestWindowParams::new(1) },
+        ],
+    );
+    check_ops_on_layout(&mut layout, [Op::CompleteAnimations]);
+
+    let width_of = |layout: &Layout<TestWindow>, id: usize| -> f64 {
+        layout
+            .windows()
+            .find(|(_, win)| *win.id() == id)
+            .unwrap()
+            .1
+            .requested_size()
+            .unwrap()
+            .w as f64
+    };
+
+    let before0 = width_of(&layout, 0);
+    let before1 = width_of(&layout, 1);
+
+    // Window 1 sits in its own second column. Dragging its LEFT edge leftward (negative dx)
+    // grows the column: normal mode sizes off the absolute-from-start delta.
+    let w1 = 1usize;
+    assert!(layout.interactive_resize_begin(w1, ResizeEdge::LEFT));
+    layout.interactive_resize_update(&w1, Point::from((-60., 0.)));
+    layout.interactive_resize_end(&w1);
+    check_ops_on_layout(&mut layout, [Op::CompleteAnimations]);
+
+    let after0 = width_of(&layout, 0);
+    let after1 = width_of(&layout, 1);
+
+    assert!(
+        (after1 - before1 - 60.).abs() < 3.,
+        "resized column should grow by the drag: {before1} -> {after1}"
+    );
+    assert_eq!(
+        after0, before0,
+        "the untouched neighbor column must not change: {before0} -> {after0}"
+    );
+    assert_ne!(
+        after0 + after1,
+        before0 + before1,
+        "normal resize changes the total tiled width (dwindle-only behavior is ratio-based)"
+    );
+}
+
+#[test]
+fn normal_mode_interactive_resize_multi_frame_matches_single_frame() {
+    // Unlike dwindle (which is incremental between frames), normal mode sizes off the
+    // absolute-from-start delta: feeding cumulative deltas 30, 50, 120 must produce the same
+    // result as a single 120px drag. If someone "fixed" normal mode to use the incremental
+    // delta, the reference below would diverge.
+    let after_drag = |frames: &[f64]| -> Vec<i32> {
+        let mut layout = check_ops_with_options(
+            Options::default(),
+            [
+                Op::AddOutput(0),
+                Op::AddWindow { params: TestWindowParams::new(0) },
+                Op::AddWindow { params: TestWindowParams::new(1) },
+            ],
+        );
+        check_ops_on_layout(&mut layout, [Op::CompleteAnimations]);
+        assert!(layout.interactive_resize_begin(0usize, ResizeEdge::RIGHT));
+        for dx in frames {
+            layout.interactive_resize_update(&0usize, Point::from((*dx, 0.)));
+        }
+        layout.interactive_resize_end(&0usize);
+        check_ops_on_layout(&mut layout, [Op::CompleteAnimations]);
+        layout
+            .windows()
+            .map(|(_, win)| win.requested_size().unwrap().w)
+            .collect()
+    };
+
+    let multi = after_drag(&[30., 50., 120.]);
+    let single = after_drag(&[120.]);
+    assert_eq!(multi, single, "a cumulative multi-frame drag must match a single-frame drag");
+    assert!(
+        single[0] > single[1],
+        "the dragged window must have grown: {single:?}"
+    );
+}
+
+#[test]
+fn normal_mode_resize_zones_follow_window_thirds() {
+    // Mirror of the dwindle grab-zones test for the scrollable layout. The generic path uses
+    // position-in-tile thirds, so a window's right zone maps to RIGHT etc. This also guards the
+    // dwindle-first dispatch: inside a dwindle column zones track the real divider, outside it
+    // (no tree) the generic path handles the window.
+    let mut layout = check_ops_with_options(
+        Options::default(),
+        [
+            Op::AddOutput(0),
+            Op::AddWindow { params: TestWindowParams::new(0) },
+            Op::AddWindow { params: TestWindowParams::new(1) },
+        ],
+    );
+    check_ops_on_layout(&mut layout, [Op::CompleteAnimations]);
+
+    let (tile1_pos, tile1_bbox) = {
+        let (tile, pos, _) = layout
+            .active_workspace()
+            .unwrap()
+            .tiles_with_render_positions()
+            .find(|(tile, ..)| *tile.window().id() == 1)
+            .unwrap();
+        (pos, tile.tile_size().to_f64())
+    };
+
+    let workspace = layout.active_workspace().unwrap();
+    // The right third of the window is a RIGHT grab zone, the left third a LEFT one, the middle
+    // none. Sample points must lie inside the window's input region (its `tile_size` hit box,
+    // which for TestWindow is the 100x200 bbox), not the stretched layout size.
+    let mid_y = tile1_pos.y + tile1_bbox.h / 2.;
+    let near_right = Point::from((tile1_pos.x + tile1_bbox.w - 2., mid_y));
+    assert_eq!(
+        workspace.resize_edges_under(near_right),
+        Some(ResizeEdge::RIGHT),
+        "the right third must be the RIGHT zone"
+    );
+    let near_left = Point::from((tile1_pos.x + 2., mid_y));
+    assert_eq!(
+        workspace.resize_edges_under(near_left),
+        Some(ResizeEdge::LEFT),
+        "the left third must be the LEFT zone"
+    );
+    let center = Point::from((tile1_pos.x + tile1_bbox.w / 2., mid_y));
+    assert_eq!(
+        workspace.resize_edges_under(center),
+        None,
+        "the middle of the window is not a resize zone"
+    );
+    // The top third is a TOP grab zone (dwindle mirror asserted the same).
+    let near_top = Point::from((tile1_pos.x + tile1_bbox.w / 2., tile1_pos.y + 2.));
+    assert_eq!(workspace.resize_edges_under(near_top), Some(ResizeEdge::TOP));
+}
+
+#[test]
+fn numeric_workspace_tags_apply_layout_to_default_workspaces() {
+    // A `workspace "<number>"` entry is a non-creating layout rule keyed on default workspace
+    // positions: it applies its `layout {}` to the Nth default (unnamed) workspace of every
+    // monitor, without creating a named workspace.
+    let config = ymir_config::Config::parse_mem(
+        r#"
+        workspace "1" {
+            layout {
+                // Override the global default (normal) only for the first default workspace.
+                default-column-display "dwindle"
+            }
+        }
+        "#,
+    )
+    .unwrap();
+
+    let mut layout = Layout::new(Clock::with_time(Duration::ZERO), &config);
+
+    // The numeric entry must not have created a named workspace "1".
+    assert!(
+        layout.find_workspace_by_name("1").is_none(),
+        "numeric workspace entries are non-creating layout rules"
+    );
+
+    // Add an output, mirroring Op::AddOutput.
+    let output = Output::new(
+        "output0".to_owned(),
+        PhysicalProperties {
+            size: Size::from((1280, 720)),
+            subpixel: Subpixel::Unknown,
+            make: String::new(),
+            model: String::new(),
+            serial_number: String::new(),
+        },
+    );
+    output.change_current_state(
+        Some(Mode {
+            size: Size::from((1280, 720)),
+            refresh: 60000,
+        }),
+        None,
+        None,
+        None,
+    );
+    output.user_data().insert_if_missing(|| OutputName {
+        connector: "output0".to_owned(),
+        make: None,
+        model: None,
+        serial: None,
+    });
+    layout.add_output(output, None);
+
+    // Still no named "1" workspace.
+    assert!(layout.find_workspace_by_name("1").is_none());
+
+    // Opening two windows into the first default workspace uses its dwindle override: a
+    // side-by-side full-work-area split (~616 wide each), instead of the global default-normal
+    // auto-width ~100 columns.
+    layout.add_window(
+        TestWindow::new(TestWindowParams::new(0)),
+        AddWindowTarget::Auto,
+        None,
+        None,
+        false,
+        false,
+        ActivateWindow::default(),
+    );
+    layout.add_window(
+        TestWindow::new(TestWindowParams::new(1)),
+        AddWindowTarget::Auto,
+        None,
+        None,
+        false,
+        false,
+        ActivateWindow::default(),
+    );
+
+    let requested: Vec<Size<i32, Logical>> = layout
+        .windows()
+        .map(|(_, win)| win.requested_size().unwrap())
+        .collect();
+    assert!(
+        requested.iter().all(|size| size.w > 400),
+        "default workspace 1 should run the dwindle override: {requested:?}"
+    );
+
+    // A non-numeric workspace entry still creates a named workspace.
+    let named_config = ymir_config::Config::parse_mem(
+        r#"
+        workspace "browser"
+        "#,
+    )
+    .unwrap();
+    let named_layout: Layout<TestWindow> =
+        Layout::new(Clock::with_time(Duration::ZERO), &named_config);
+    assert!(
+        named_layout.find_workspace_by_name("browser").is_some(),
+        "non-numeric workspace entries must still create named workspaces"
+    );
+}
+
+#[test]
 fn dwindle_many_windows_do_not_crash() {
     let options = Options {
         layout: ymir_config::Layout {

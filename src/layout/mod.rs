@@ -2359,6 +2359,40 @@ impl<W: LayoutElement> Layout<W> {
         workspace.set_column_display(display);
     }
 
+    /// Moves the focused apex card of the active depth-queue column to the far end of the queue.
+    pub fn push_active_to_depth_queue(&mut self) {
+        let Some(workspace) = self.active_workspace_mut() else {
+            return;
+        };
+        workspace.push_active_to_depth_queue();
+    }
+
+    /// Promotes the given (or, when `None`, no) window to the apex of the active depth-queue
+    /// column.
+    pub fn pull_to_depth_apex(&mut self, window: Option<&W::Id>) {
+        let Some(workspace) = self.active_workspace_mut() else {
+            return;
+        };
+        workspace.pull_to_depth_apex(window);
+    }
+
+    /// Cycles focus through the active depth-queue column, wrapping from the last back to the
+    /// first.
+    pub fn cycle_depth_queue(&mut self) {
+        let Some(workspace) = self.active_workspace_mut() else {
+            return;
+        };
+        workspace.cycle_depth_queue();
+    }
+
+    /// Toggles the cover multi-view of the active depth-queue column.
+    pub fn toggle_depth_queue_cover(&mut self) {
+        let Some(workspace) = self.active_workspace_mut() else {
+            return;
+        };
+        workspace.toggle_depth_queue_cover();
+    }
+
     pub fn center_column(&mut self) {
         let Some(workspace) = self.active_workspace_mut() else {
             return;

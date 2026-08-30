@@ -21,6 +21,7 @@ pub struct Shaders {
     pub custom_resize: RefCell<Option<ShaderProgram>>,
     pub custom_close: RefCell<Option<ShaderProgram>>,
     pub custom_open: RefCell<Option<ShaderProgram>>,
+    pub depth_card: Option<ShaderProgram>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -30,6 +31,7 @@ pub enum ProgramType {
     Resize,
     Close,
     Open,
+    DepthCard,
 }
 
 impl Shaders {
@@ -148,6 +150,12 @@ impl Shaders {
             })
             .ok();
 
+        let depth_card = compile_depth_card_program(renderer)
+            .map_err(|err| {
+                warn!("error compiling depth card shader: {err:?}");
+            })
+            .ok();
+
         Self {
             border,
             shadow,
@@ -159,6 +167,7 @@ impl Shaders {
             custom_resize: RefCell::new(None),
             custom_close: RefCell::new(None),
             custom_open: RefCell::new(None),
+            depth_card,
         }
     }
 
@@ -207,6 +216,7 @@ impl Shaders {
                 .or_else(|| self.resize.clone()),
             ProgramType::Close => self.custom_close.borrow().clone(),
             ProgramType::Open => self.custom_open.borrow().clone(),
+            ProgramType::DepthCard => self.depth_card.clone(),
         }
     }
 }
@@ -244,6 +254,25 @@ fn compile_resize_program(
             UniformName::new("ymir_clip_to_geometry", UniformType::_1f),
         ],
         &["ymir_tex_prev", "ymir_tex_next"],
+    )
+}
+
+fn compile_depth_card_program(renderer: &mut GlesRenderer) -> Result<ShaderProgram, GlesError> {
+    let mut program = include_str!("depth_card_prelude.frag").to_string();
+    program.push_str(include_str!("depth_card.frag"));
+    program.push_str(include_str!("depth_card_epilogue.frag"));
+    program.push_str(include_str!("rounding_alpha.frag"));
+
+    ShaderProgram::compile(
+        renderer,
+        &program,
+        &[
+            UniformName::new("ymir_depth_bottom", UniformType::_1f),
+            UniformName::new("ymir_depth_tilt_pow", UniformType::_1f),
+            UniformName::new("ymir_min_opacity", UniformType::_1f),
+            UniformName::new("ymir_corner_radius", UniformType::_4f),
+        ],
+        &["ymir_tex"],
     )
 }
 

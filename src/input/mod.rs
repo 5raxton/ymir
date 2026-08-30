@@ -1663,6 +1663,51 @@ impl State {
                 // FIXME: granular
                 self.ymir.queue_redraw_all();
             }
+            Action::FocusCardUp => {
+                self.ymir.layout.focus_up();
+                self.maybe_warp_cursor_to_focus();
+                // FIXME: granular
+                self.ymir.queue_redraw_all();
+            }
+            Action::FocusCardDown => {
+                self.ymir.layout.focus_down();
+                self.maybe_warp_cursor_to_focus();
+                // FIXME: granular
+                self.ymir.queue_redraw_all();
+            }
+            Action::PushToQueue => {
+                self.ymir.layout.push_active_to_depth_queue();
+                self.maybe_warp_cursor_to_focus();
+                // FIXME: granular
+                self.ymir.queue_redraw_all();
+            }
+            Action::PullToApex => {
+                self.ymir.layout.pull_to_depth_apex(None);
+                self.maybe_warp_cursor_to_focus();
+                // FIXME: granular
+                self.ymir.queue_redraw_all();
+            }
+            Action::PullToApexById(id) => {
+                let window = self.ymir.layout.windows().find(|(_, m)| m.id().get() == id);
+                let window = window.map(|(_, m)| m.window.clone());
+                if let Some(window) = window {
+                    self.ymir.layout.pull_to_depth_apex(Some(&window));
+                    self.maybe_warp_cursor_to_focus();
+                    // FIXME: granular
+                    self.ymir.queue_redraw_all();
+                }
+            }
+            Action::CycleQueueDepth => {
+                self.ymir.layout.cycle_depth_queue();
+                self.maybe_warp_cursor_to_focus();
+                // FIXME: granular
+                self.ymir.queue_redraw_all();
+            }
+            Action::ToggleQueueCover => {
+                self.ymir.layout.toggle_depth_queue_cover();
+                // FIXME: granular
+                self.ymir.queue_redraw_all();
+            }
             Action::SwitchPresetColumnWidth => {
                 self.ymir.layout.toggle_width(true);
             }

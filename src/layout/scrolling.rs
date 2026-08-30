@@ -1,10 +1,12 @@
+use std::cell::RefCell;
 use std::cmp::{max, min};
+use std::collections::HashMap;
 use std::iter::{self, zip};
 use std::rc::Rc;
 use std::time::Duration;
 
 use ordered_float::NotNan;
-use smithay::backend::renderer::gles::GlesRenderer;
+use smithay::backend::renderer::gles::{GlesRenderer, Uniform};
 use smithay::utils::{Logical, Point, Rectangle, Scale, Serial, Size};
 use ymir_config::utils::MergeWith as _;
 use ymir_config::{CenterFocusedColumn, PresetSize, Struts};
@@ -16,11 +18,18 @@ use super::monitor::InsertPosition;
 use super::tab_indicator::{TabIndicator, TabIndicatorRenderElement, TabInfo};
 use super::tile::{Tile, TileRenderElement, TileRenderSnapshot};
 use super::workspace::{InteractiveResize, ResolvedSize};
-use super::{ConfigureIntent, HitType, InteractiveResizeData, LayoutElement, Options, RemovedTile};
+use super::{ConfigureIntent, HitType, InteractiveResizeData, LayoutElement, LayoutElementRenderElement, Options, RemovedTile};
 use crate::animation::{Animation, Clock};
 use crate::input::swipe_tracker::SwipeTracker;
 use crate::layout::{RenderLayer, SizingMode};
+use crate::render_helpers::background_effect::RenderParams;
+use crate::render_helpers::blur::BlurOptions;
+use crate::render_helpers::framebuffer_effect::{FramebufferEffect, FramebufferEffectElement};
+use crate::render_helpers::offscreen::OffscreenBuffer;
 use crate::render_helpers::renderer::YmirRenderer;
+use crate::render_helpers::shader_element::ShaderRenderElement;
+use crate::render_helpers::shadow::ShadowRenderElement;
+use crate::render_helpers::shaders::ProgramType;
 use crate::render_helpers::xray::XrayPos;
 use crate::render_helpers::RenderCtx;
 use crate::utils::id::IdCounter;
@@ -101,6 +110,9 @@ ymir_render_elements! {
         Tile = TileRenderElement<R>,
         ClosingWindow = ClosingWindowRenderElement,
         TabIndicator = TabIndicatorRenderElement,
+        DepthCard = ShaderRenderElement,
+        DepthShadow = ShadowRenderElement,
+        DepthBlur = FramebufferEffectElement,
     }
 }
 
@@ -247,6 +259,114 @@ pub struct Column<W: LayoutElement> {
 
     /// Unique ID of this column.
     id: ColumnId,
+
+    /// Depth-queue display mode state (only meaningful when `display_mode == Depth`).
+    depth: DepthState,
+}
+
+/// Which deck of the depth queue a card fans into.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum DeckSide {
+    Top,
+    Bottom,
+}
+
+/// Animated pose of a single depth-queue card.
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct DepthCardAnim {
+    /// Offset of the card's near (apex-facing) edge from the apex's same edge, in logical px.
+    ///
+    /// Positive for the bottom deck (down), negative for the top deck (up).
+    offset_y: f64,
+    /// Perspective squash (< 1.0 for deck cards).
+    scale_y: f64,
+    /// Fan tilt around the far edge, in radians.
+    rot_x: f32,
+    /// Opacity (1.0 at the apex, `min_opacity` at the far deck).
+    opacity: f32,
+}
+
+impl DepthCardAnim {
+    fn apex() -> Self {
+        Self {
+            offset_y: 0.,
+            scale_y: 1.,
+            rot_x: 0.,
+            opacity: 1.,
+        }
+    }
+}
+
+/// Per-degree-of-freedom spring driving one depth card during the shuffle.
+#[derive(Debug, Clone)]
+struct DepthCardSprings {
+    offset_y: Animation,
+    scale_y: Animation,
+    rot_x: Animation,
+    opacity: Animation,
+}
+
+/// State of the depth-queue ("depth") column display mode.
+///
+/// The queue order is the column's `tiles` order, kept in sync by the same word-order discipline as
+/// the dwindle tree (`apply_permutation` fits ancestry); the apex is `active_tile_idx`. Only the
+/// spring-driven animation geometry lives here: the rest is derived from `tiles`/`active_tile_idx`
+/// on demand, which keeps every invariant (open/focus/close/reorder/mode-conversion) centralized.
+#[derive(Debug)]
+struct DepthState {
+    /// Animated pose of every card, parallel to `tiles`.
+    anim: Vec<DepthCardAnim>,
+    /// Springs driving the current shuffle, parallel to `tiles`.
+    springs: Vec<DepthCardSprings>,
+    /// Whether the whole queue is fanned out ("cover" multi-view).
+    cover: bool,
+    /// Whether the shuffle is currently running (any spring not converged).
+    is_shuffling: bool,
+    /// Cached offscreen snapshot of each card's window content, parallel to `tiles`. The apex
+    /// entry is unused. Interior mutability lets the render pass (which holds `&self`) refresh the
+    /// texture while hovering over the cached poses.
+    snapshots: RefCell<Vec<OffscreenBuffer>>,
+    /// Persisted element id for the deck-region backdrop blur, so the compositor can keep the
+    /// blur's intermediate textures between frames.
+    blur: FramebufferEffect,
+}
+
+impl DepthState {
+    fn new() -> Self {
+        Self {
+            anim: Vec::new(),
+            springs: Vec::new(),
+            cover: false,
+            is_shuffling: false,
+            snapshots: RefCell::new(Vec::new()),
+            blur: FramebufferEffect::new(),
+        }
+    }
+}
+
+impl DepthCardSprings {
+    /// Static springs, snapped to `pose`. Used when the fan is built or reset without shuffling,
+    /// so `depth_update` always has a parallel (already-converged) spring per card.
+    fn static_from(clock: Clock, pose: DepthCardAnim, config: ymir_config::Animation) -> Self {
+        Self {
+            offset_y: Animation::new(clock.clone(), pose.offset_y, pose.offset_y, 0., config),
+            scale_y: Animation::new(clock.clone(), pose.scale_y, pose.scale_y, 0., config),
+            rot_x: Animation::new(
+                clock.clone(),
+                f64::from(pose.rot_x),
+                f64::from(pose.rot_x),
+                0.,
+                config,
+            ),
+            opacity: Animation::new(
+                clock,
+                f64::from(pose.opacity),
+                f64::from(pose.opacity),
+                0.,
+                config,
+            ),
+        }
+    }
 }
 
 /// Extra per-tile data.
@@ -1157,6 +1277,7 @@ impl<W: LayoutElement> ScrollingSpace<W> {
 
         let tile = column.tiles.remove(tile_idx);
         column.data.remove(tile_idx);
+        column.depth_on_remove(tile_idx);
 
         // If an active column became non-fullscreen after removing the tile, clear the stored
         // unfullscreen offset.
@@ -2443,6 +2564,7 @@ impl<W: LayoutElement> ScrollingSpace<W> {
             ColumnDisplay::Normal => ColumnDisplay::Tabbed,
             ColumnDisplay::Tabbed => ColumnDisplay::Normal,
             ColumnDisplay::Dwindle => ColumnDisplay::Normal,
+            ColumnDisplay::Depth => ColumnDisplay::Tabbed,
         };
 
         self.set_column_display(display);
@@ -2455,9 +2577,10 @@ impl<W: LayoutElement> ScrollingSpace<W> {
 
         let col = &mut self.columns[self.active_column_idx];
         let display = match col.display_mode {
-            ColumnDisplay::Dwindle => ColumnDisplay::Normal,
             ColumnDisplay::Normal => ColumnDisplay::Dwindle,
-            ColumnDisplay::Tabbed => ColumnDisplay::Dwindle,
+            ColumnDisplay::Dwindle => ColumnDisplay::Depth,
+            ColumnDisplay::Depth => ColumnDisplay::Tabbed,
+            ColumnDisplay::Tabbed => ColumnDisplay::Normal,
         };
 
         self.set_column_display(display);
@@ -2493,7 +2616,7 @@ impl<W: LayoutElement> ScrollingSpace<W> {
         // Disable fullscreen if needed.
         if !matches!(
             col.display_mode,
-            ColumnDisplay::Tabbed | ColumnDisplay::Dwindle
+            ColumnDisplay::Tabbed | ColumnDisplay::Dwindle | ColumnDisplay::Depth
         ) && col.tiles.len() > 1
         {
             let window = col.tiles[col.active_tile_idx].window().id().clone();
@@ -2510,6 +2633,58 @@ impl<W: LayoutElement> ScrollingSpace<W> {
 
         let col = &mut self.columns[self.active_column_idx];
         col.toggle_split();
+    }
+
+    /// Moves the focused apex card of the active depth-queue column to the far end of the queue.
+    /// No-op (and still safe) when the active column isn't in depth mode.
+    pub fn push_active_to_depth_queue(&mut self) {
+        if self.columns.is_empty() {
+            return;
+        }
+
+        self.columns[self.active_column_idx].depth_push_active_to_queue();
+    }
+
+    /// Promotes the window to the apex of the active depth-queue column (the apex already for
+    /// `None`). No-op when the active column isn't in depth mode.
+    pub fn pull_to_depth_apex(&mut self, window: Option<&W::Id>) {
+        if self.columns.is_empty() {
+            return;
+        }
+
+        let col = &mut self.columns[self.active_column_idx];
+        if !col.is_depth() {
+            return;
+        }
+
+        if let Some(id) = window {
+            // Only windows actually in this column can move; foreign windows are ignored.
+            if col.position(id).is_none() {
+                return;
+            }
+        }
+
+        col.depth_pull_to_apex(window);
+    }
+
+    /// Cycles focus through the active depth-queue column, wrapping from the last back to the
+    /// first. No-op when the active column isn't in depth mode.
+    pub fn cycle_depth_queue(&mut self) {
+        if self.columns.is_empty() {
+            return;
+        }
+
+        self.columns[self.active_column_idx].depth_cycle_queue();
+    }
+
+    /// Toggles the cover multi-view of the active depth-queue column. No-op when the active column
+    /// isn't in depth mode.
+    pub fn toggle_depth_queue_cover(&mut self) {
+        if self.columns.is_empty() {
+            return;
+        }
+
+        self.columns[self.active_column_idx].depth_toggle_cover();
     }
 
     /// Sets a one-time directional override for the next window opened in the active column
@@ -3315,6 +3490,17 @@ impl<W: LayoutElement> ScrollingSpace<W> {
                     .render(ctx.renderer, pos, &mut |elem| push(elem.into()));
             }
 
+            // Draw the depth deck (backdrop blur, card shadows, fanned cards) behind the apex tile.
+            if col.is_depth() && col.sizing_mode().is_normal() {
+                col.render_depth_cards(
+                    ctx.r(),
+                    col_pos,
+                    scale,
+                    xray_pos,
+                    &mut |elem| push(elem),
+                );
+            }
+
             for (tile, tile_off, visible) in col.tiles_in_render_order() {
                 let tile_pos = col_pos + tile_off + tile.render_offset();
                 // Round to physical pixels.
@@ -3331,7 +3517,7 @@ impl<W: LayoutElement> ScrollingSpace<W> {
                 // mode, so we don't want to apply "visible" immediately. However, "visible" is
                 // also used for input handling, and there we *do* want to apply it immediately.
                 // So, let's just selectively ignore "visible" here when animating alpha.
-                let visible = visible || tile.alpha_animation.is_some();
+                let visible = visible || (tile.alpha_animation.is_some() && !col.is_depth());
                 if !visible {
                     continue;
                 }
@@ -4388,6 +4574,7 @@ impl<W: LayoutElement> Column<W> {
             clock: tile.clock.clone(),
             options,
             id: ColumnId::next(),
+            depth: DepthState::new(),
         };
 
         let pending_sizing_mode = tile.window().pending_sizing_mode();
@@ -4502,6 +4689,8 @@ impl<W: LayoutElement> Column<W> {
             tile.advance_animations();
         }
 
+        self.depth_update();
+
         self.tab_indicator.advance_animations();
     }
 
@@ -4510,6 +4699,7 @@ impl<W: LayoutElement> Column<W> {
             || self.move_y_animation.is_some()
             || self.tab_indicator.are_animations_ongoing()
             || self.tiles.iter().any(Tile::are_animations_ongoing)
+            || self.depth_is_shuffling()
     }
 
     pub fn are_transitions_ongoing(&self) -> bool {
@@ -4794,6 +4984,10 @@ impl<W: LayoutElement> Column<W> {
 
         self.tiles[idx].ensure_alpha_animates_to_1();
 
+        if self.is_depth() {
+            self.depth_restart_shuffle();
+        }
+
         true
     }
 
@@ -4824,6 +5018,7 @@ impl<W: LayoutElement> Column<W> {
         self.data
             .insert(idx, TileData::new(&tile, WindowHeight::auto_1()));
         self.tiles.insert(idx, tile);
+        self.depth_on_add();
         self.update_tile_sizes(true);
 
         // Animate tiles according to the offset changes.
@@ -5052,9 +5247,12 @@ impl<W: LayoutElement> Column<W> {
         let sizing_mode = self.pending_sizing_mode();
         if matches!(sizing_mode, SizingMode::Fullscreen | SizingMode::Maximized) {
             for (tile_idx, tile) in self.tiles.iter_mut().enumerate() {
-                // In tabbed mode, only the visible window participates in the transaction.
+                // In tabbed and depth mode, only the visible window participates in the transaction.
                 let is_active = tile_idx == self.active_tile_idx;
-                let transaction = if self.display_mode == ColumnDisplay::Tabbed && !is_active {
+                let transaction = if (self.display_mode == ColumnDisplay::Tabbed
+                    || self.display_mode == ColumnDisplay::Depth)
+                    && !is_active
+                {
                     None
                 } else {
                     Some(transaction.clone())
@@ -5065,6 +5263,23 @@ impl<W: LayoutElement> Column<W> {
                 } else {
                     tile.request_maximized(self.parent_area.size, animate, transaction);
                 }
+            }
+            return;
+        }
+
+        if self.is_depth() {
+            // Depth geometry is entirely determined by the fan: every card is sized to the apex
+            // card, centered in the working area. Non-apex cards don't participate in the
+            // transaction, since they don't report geometry to the compositor.
+            let apex_size = self.depth_content_rect().size;
+            for (tile_idx, tile) in self.tiles.iter_mut().enumerate() {
+                let is_active = tile_idx == self.active_tile_idx;
+                let transaction = if is_active {
+                    Some(transaction.clone())
+                } else {
+                    None
+                };
+                tile.request_tile_size(apex_size, animate, transaction);
             }
             return;
         }
@@ -5438,6 +5653,7 @@ impl<W: LayoutElement> Column<W> {
 
         self.tiles.swap(self.active_tile_idx, new_idx);
         self.data.swap(self.active_tile_idx, new_idx);
+        self.depth_on_swap(self.active_tile_idx, new_idx);
         self.active_tile_idx = new_idx;
 
         // Animate the movement.
@@ -5465,6 +5681,7 @@ impl<W: LayoutElement> Column<W> {
 
         self.tiles.swap(self.active_tile_idx, new_idx);
         self.data.swap(self.active_tile_idx, new_idx);
+        self.depth_on_swap(self.active_tile_idx, new_idx);
         self.active_tile_idx = new_idx;
 
         // Animate the movement.
@@ -5932,6 +6149,8 @@ impl<W: LayoutElement> Column<W> {
             return;
         }
 
+        let was_depth = self.is_depth();
+
         // Capture the animated positions of all tiles in the current mode.
         let prev_offsets: Vec<Point<f64, Logical>> =
             self.tile_offsets().take(self.tiles.len()).collect();
@@ -5947,7 +6166,19 @@ impl<W: LayoutElement> Column<W> {
             self.is_full_width = false;
         }
 
+        // Entering depth: the queue order is the current tile order, the apex is the current
+        // focus, and the fan is built in place (no rush into state) so the transition into the
+        // mode reads as the apex sliding into place and the deck forming beneath it.
+        let entering_depth = display == ColumnDisplay::Depth && !was_depth;
+        let leaving_depth = was_depth && display != ColumnDisplay::Depth;
+
         self.display_mode = display;
+
+        if entering_depth {
+            self.depth_build();
+        } else if leaving_depth {
+            self.depth_reset();
+        }
 
         // Animate tiles according to the offset changes.
         let new_offsets: Vec<Point<f64, Logical>> =
@@ -5962,14 +6193,17 @@ impl<W: LayoutElement> Column<W> {
         // Animate the opacity.
         for (idx, tile) in self.tiles.iter_mut().enumerate() {
             let is_active = idx == self.active_tile_idx;
-            if !is_active {
-                let (from, to) = if display == ColumnDisplay::Tabbed {
-                    (1., 0.)
-                } else {
-                    (0., 1.)
-                };
-                tile.animate_alpha(from, to, self.options.animations.window_movement.0);
+            if is_active || display == ColumnDisplay::Depth {
+                // Deck cards are drawn by the depth renderer with per-card opacity; the tile
+                // path never draws them in depth mode, so leave their window alpha alone.
+                continue;
             }
+            let (from, to) = if display == ColumnDisplay::Tabbed {
+                (1., 0.)
+            } else {
+                (0., 1.)
+            };
+            tile.animate_alpha(from, to, self.options.animations.window_movement.0);
         }
 
         // Animate the appearance of the tab indicator.
@@ -5981,6 +6215,612 @@ impl<W: LayoutElement> Column<W> {
         }
 
         self.update_tile_sizes(true);
+    }
+
+    fn is_depth(&self) -> bool {
+        self.display_mode == ColumnDisplay::Depth
+    }
+
+    /// Whether the depth deck is visible: depth mode in a normal (non-max/fullscreen) sizing mode.
+    fn is_depth_visible(&self) -> bool {
+        self.is_depth() && self.sizing_mode().is_normal()
+    }
+
+    /// The spring animation config driving the shuffle, resolved from `layout.depth_queue`.
+    fn depth_spring_config(&self) -> ymir_config::Animation {
+        let params = self.options.layout.depth_queue.focus_shuffle;
+        ymir_config::Animation {
+            off: false,
+            kind: ymir_config::animations::Kind::Spring(params),
+        }
+    }
+
+    /// Rectangle of the apex card, in column space.
+    ///
+    /// The apex is full column width and `card_height_ratio` of the working area's height, centered
+    /// vertically within the working area (so the top and bottom decks have equal air around it).
+    fn depth_content_rect(&self) -> Rectangle<f64, Logical> {
+        let cfg = &self.options.layout.depth_queue;
+        let height = self.working_area.size.h - self.options.layout.gaps * 2.;
+        let width = self.resolve_column_width(self.width);
+        let apex_h = (height * cfg.card_height_ratio).max(1.);
+        let size = Size::from((width, apex_h));
+        let mut loc = self.tiles_origin();
+        loc.y += (height - apex_h) / 2.;
+
+        Rectangle::new(loc, size)
+    }
+
+    /// Rectangles of all deck (non-apex) cards, positioned by the current animated poses.
+    ///
+    /// Only cards that are actually visible in the fan are returned (opacity > 0). Used by the
+    /// deck renderer to compute the blur-backdrop union rect and to draw each card at its fanned
+    /// position.
+    fn depth_deck_rects(&self) -> Vec<(usize, DepthCardAnim)> {
+        if !self.is_depth_visible() {
+            return Vec::new();
+        }
+        self.depth
+            .anim
+            .iter()
+            .enumerate()
+            .filter(|(i, pose)| *i != self.active_tile_idx && pose.opacity > 0.)
+            .map(|(i, pose)| (i, *pose))
+            .collect()
+    }
+
+    /// The rendered rect of a card with pose `pose` in column space: its near edge sits at
+    /// `depth_content_rect()`'s same edge plus `pose.offset_y`, sized to the apex height times
+    /// `pose.scale_y`.
+    fn depth_card_rect(&self, pose: DepthCardAnim) -> Rectangle<f64, Logical> {
+        let content = self.depth_content_rect();
+        let height = (content.size.h * pose.scale_y).max(1.);
+        let y = if pose.offset_y >= 0. {
+            content.loc.y + content.size.h + pose.offset_y
+        } else {
+            content.loc.y + pose.offset_y - height
+        };
+        Rectangle::new(
+            Point::from((content.loc.x, y)),
+            Size::from((content.size.w, height)),
+        )
+    }
+
+    /// Goal (steady-state) pose of the card at `tile_idx`, from the committed fan geometry.
+    fn depth_goal_pose(&self, tile_idx: usize) -> DepthCardAnim {
+        let cfg = &self.options.layout.depth_queue;
+        let len = self.tiles.len();
+        let active = self.active_tile_idx;
+
+        if tile_idx == active {
+            return DepthCardAnim::apex();
+        }
+
+        let side = if tile_idx < active {
+            DeckSide::Top
+        } else {
+            DeckSide::Bottom
+        };
+        let s = tile_idx.abs_diff(active);
+        let top_cap = min(active, cfg.top_deck_size);
+        let bottom_cap = min(len - active - 1, cfg.bottom_deck_size);
+        let slots = max(top_cap, max(bottom_cap, 1)) as f64;
+
+        if self.depth.cover {
+            // Cover mode: fan the whole deck so every card peeks out, bounded by the air around the
+            // apex card. Slots interpolate across the entire non-apex deck.
+            let t = if len <= 1 {
+                0.
+            } else {
+                (s as f64 / (len - 1) as f64).clamp(0., 1.)
+            };
+            let squash = 1. / (1. + 0.15 * t);
+            let opacity =
+                (1. - (1. - cfg.min_opacity as f32) * t as f32).clamp(cfg.min_opacity as f32, 1.);
+            let rot_x = cfg.perspective_tilt.to_radians() as f32 * t as f32 * 0.5;
+            let apex_h = self.depth_content_rect().size.h;
+            let air = (self.working_area.size.h - self.options.layout.gaps * 2. - apex_h) / 2.
+                - cfg.deck_bleed;
+            let air = air.max(0.);
+            let base = cfg.deck_bleed + air * t;
+            let offset_y = match side {
+                DeckSide::Top => -base,
+                DeckSide::Bottom => base,
+            };
+            return DepthCardAnim {
+                offset_y,
+                scale_y: squash,
+                rot_x,
+                opacity,
+            };
+        }
+
+        // Cards outside their own deck's fan are hidden entirely.
+        let cap = match side {
+            DeckSide::Top => top_cap,
+            DeckSide::Bottom => bottom_cap,
+        };
+        if s > cap {
+            return DepthCardAnim {
+                offset_y: 0.,
+                scale_y: 0.9,
+                rot_x: 0.,
+                opacity: 0.,
+            };
+        }
+
+        let s = s as f64;
+        let squash = 1. / (1. + 0.10 * s);
+        let fade = (s / slots).clamp(0., 1.) as f32;
+        let opacity =
+            (1. - (1. - cfg.min_opacity as f32) * fade).clamp(cfg.min_opacity as f32, 1.);
+        let rot_x = cfg.perspective_tilt.to_radians() as f32 * s as f32;
+        let base = cfg.gap * s + cfg.deck_bleed;
+        let offset_y = match side {
+            DeckSide::Top => -base,
+            DeckSide::Bottom => base,
+        };
+
+        DepthCardAnim {
+            offset_y,
+            scale_y: squash,
+            rot_x,
+            opacity,
+        }
+    }
+
+    /// Builds the fan in place: every card is snapped to its goal pose and the shuffle is idle.
+    fn depth_build(&mut self) {
+        self.depth.cover = false;
+        let len = self.tiles.len();
+        self.depth.anim = (0..len).map(|i| self.depth_goal_pose(i)).collect();
+        let clock = self.clock.clone();
+        let config = self.depth_spring_config();
+        self.depth.springs = self
+            .depth
+            .anim
+            .iter()
+            .map(|pose| DepthCardSprings::static_from(clock.clone(), *pose, config))
+            .collect();
+        self.depth.snapshots.borrow_mut().clear();
+        self.depth
+            .snapshots
+            .borrow_mut()
+            .resize_with(len, OffscreenBuffer::default);
+        self.depth.is_shuffling = false;
+    }
+
+    fn depth_reset(&mut self) {
+        self.depth.anim.clear();
+        self.depth.springs.clear();
+        self.depth.snapshots.borrow_mut().clear();
+        self.depth.cover = false;
+        self.depth.is_shuffling = false;
+    }
+
+    /// Reconciles the animation arrays with `tiles` so a length mismatch (e.g. a tile closed from
+    /// one of the paths that doesn't touch the depth state) can never panic the animation code.
+    fn depth_sync(&mut self) {
+        let len = self.tiles.len();
+        if self.depth.anim.len() == len && self.depth.springs.len() == len {
+            return;
+        }
+
+        if len == 0 {
+            self.depth_reset();
+            return;
+        }
+
+        if self.depth.anim.len() > len {
+            self.depth.anim.truncate(len);
+        } else {
+            self.depth.anim.resize(len, DepthCardAnim::apex());
+        }
+
+        let clock = self.clock.clone();
+        let config = self.depth_spring_config();
+        while self.depth.springs.len() < len {
+            let pose = self.depth.anim[self.depth.springs.len()];
+            self.depth.springs
+                .push(DepthCardSprings::static_from(clock.clone(), pose, config));
+        }
+        self.depth.springs.truncate(len);
+        self.depth.snapshots.borrow_mut().clear();
+        self.depth
+            .snapshots
+            .borrow_mut()
+            .resize_with(len, OffscreenBuffer::default);
+        self.depth.is_shuffling = false;
+    }
+
+    /// Called after a tile was inserted. The new card starts at the apex pose so it appears to
+    /// bounce into the deck as the rest of the fan re-flows.
+    fn depth_on_add(&mut self) {
+        if !self.is_depth() {
+            return;
+        }
+        let len = self.tiles.len();
+        if self.depth.anim.len() + 1 != len {
+            self.depth_sync();
+        } else {
+            self.depth.anim.push(DepthCardAnim::apex());
+            let clock = self.clock.clone();
+            let config = self.depth_spring_config();
+            self.depth
+                .springs
+                .push(DepthCardSprings::static_from(
+                    clock,
+                    DepthCardAnim::apex(),
+                    config,
+                ));
+            self.depth.snapshots.borrow_mut().push(OffscreenBuffer::default());
+        }
+        self.depth_restart_shuffle();
+    }
+
+    /// Called after two tiles were swapped (move up/down in the queue). Keeps the per-card pose
+    /// with its window and re-fans so the queue's apex follows the moved window.
+    fn depth_on_swap(&mut self, a: usize, b: usize) {
+        if !self.is_depth() {
+            return;
+        }
+        if self.depth.anim.len() == self.tiles.len() {
+            self.depth.anim.swap(a, b);
+            self.depth.springs.swap(a, b);
+            self.depth.snapshots.borrow_mut().swap(a, b);
+        } else {
+            self.depth_sync();
+        }
+        self.depth_restart_shuffle();
+    }
+
+    /// Called after a tile was removed at `tile_idx` (i.e. `tiles` no longer contains it). Drops
+    /// the removed card's pose, keeps every remaining pose with its window, and re-fans. A single
+    /// remaining card is trivially the apex.
+    fn depth_on_remove(&mut self, tile_idx: usize) {
+        if !self.is_depth() {
+            return;
+        }
+        if self.depth.anim.len() == self.tiles.len() + 1 {
+            self.depth.anim.remove(tile_idx);
+            self.depth.springs.remove(tile_idx);
+            self.depth.snapshots.borrow_mut().remove(tile_idx);
+        } else {
+            self.depth_sync();
+        }
+        if self.tiles.len() <= 1 {
+            self.depth.anim = vec![DepthCardAnim::apex()];
+            self.depth.springs = self
+                .depth
+                .anim
+                .iter()
+                .map(|pose| {
+                    DepthCardSprings::static_from(
+                        self.clock.clone(),
+                        *pose,
+                        self.depth_spring_config(),
+                    )
+                })
+                .collect();
+            self.depth.snapshots.borrow_mut().clear();
+            self.depth
+                .snapshots
+                .borrow_mut()
+                .resize_with(1, OffscreenBuffer::default);
+            self.depth.is_shuffling = false;
+            return;
+        }
+        self.depth_restart_shuffle();
+    }
+
+    /// Restarts every card's spring from its *current* animated pose (never from a goal), so a
+    /// rapid chain of focus/Push/Pull inputs mid-flight chains the next shuffle without teleports
+    /// or snaps.
+    fn depth_restart_shuffle(&mut self) {
+        if !self.is_depth() {
+            return;
+        }
+        self.depth_sync();
+        let clock = self.clock.clone();
+        let config = self.depth_spring_config();
+        let len = self.tiles.len();
+        for i in 0..len {
+            let goal = self.depth_goal_pose(i);
+            let cur = self.depth.anim[i];
+            self.depth.springs[i] = DepthCardSprings {
+                offset_y: Animation::new(
+                    clock.clone(),
+                    cur.offset_y,
+                    goal.offset_y,
+                    0.,
+                    config,
+                ),
+                scale_y: Animation::new(clock.clone(), cur.scale_y, goal.scale_y, 0., config),
+                rot_x: Animation::new(
+                    clock.clone(),
+                    f64::from(cur.rot_x),
+                    f64::from(goal.rot_x),
+                    0.,
+                    config,
+                ),
+                opacity: Animation::new(
+                    clock.clone(),
+                    f64::from(cur.opacity),
+                    f64::from(goal.opacity),
+                    0.,
+                    config,
+                ),
+            };
+        }
+        self.depth.is_shuffling = true;
+    }
+
+    /// Applies the springs to the animated poses and tracks whether the shuffle converged.
+    fn depth_update(&mut self) {
+        if !self.is_depth() {
+            return;
+        }
+        self.depth_sync();
+        let mut running = false;
+        for i in 0..self.tiles.len() {
+            let springs = &self.depth.springs[i];
+            let anim = &mut self.depth.anim[i];
+            anim.offset_y = springs.offset_y.value();
+            anim.scale_y = springs.scale_y.value().max(0.1);
+            anim.rot_x = springs.rot_x.value().clamp(-1.5, 1.5) as f32;
+            anim.opacity = springs.opacity.value().clamp(0., 1.) as f32;
+            running |= !springs.offset_y.is_done()
+                || !springs.scale_y.is_done()
+                || !springs.rot_x.is_done()
+                || !springs.opacity.is_done();
+        }
+        self.depth.is_shuffling = running;
+    }
+
+    pub(super) fn depth_is_shuffling(&self) -> bool {
+        self.is_depth() && self.depth.is_shuffling
+    }
+
+    /// Renders the depth deck behind the apex card: a backdrop blur over the whole fan, then each
+    /// card's shadow and its window contents composited with the fake perspective.
+    ///
+    /// Deck cards snapshot their window contents to a per-card offscreen texture per frame; the
+    /// quads are drawn with the depth-card shader which applies the squash/tilt remap and the
+    /// opacity fade towards the far edge. Cards are drawn far-to-near so nearer cards cover the
+    /// farther ones.
+    pub(super) fn render_depth_cards<R: YmirRenderer>(
+        &self,
+        mut ctx: RenderCtx<R>,
+        col_pos: Point<f64, Logical>,
+        scale: Scale<f64>,
+        xray_pos: XrayPos,
+        push: &mut dyn FnMut(ScrollingSpaceRenderElement<R>),
+    ) {
+        if !self.is_depth_visible() {
+            return;
+        }
+        let deck = self.depth_deck_rects();
+        if deck.is_empty() {
+            return;
+        }
+
+        let cfg = &self.options.layout.depth_queue;
+        let active = self.active_tile_idx;
+
+        // Blurred backdrop behind the whole fanned deck.
+        if cfg.blur_radius > 0. {
+            let mut union: Option<Rectangle<f64, Logical>> = None;
+            for (_, pose) in &deck {
+                let rect = self.depth_card_rect(*pose);
+                union = Some(match union {
+                    None => rect,
+                    Some(u) => u.merge(rect),
+                });
+            }
+            if let Some(race) = union {
+                let race_pos = col_pos + race.loc;
+                let race_pos = race_pos.to_physical_precise_round(scale).to_logical(scale);
+                let params = RenderParams {
+                    geometry: Rectangle::new(race_pos, race.size),
+                    subregion: None,
+                    clip: None,
+                    scale: scale.x,
+                };
+                let blur_options = BlurOptions {
+                    passes: (cfg.blur_radius / 6.).clamp(1., 4.) as u8,
+                    offset: 0.,
+                };
+                let elem = self
+                    .depth
+                    .blur
+                    .render(None, params, Some(blur_options), 0., 1.);
+                push(elem.into());
+            }
+        }
+
+        // Draw the deck far-to-near so nearer cards overlap the farther ones. Bottom deck cards
+        // have their near edge at the top, top deck cards at the bottom.
+        let mut far_to_near: Vec<usize> = deck.iter().map(|(i, _)| *i).collect();
+        far_to_near.sort_unstable_by_key(|i| std::cmp::Reverse(i.abs_diff(active)));
+
+        let snapshots = self.depth.snapshots.borrow_mut();
+        for i in far_to_near {
+            let tile = &self.tiles[i];
+            let pose = self.depth.anim[i];
+            let rect = self.depth_card_rect(pose);
+            let rect = Rectangle::new(
+                rect.loc.to_physical_precise_round(scale).to_logical(scale),
+                rect.size,
+            );
+            let rect_pos = col_pos + rect.loc;
+            let rect_pos = rect_pos.to_physical_precise_round(scale).to_logical(scale);
+            let side = if i < active { DeckSide::Top } else { DeckSide::Bottom };
+
+            let radius = tile
+                .window()
+                .geometry_corner_radius()
+                .fit_to(rect.size.w as f32, rect.size.h as f32)
+                .scaled_by((scale.x * pose.scale_y) as f32);
+
+            let shadow = self.options.layout.depth_queue.card_shadow;
+            if shadow.on {
+                // Mirror the tile shadow geometry: a box equal to the card rect with a halo of
+                // `ceil(sigma * 3)` around it, shifted down by the configured offset. The card
+                // interior is cut out so the semi-transparent card doesn't get darkened.
+                let ceil = |logical: f64| (logical * scale.x).ceil() / scale.x;
+                let sigma = shadow.blur / 2.;
+                let width = ceil(sigma * 3.);
+                let offset = Point::from((ceil(shadow.offset.x.0), ceil(shadow.offset.y.0)));
+                let shader_size = rect.size + Size::from((width, width)).upscale(2.);
+                let geometry = Rectangle::new(Point::from((width, width)), rect.size);
+                let elem = ShadowRenderElement::new(
+                    shader_size,
+                    geometry,
+                    shadow.color,
+                    sigma as f32,
+                    radius,
+                    scale.x as f32,
+                    geometry,
+                    radius,
+                    pose.opacity,
+                )
+                .with_location(rect_pos + offset - Point::from((width, width)));
+                push(elem.into());
+            }
+
+            // Refresh the offscreen snapshot of the card's window contents of the current frame.
+            let mut window_elements: Vec<LayoutElementRenderElement<GlesRenderer>> = Vec::new();
+            let mut gles = ctx.as_gles();
+            tile.window().render(
+                gles.r(),
+                Point::from((0., 0.)),
+                scale,
+                1.0,
+                xray_pos.offset(col_pos),
+                &mut |elem| window_elements.push(elem),
+            );
+            let elems = snapshots[i].render(gles.renderer, scale, &window_elements);
+            let (snapshot, _, data) = match elems {
+                Ok(elems) => elems,
+                Err(err) => {
+                    warn!("error rendering depth card snapshot: {err:?}");
+                    continue;
+                }
+            };
+            tile.window().set_offscreen_data(Some(data));
+
+            let tilt_pow = (1.0 + f64::from(pose.rot_x.abs()) * 5.0).clamp(1.0, 3.0);
+            let bottom = if side == DeckSide::Bottom { 1. } else { 0. };
+
+            let elem = ShaderRenderElement::new(
+                ProgramType::DepthCard,
+                rect.size,
+                None,
+                scale.x as f32,
+                pose.opacity,
+                Rc::new([
+                    Uniform::new("ymir_depth_bottom", bottom),
+                    Uniform::new("ymir_depth_tilt_pow", tilt_pow as f32),
+                    Uniform::new("ymir_min_opacity", cfg.min_opacity as f32),
+                    Uniform::new(
+                        "ymir_corner_radius",
+                        <[f32; 4]>::from(radius),
+                    ),
+                ]),
+                HashMap::from([(String::from("ymir_tex"), snapshot.texture().clone())]),
+                smithay::backend::renderer::element::Kind::Unspecified,
+            )
+            .with_location(rect_pos);
+            push(elem.into());
+        }
+    }
+
+    /// Moves the focused (apex) card to the far end of the queue; the window that slides into the
+    /// apex slot becomes the new focus.
+    fn depth_push_active_to_queue(&mut self) {
+        if !self.is_depth() || self.tiles.len() < 2 {
+            return;
+        }
+
+        let active = self.active_tile_idx;
+        let tile = self.tiles.remove(active);
+        let data = self.data.remove(active);
+        self.depth.anim.remove(active);
+        self.depth.springs.remove(active);
+        self.depth.snapshots.borrow_mut().remove(active);
+
+        let len = self.tiles.len();
+        self.tiles.push(tile);
+        self.data.push(data);
+
+        self.depth.anim.push(DepthCardAnim::apex());
+        let clock = self.clock.clone();
+        let config = self.depth_spring_config();
+        self.depth
+            .springs
+            .push(DepthCardSprings::static_from(clock, DepthCardAnim::apex(), config));
+        self.depth.snapshots.borrow_mut().push(OffscreenBuffer::default());
+
+        self.active_tile_idx = min(active, len - 1);
+        self.depth_restart_shuffle();
+    }
+
+    /// Promotes the window (or, when `window` is none, nothing — the apex already is the apex) to
+    /// the apex card, springing the shuffle. The promoted window becomes the active tile.
+    fn depth_pull_to_apex(&mut self, window: Option<&W::Id>) {
+        if !self.is_depth() {
+            return;
+        }
+        let Some(window) = window else {
+            return;
+        };
+        let Some(idx) = self.position(window) else {
+            return;
+        };
+        if idx == self.active_tile_idx {
+            return;
+        }
+
+        let active = self.active_tile_idx;
+        let tile = self.tiles.remove(idx);
+        let data = self.data.remove(idx);
+        self.depth.anim.remove(idx);
+        self.depth.springs.remove(idx);
+        self.depth.snapshots.borrow_mut().remove(idx);
+
+        self.tiles.insert(active, tile);
+        self.data.insert(active, data);
+
+        self.depth.anim.insert(active, DepthCardAnim::apex());
+        let clock = self.clock.clone();
+        let config = self.depth_spring_config();
+        self.depth
+            .springs
+            .insert(active, DepthCardSprings::static_from(clock, DepthCardAnim::apex(), config));
+        self.depth
+            .snapshots
+            .borrow_mut()
+            .insert(active, OffscreenBuffer::default());
+
+        self.active_tile_idx = active;
+        self.depth_restart_shuffle();
+    }
+
+    /// Alt-Tab-style cycler through the queue: wrap to the next card, focusing it at the apex.
+    fn depth_cycle_queue(&mut self) {
+        if !self.is_depth() || self.tiles.len() < 2 {
+            return;
+        }
+        self.activate_idx((self.active_tile_idx + 1) % self.tiles.len());
+    }
+
+    /// Toggles the "cover" multi-view: the whole deck fans out so every card peeks.
+    fn depth_toggle_cover(&mut self) {
+        if !self.is_depth() {
+            return;
+        }
+        self.depth.cover = !self.depth.cover;
+        self.depth_restart_shuffle();
     }
 
     fn become_dwindle(&mut self) {
@@ -6068,6 +6908,17 @@ impl<W: LayoutElement> Column<W> {
         if self.is_dwindle() {
             // Dwindle tile positions come straight from the tree.
             return self.dwindle_offsets();
+        }
+
+        if self.is_depth() && self.sizing_mode().is_normal() {
+            // Every card sits in the apex slot; the fan separates them visually.
+            let dummy = TileData {
+                height: WindowHeight::auto_1(),
+                size: Size::default(),
+                interactively_resizing_by_left_edge: false,
+            };
+            let apex_loc = self.depth_content_rect().loc;
+            return data.chain(iter::once(dummy)).map(|_| apex_loc).collect();
         }
 
         // FIXME: this should take into account always-center-single-column, which means that
@@ -6185,7 +7036,7 @@ impl<W: LayoutElement> Column<W> {
     fn is_tabbed_or_dwindle(&self) -> bool {
         matches!(
             self.display_mode,
-            ColumnDisplay::Tabbed | ColumnDisplay::Dwindle
+            ColumnDisplay::Tabbed | ColumnDisplay::Dwindle | ColumnDisplay::Depth
         )
     }
 
@@ -6316,7 +7167,8 @@ impl<W: LayoutElement> Column<W> {
 
         let active = active.iter().map(|tile| (tile, true));
 
-        let rest_visible = self.display_mode != ColumnDisplay::Tabbed;
+        let rest_visible = self.display_mode != ColumnDisplay::Tabbed
+            && self.display_mode != ColumnDisplay::Depth;
         let rest = first.iter().chain(rest);
         let rest = rest.map(move |tile| (tile, rest_visible));
 
@@ -6409,6 +7261,24 @@ impl<W: LayoutElement> Column<W> {
             return;
         }
 
+        if self.is_depth() {
+            assert_eq!(
+                self.depth.anim.len(),
+                self.tiles.len(),
+                "depth animation poses must be kept parallel to the tiles"
+            );
+            assert_eq!(
+                self.depth.springs.len(),
+                self.tiles.len(),
+                "depth springs must be kept parallel to the tiles"
+            );
+            assert_eq!(
+                self.depth.snapshots.borrow().len(),
+                self.tiles.len(),
+                "depth card snapshots must be kept parallel to the tiles"
+            );
+        }
+
         if let Some(idx) = self.preset_width_idx {
             assert!(idx < self.options.layout.preset_column_widths.len());
         }
@@ -6465,6 +7335,7 @@ impl<W: LayoutElement> Column<W> {
             let min_tile_height = f64::max(1., tile.min_size_nonfullscreen().h);
 
             if !is_tabbed
+                && !self.is_depth()
                 && self.pending_sizing_mode().is_normal()
                 && self.scale.round() == self.scale
                 && working_size.h.round() == working_size.h
@@ -6485,6 +7356,7 @@ impl<W: LayoutElement> Column<W> {
         }
 
         if !is_tabbed
+            && !self.is_depth()
             && tile_count > 1
             && self.scale.round() == self.scale
             && working_size.h.round() == working_size.h

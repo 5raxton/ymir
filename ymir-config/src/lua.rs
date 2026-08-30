@@ -740,6 +740,34 @@ fn resolve_action(action: &Table, errors: &mut Vec<String>) -> Result<Action, ()
         "set_column_display" => arg!(errors).enum_parse("display", ColumnDisplay::from_str, move |d| {
             A::SetColumnDisplay(d)
         }),
+        "focus_card_up" => Ok(A::FocusCardUp),
+        "focus_card_down" => Ok(A::FocusCardDown),
+        "push_to_queue" => Ok(A::PushToQueue),
+        "pull_to_apex" => {
+            let mut id = None;
+            match action.get::<Value>("id") {
+                Ok(Value::Integer(i)) if i >= 0 => id = Some(i as u64),
+                Ok(Value::Integer(_)) | Ok(Value::Number(_)) => {
+                    errors.push(format!(
+                        "action `{name}` requires a non-negative integer `id`"
+                    ));
+                }
+                Ok(Value::Nil) => {}
+                Ok(other) => {
+                    errors.push(format!(
+                        "action `{name}` requires a non-negative integer `id`, got {}",
+                        type_name(&other)
+                    ));
+                }
+                Err(_) => {}
+            }
+            Ok(match id {
+                Some(id) => A::PullToApexById(id),
+                None => A::PullToApex,
+            })
+        }
+        "cycle_queue_depth" => Ok(A::CycleQueueDepth),
+        "toggle_queue_cover" => Ok(A::ToggleQueueCover),
         "center_column" => Ok(A::CenterColumn),
         "center_window" => Ok(A::CenterWindow),
         "center_visible_columns" => Ok(A::CenterVisibleColumns),
@@ -3129,10 +3157,118 @@ fn read_layout_part(value: &Value, key: &str, errors: &mut Vec<String>) -> Optio
             "gaps" => part.gaps = read_float_or_int(&value, &format!("{key}.gaps"), errors),
             "struts" => part.struts = read_struts(&value, &format!("{key}.struts"), errors),
             "background_color" => part.background_color = read_color(&value, &format!("{key}.background_color"), errors),
+            "depth_queue" => part.depth_queue = read_depth_queue_part(&value, &format!("{key}.depth_queue"), errors),
             _ => push_err(errors, &key, format!("unexpected key `{key}`")),
         }
     }
     Some(part)
+}
+
+fn read_depth_queue_part(value: &Value, key: &str, errors: &mut Vec<String>) -> Option<DepthQueuePart> {
+    let t = match value {
+        Value::Table(t) => t,
+        _ => {
+            push_err(errors, key, format!("expected a table, got {}", type_name(value)));
+            return None;
+        }
+    };
+
+    let mut part = DepthQueuePart::default();
+    let it = t.pairs::<String, Value>();
+    for kv in it {
+        let (key, value) = match kv { Ok(kv) => kv, Err(_) => continue };
+        let key = normalize_key(&key);
+        match key.as_str() {
+            "card_height_ratio" => part.card_height_ratio = read_float_or_int(&value, &format!("{key}.card_height_ratio"), errors),
+            "top_deck_size" => part.top_deck_size = read_non_negative_usize(&value, &format!("{key}.top_deck_size"), errors),
+            "bottom_deck_size" => part.bottom_deck_size = read_non_negative_usize(&value, &format!("{key}.bottom_deck_size"), errors),
+            "gap" => part.gap = read_float_or_int(&value, &format!("{key}.gap"), errors),
+            "deck_bleed" => part.deck_bleed = read_float_or_int(&value, &format!("{key}.deck_bleed"), errors),
+            "min_opacity" => part.min_opacity = read_float_or_int(&value, &format!("{key}.min_opacity"), errors),
+            "blur_radius" => part.blur_radius = read_float_or_int(&value, &format!("{key}.blur_radius"), errors),
+            "card_shadow" => part.card_shadow = read_depth_deck_shadow_part(&value, &format!("{key}.card_shadow"), errors),
+            "perspective_tilt" => part.perspective_tilt = read_float_or_int(&value, &format!("{key}.perspective_tilt"), errors),
+            "focus_shuffle" => part.focus_shuffle = read_spring_part(&value, &format!("{key}.focus_shuffle"), errors),
+            _ => push_err(errors, &key, format!("unexpected key `{key}`")),
+        }
+    }
+    Some(part)
+}
+
+fn read_depth_deck_shadow_part(value: &Value, key: &str, errors: &mut Vec<String>) -> Option<DepthDeckShadowPart> {
+    let t = match value {
+        Value::Table(t) => t,
+        _ => {
+            push_err(errors, key, format!("expected a table, got {}", type_name(value)));
+            return None;
+        }
+    };
+
+    let mut part = DepthDeckShadowPart::default();
+    let it = t.pairs::<String, Value>();
+    for kv in it {
+        let (key, value) = match kv { Ok(kv) => kv, Err(_) => continue };
+        let key = normalize_key(&key);
+        match key.as_str() {
+            "on" => part.on = read_flag(&value),
+            "off" => part.on = !read_flag(&value),
+            "offset" => part.offset = read_shadow_offset(&value, &format!("{key}.offset"), errors),
+            "blur" => part.blur = read_float_or_int(&value, &format!("{key}.blur"), errors),
+            "color" => part.color = read_color(&value, &format!("{key}.color"), errors),
+            _ => push_err(errors, &key, format!("unexpected key `{key}`")),
+        }
+    }
+    Some(part)
+}
+
+fn read_spring_part(value: &Value, key: &str, errors: &mut Vec<String>) -> Option<SpringPart> {
+    let t = match value {
+        Value::Table(t) => t,
+        _ => {
+            push_err(errors, key, format!("expected a table, got {}", type_name(value)));
+            return None;
+        }
+    };
+
+    let mut part = SpringPart::default();
+    let it = t.pairs::<String, Value>();
+    for kv in it {
+        let (key, value) = match kv { Ok(kv) => kv, Err(_) => continue };
+        let key = normalize_key(&key);
+        match key.as_str() {
+            "spring" => {
+                let t = match &value {
+                    Value::Table(t) => t,
+                    _ => {
+                        push_err(errors, &format!("{key}.spring"), format!("expected a table, got {}", type_name(&value)));
+                        continue;
+                    }
+                };
+                for kv in t.pairs::<String, Value>() {
+                    let (skey, svalue) = match kv { Ok(kv) => kv, Err(_) => continue };
+                    let skey = normalize_key(&skey);
+                    match skey.as_str() {
+                        "damping_ratio" => part.damping_ratio = read_float_or_int(&svalue, &format!("{key}.spring.{skey}"), errors),
+                        "stiffness" => part.stiffness = read_u32(&svalue, &format!("{key}.spring.{skey}"), errors),
+                        "epsilon" => part.epsilon = read_float_or_int(&svalue, &format!("{key}.spring.{skey}"), errors),
+                        _ => push_err(errors, &skey, format!("unexpected key `{skey}`")),
+                    }
+                }
+            }
+            _ => push_err(errors, &key, format!("unexpected key `{key}`")),
+        }
+    }
+    Some(part)
+}
+
+fn read_non_negative_usize(value: &Value, key: &str, errors: &mut Vec<String>) -> Option<usize> {
+    match value {
+        Value::Integer(i) if *i >= 0 => Some(*i as usize),
+        _ => {
+            errors.push(format!("`{key}` must be a non-negative integer, got {}", type_name(value)));
+            None
+        }
+    }
 }
 
 fn read_border_rule(value: &Value, key: &str, errors: &mut Vec<String>) -> Option<BorderRule> {

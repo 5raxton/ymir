@@ -271,6 +271,40 @@ return {
       -- left = 64
       -- right = 64
     },
+
+    -- Depth-queue ("depth") column display mode settings.
+    -- A depth column renders the focused window as a full-size "apex" card, with the rest of
+    -- the queue fanned into top and bottom decks behind it (decreasing opacity + backdrop blur).
+    depth_queue = {
+      -- Height of the apex card relative to the column height (0..1).
+      card_height_ratio = 0.62,
+      -- Number of cards visible in the top and bottom deck fans.
+      top_deck_size = 2,
+      bottom_deck_size = 2,
+      -- Vertical gap between consecutive cards in the decks.
+      gap = 12,
+      -- How far a deck card bleeds past the working area edge.
+      deck_bleed = 24,
+      -- Opacity of the farthest (most occluded) card in a deck; the apex is always fully opaque.
+      min_opacity = 0.35,
+      -- Blur radius applied to the backdrop behind the decks (0 disables the blur).
+      blur_radius = 18,
+      -- Shadow cast by each deck card (cards read as physically stacked paper).
+      card_shadow = {
+        offset = { x = 0, y = 10 },
+        blur = 24,
+      },
+      -- Perspective tilt of the deck fans, in degrees (0 disables the tilt).
+      perspective_tilt = 7.0,
+      -- Spring that drives the focus shuffle between cards.
+      focus_shuffle = {
+        spring = {
+          damping_ratio = 0.62,
+          stiffness = 750,
+          epsilon = 0.0001,
+        },
+      },
+    },
   },
 
   -- Add lines like this to spawn processes at startup.

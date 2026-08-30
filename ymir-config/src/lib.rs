@@ -1214,6 +1214,39 @@ mod tests {
                     b: 0.25,
                     a: 1.0,
                 },
+                depth_queue: DepthQueue {
+                    card_height_ratio: 0.62,
+                    top_deck_size: 2,
+                    bottom_deck_size: 2,
+                    gap: 12.0,
+                    deck_bleed: 24.0,
+                    min_opacity: 0.35,
+                    blur_radius: 18.0,
+                    card_shadow: DepthDeckShadow {
+                        on: true,
+                        offset: ShadowOffset {
+                            x: FloatOrInt(
+                                0.0,
+                            ),
+                            y: FloatOrInt(
+                                10.0,
+                            ),
+                        },
+                        blur: 24.0,
+                        color: Color {
+                            r: 0.0,
+                            g: 0.0,
+                            b: 0.0,
+                            a: 0.27058825,
+                        },
+                    },
+                    perspective_tilt: 7.0,
+                    focus_shuffle: SpringParams {
+                        damping_ratio: 0.62,
+                        stiffness: 750,
+                        epsilon: 0.0001,
+                    },
+                },
             },
             prefer_no_csd: true,
             cursor: Cursor {

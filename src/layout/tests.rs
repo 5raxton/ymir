@@ -2282,6 +2282,137 @@ fn normal_and_dwindle_resize_stay_separate() {
 }
 
 #[test]
+fn depth_queue_push_pull_and_cycle() {
+    let mut layout = check_ops_with_options(
+        Options::default(),
+        [
+            Op::AddOutput(0),
+            Op::AddWindow {
+                params: TestWindowParams::new(0),
+            },
+            Op::AddWindow {
+                params: TestWindowParams::new(1),
+            },
+            Op::AddWindow {
+                params: TestWindowParams::new(2),
+            },
+        ],
+    );
+    check_ops_on_layout(&mut layout, [Op::CompleteAnimations]);
+
+    // Merging the three single-window columns into one column [0, 1, 2] whose focus sits on
+    // the leftmost window (depth is a per-column mode).
+    layout.focus_column_first();
+    layout.consume_into_column();
+    layout.consume_into_column();
+    check_ops_on_layout(&mut layout, [Op::CompleteAnimations]);
+
+    let order_of = |layout: &Layout<TestWindow>| -> Vec<usize> {
+        layout
+            .active_workspace()
+            .unwrap()
+            .windows()
+            .map(|win| *win.id())
+            .collect()
+    };
+    let active_of = |layout: &Layout<TestWindow>| -> usize {
+        *layout
+            .active_workspace()
+            .unwrap()
+            .active_window()
+            .unwrap()
+            .id()
+    };
+
+    let initial = order_of(&layout);
+    let active_pos = initial
+        .iter()
+        .position(|id| *id == active_of(&layout))
+        .unwrap();
+
+    // Entering depth builds the fan without reordering or stealing focus.
+    layout.set_column_display(ymir_ipc::ColumnDisplay::Depth);
+    check_ops_on_layout(&mut layout, [Op::CompleteAnimations]);
+    assert_eq!(order_of(&layout), initial);
+    assert_eq!(active_of(&layout), initial[active_pos]);
+
+    // Every card is sized to the apex card in depth mode.
+    let sized: Vec<_> = layout
+        .active_workspace()
+        .unwrap()
+        .windows()
+        .map(|win| win.requested_size().unwrap())
+        .collect();
+    assert_eq!(sized.len(), initial.len());
+    assert!(
+        sized.iter().all(|size| *size == sized[0]),
+        "depth mode must size every card to the apex card: got {sized:?}"
+    );
+
+    // Push: the apex card moves to the far end of the queue; the card that slides into the apex
+    // slot takes focus.
+    layout.push_active_to_depth_queue();
+    check_ops_on_layout(&mut layout, [Op::CompleteAnimations]);
+    let mut expected_order = initial.clone();
+    expected_order.retain(|id| *id != initial[active_pos]);
+    expected_order.push(initial[active_pos]);
+    assert_eq!(order_of(&layout), expected_order);
+    assert_eq!(
+        active_of(&layout),
+        if active_pos + 1 < initial.len() {
+            initial[active_pos + 1]
+        } else {
+            initial[active_pos]
+        },
+        "pushing the apex must hand focus to the card that slid into the apex slot"
+    );
+
+    // Cycle: focus wraps over the queue without reordering it.
+    let order_now = order_of(&layout);
+    let cur_pos = order_now
+        .iter()
+        .position(|id| *id == active_of(&layout))
+        .unwrap();
+    layout.cycle_depth_queue();
+    check_ops_on_layout(&mut layout, [Op::CompleteAnimations]);
+    assert_eq!(order_of(&layout), order_now);
+    let active_after_cycle = active_of(&layout);
+    assert_eq!(
+        active_after_cycle,
+        order_now[(cur_pos + 1) % order_now.len()],
+        "cycling focus must advance to the next card, wrapping"
+    );
+    let apex_slot_after_cycle = order_now
+        .iter()
+        .position(|id| *id == active_after_cycle)
+        .unwrap();
+
+    // Pull: the promoted window moves to the apex slot in the queue and takes focus.
+    let target = *order_now.last().unwrap();
+    layout.pull_to_depth_apex(Some(&target));
+    check_ops_on_layout(&mut layout, [Op::CompleteAnimations]);
+    let mut expected = order_now.clone();
+    expected.remove(expected.iter().position(|id| *id == target).unwrap());
+    expected.insert(apex_slot_after_cycle, target);
+    assert_eq!(order_of(&layout), expected);
+    assert_eq!(active_of(&layout), target);
+
+    // The cover multi-view is a pure view toggle: no reorder, no focus change.
+    layout.toggle_depth_queue_cover();
+    check_ops_on_layout(&mut layout, [Op::CompleteAnimations]);
+    assert_eq!(order_of(&layout), expected);
+    assert_eq!(active_of(&layout), target);
+
+    // Exiting and re-entering depth preserves the queue order and focus.
+    layout.set_column_display(ymir_ipc::ColumnDisplay::Normal);
+    check_ops_on_layout(&mut layout, [Op::CompleteAnimations]);
+    layout.set_column_display(ymir_ipc::ColumnDisplay::Depth);
+    check_ops_on_layout(&mut layout, [Op::CompleteAnimations]);
+    assert_eq!(order_of(&layout), expected);
+    assert_eq!(active_of(&layout), target);
+}
+
+#[test]
 fn normal_mode_interactive_resize_left_edge_grows_column() {
     // Mirror of `dwindle_interactive_resize_left_child_edge` for the scrollable layout: a LEFT
     // edge drag grows the touched window's COLUMN (absolute sizing), leaves the neighbor column

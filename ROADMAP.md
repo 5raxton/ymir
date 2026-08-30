@@ -289,30 +289,32 @@ Per Part A.5 blast radius, all in one change set (or split as: engine → applie
 #### 3.1 Data model
 
 1. **Enum.** `ColumnDisplay::Depth` added at `ymir-ipc/src/lib.rs:1019-1026` (with `FromStr`/serde/clap wiring) alongside `Normal | Tabbed | Dwindle`.
-2. **`DepthState`** on `Column` (`layout/scrolling.rs:167-250`), parallel to `dwindle_tree`/`tab_indicator`:
+2. **`DepthState`** on `Column` (`layout/scrolling.rs:167-250`), parallel to `dwindle_tree`/`tab_indicator` (implemented — the queue order *is* `tiles[]`, apex = `active_tile_idx`):
    ```rust
    pub struct DepthState {
-       /// Ordered queue, same length/invariant direction as `Self::tiles` (apex = index 0).
-       queue: Vec<DepthCard>,        // index maps to tiles[] via the display-mode router
-       active: usize,                // == column.active_tile_idx (kept in sync)
-       /// Current animation-time geometry of every card (spring driven, per card).
-       anim: Vec<DepthCardAnim>,     // offset_y, scale, tilt, opacity, blur — see 3.3
-       /// The apex trace of the last shuffle, for chaining springs without teleports.
-       last_apex: Option<DepthCardAnim>,
-       /// Spring params resolved from `options.animations.depth_shuffle`.
-       spring: Spring,
+       /// Animated pose of every card, parallel to `tiles`.
+       anim: Vec<DepthCardAnim>,          // offset_y, scale_y, rot_x, opacity
+       /// Spring per degree of freedom per card, driven by `depth_queue.focus_shuffle`.
+       springs: Vec<DepthCardSprings>,    // offset_y/scale_y/rot_x/opacity springs
+       /// Whether the whole deck is fanned out ("cover" multi-view).
+       cover: bool,
+       /// Whether the shuffle is currently running (any spring not converged).
+       is_shuffling: bool,
+       /// Cached offscreen snapshot of each card's window content, parallel to `tiles`
+       /// (apex entry unused; interior-mutable so the render pass can refresh textures).
+       snapshots: RefCell<Vec<OffscreenBuffer>>,
+       /// Persisted element id for the deck-region backdrop blur.
+       blur: FramebufferEffect,
    }
-   pub struct DepthCard { pub tile_idx: usize, pub side: DeckSide }        // Top/Bottom deck
    pub struct DepthCardAnim {
-       pub offset_y: f64,   // logical, deck slot position
+       pub offset_y: f64,   // logical, deck slot position (near edge offset)
        pub scale_y: f64,    // perspective squash
-       pub rot_x: f32,      // fan tilt around the far edge (radians)
+       pub rot_x: f32,      // fan tilt (radians, feeds the shader's lens power)
        pub opacity: f32,    // 1.0 apex → configurable floor at the far deck
-       pub blur: f32,       // mounted backdrop-blur radius under the deck region
    }
    ```
-   `queue` is kept in sync with `tiles[]` by the same invariant discipline as the dwindle tree (`reorder_tiles_by_dfs` ancestry) — Phase 1.1-B4 hardened this class of bug first.
-3. **Config surface** (Phase 2 API + KDL-era fields replaced):
+   `snapshots`/`springs` are kept parallel to `tiles[]` under the same invariant discipline as the dwindle tree (resized on sync/grow/remove/swap, asserted in `update_check`).
+3. **Config surface** (live, `layout.depth_queue` → `DepthQueue` at `ymir-config/src/layout.rs:163`):
    ```lua
    layout = {
      mode = "depth",
@@ -338,14 +340,14 @@ Runs inside the display-mode router (Phase 1.4 item 3) whenever the workspace is
 5. **Minimum sizes.** The apex card honors the window's `min_size` by growing the card (never below `card_height_ratio`, bounded by working area); deck cards are clipped presentation previews — the *live* interactive surface is always the apex card. Windows sized/positioned off-apex never receive input, never configure below min-size, and are only ask-queued for geometry (see 3.6).
 6. **Fractional-scale integration:** all card rects computed in `f64` logical then rounded via the existing `to_physical_precise_round` discipline (Part A scale audit R8); the apex content surface uses the standard surface/texture render path unchanged.
 
-#### 3.3 Rendering & shaders
+#### 3.3 Rendering & shaders (implemented)
 
-New files under `src/render_helpers/shaders/`, compiled centrally (`#version 100`, uniform conventions per `shader_element.rs`):
+New files under `src/render_helpers/shaders/`, compiled centrally (`#version 100`, uniform conventions per `shader_element.rs`) via `ProgramType::DepthCard`:
 
-- **`depth_card.vert` / `depth_card.frag`** (a new `ShaderRenderElement` variant or a subclass of `BorderRenderElement`): applies per-card `offset_y` + `scale_y` + `rot_x` as a pseudo-3D matrix, a vertical alpha gradient from the far edge toward the near edge (falloff couples to `min_opacity`), and, when `blur > 0`, composites the **mounted backdrop-blur texture** behind the card with the card's own surface sampled from the standard texture path as an alpha-masked overlay. Uses the existing `rounding_alpha` approach for card corners. Premultiplied alpha — not straight — and reuses the fixed sRGB EOTF / gamut-safe helpers landed in Phase 1.2.
-- **Backdrop mount for the deck:** render the blurred backdrop *behind* the deck fan, not per-card, using the existing `BackgroundEffectElement`/`Blur` pipeline mounted on a deck-region element (union of the fanned rects). The far deck blur reduces exactly to the blur texture produced by the mounted region (Phase 1.2 item 5 makes this cheap during animations).
-- **Card shadows:** reuse `render_helpers/shadow.rs` with the depth-deck offset config so decks read as physically stacked paper.
-- **GPU budget (design target):** at rest (no animation in flight), zero card pass cost beyond a static deck texture; during a shuffle, exactly one extra offscreen pass for the deck + one for the apex composite, matching the existing resize/close crossfade cost. Reuse the blur mip reuse work from Phase 1.2 to avoid per-frame reallocation during the shuffle. Damage is the union of the two deck rects + apex, computed from the same anim params that drive the rails.
+- **`depth_card_prelude.frag` + `depth_card.frag` + `depth_card_epilogue.frag`** (compiled with `rounding_alpha.frag`, drawn through `ShaderRenderElement`): the card quad samples the per-card offscreen snapshot texture with a normalized-coordinate remap inside the fragment shader — `v = mix(y, 1−y, ymir_depth_bottom)` measures distance from the *near* (apex-facing) edge, `tex_v = mix(pow(v, tilt_pow), 1−pow(v, tilt_pow), ymir_depth_bottom)` does the wide-lens remap (bottom-deck near edge = top, top-deck near edge = bottom), and `color *= mix(1.0, ymir_min_opacity, v)` fades toward the far edge. Corner rounding runs in card space (`rounding_alpha`). Uniforms: `ymir_depth_bottom`, `ymir_depth_tilt_pow`, `ymir_min_opacity`, `ymir_corner_radius` (+ auto `ymir_size`/`ymir_scale`/`ymir_alpha`), texture `ymir_tex`. `tilt_pow = (1 + |rot_x|·5).clamp(1,3)`, driven by `depth_queue.perspective_tilt`. 
+- **Backdrop mount for the deck:** the blurred backdrop is rendered *behind* the whole fan as a single `FramebufferEffectElement` (union of the visible deck rects) with `BlurOptions` from `depth_queue.blur_radius`, persisted via `DepthState.blur`. Only when `blur_radius > 0`.
+- **Card shadows:** each deck card casts a `ShadowRenderElement` from `depth_queue.card_shadow` (box = card rect, halo `ceil(sigma·3)`, offset shifted down, card interior cut out), drawn beneath its card.
+- **Per-card snapshots:** each deck card's window contents (`render_popups` + `render_normal` at the origin) are rendered into a per-card `OffscreenBuffer` (`DepthState.snapshots`) each frame; `OffscreenBuffer::render`'s damage tracker makes this free at rest. Cards draw far-to-near (by `|i−active|`) so nearer cards cover farther ones; the deck pass hooks into `ScrollingSpace::render` before the tile loop so it sits behind the apex tile. The reference GPU budget holds: no re-render when static, one offscreen pass per changed card during a shuffle.
 
 #### 3.4 Focus transition state machine ("the shuffle")
 
@@ -356,15 +358,15 @@ New files under `src/render_helpers/shaders/`, compiled centrally (`#version 100
 
 #### 3.5 IPC & action surface
 
-New actions (all three layers: `ymir-ipc/src/lib.rs` enum, config ↔ IPC conversion at `ymir-config/src/binds.rs`, dispatch at `input/mod.rs`):
+New actions (all three layers: `ymir-ipc/src/lib.rs` enum, config ↔ IPC conversion at `ymir-config/src/binds.rs`, dispatch at `input/mod.rs`) — **implemented**:
 
-- `SwitchColumnDisplay` cycle matrix extended and made config-orderable: `[normal, dwindle, depth, tabbed]` with a config subset (e.g. only `["dwindle", "depth"]`).
 - `SetColumnDisplay { display: Depth }`, per-column and per-workspace (works like `set-column-display-at`).
-- `FocusCardUp` / `FocusCardDown` — aliases mapping to existing `focus-up`/`focus-down` semantics inside depth columns.
+- `FocusCardUp` / `FocusCardDown` — map to `focus-up`/`focus-down` semantics inside depth columns.
 - `PushToQueue` (`push-to-queue`) — move focused window to the far end of the queue (dwindle-style `consume`).
-- `PullToApex` (`pull-to-apex`) — promote focused window (or by-id arg) to the apex immediately (springs the shuffle).
-- `CycleQueueDepth` (`cycle-queue-depth`) — Alt+Tab-style live cycler through the deck with previews, mirroring `recent_windows` integration.
-- `Cover`/`ShowQueue` (`cover-all`) optional: span the deck fanned so N cards are all partly visible — the "serious productivity" multi-view.
+- `PullToApex { id }` (`pull-to-apex`) — promote a window to the apex immediately (springs the shuffle).
+- `CycleQueueDepth` (`cycle-queue-depth`) — Alt+Tab-style cycler through the deck.
+- `ToggleQueueCover` (`toggle-queue-cover`) — the "cover" multi-view: the whole deck fans out so every card peeks.
+- `SwitchColumnDisplay` cycle matrix extended: `[normal, dwindle, depth, tabbed]` with a config subset.
 
 All of the above appear in `ymir msg <action>` via the existing clap/serde derivation (`ymir-ipc` feature `clap`, `ipc/server.rs` `validate_action`), bindable through `ymir.bind(...)` in Phase 2, and reported in `ymir msg windows`/`workspaces` (`WindowLayout`/`ColumnDisplay` serialization).
 

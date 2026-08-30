@@ -169,7 +169,7 @@ return {
 <sup>Since: 25.02</sup>
 
 Sets the default display mode for new columns.
-Can be `normal`, `tabbed` or `dwindle`.
+Can be `normal`, `tabbed`, `dwindle` or `depth`.
 
 Dwindle is ymir's default out of the box: new windows split off the focused
 window into a binary-split tree. Set it to `normal` (scrollable columns) or

@@ -41,7 +41,7 @@
 //!
 //! ```toml
 //! [dependencies]
-//! ymir-ipc = "=26.4.0"
+//! ymir-ipc = "=1.0.0"
 //! ```
 //!
 //! ## Features

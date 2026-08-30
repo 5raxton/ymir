@@ -4,13 +4,13 @@ ymir ships a multi-distro installer script that detects your distro (Arch, Fedor
 
 ```sh
 # bash/zsh
-curl -sL https://raw.githubusercontent.com/5raxton/ymir/main/scripts/install.sh | bash
+curl -sL https://lab.braxton.onl/braxton/ymir/raw/branch/main/scripts/install.sh | bash
 
 # fish
-curl -sL https://raw.githubusercontent.com/5raxton/ymir/main/scripts/install.fish | fish
+curl -sL https://lab.braxton.onl/braxton/ymir/raw/branch/main/scripts/install.fish | fish
 ```
 
-On Arch it builds with `makepkg` from the PKGBUILD; on other distros it builds with `cargo` and installs into `/usr/local`. The installer seeds `~/.config/ymir/config.lua` with the default dwindle config if absent, and installs the `ymir.desktop` session entry automatically so "Ymir" appears in your login manager (GDM, SDDM, ...). From a bare TTY you can start it directly with `ymir-session`. Re-running the installer pulls the latest `main` and rebuilds, so it also doubles as a bleeding-edge update.
+On Arch it builds with `makepkg` from the PKGBUILD; on other distros it builds with `cargo` and installs into `/usr/local`. The installer seeds `~/.config/ymir/init.lua` with the default dwindle config if absent, and installs the `ymir.desktop` session entry automatically so "Ymir" appears in your login manager (GDM, SDDM, ...). From a bare TTY you can start it directly with `ymir-session`. Re-running the installer pulls the latest `main` and rebuilds, so it also doubles as a bleeding-edge update.
 
 Alternatively, some distributions provide packaged builds of ymir — see the ["Slower and more considered start"](#slower-and-more-considered-start) section. You can also try a more out-of-the-box experience with [DankMaterialShell](https://github.com/AvengeMedia/DankMaterialShell):
 
@@ -38,7 +38,7 @@ After running these commands, log out, choose Ymir in your display manager, and 
 Or, if not using a display manager, run `ymir-session` on a TTY.
 
 The default ymir config will run Waybar, so you might get two bars on screen.
-To fix this, stop Waybar with `pkill waybar` command, then open `~/.config/ymir/config.lua` and delete the `spawn_at_startup = { { command = { "waybar" } } }` line.
+To fix this, stop Waybar with `pkill waybar` command, then open `~/.config/ymir/init.lua` and delete the `spawn_at_startup = { { command = { "waybar" } } }` line.
 
 Check the DankMaterialShell's [compositor setup page](https://danklinux.com/docs/dankmaterialshell/compositors#ymir-configuration) to learn how to configure DMS-specific binds and other ymir integrations.
 
@@ -46,7 +46,7 @@ Check the DankMaterialShell's [compositor setup page](https://danklinux.com/docs
 
 Aside from the official installer above, ymir is available as a number of distribution packages maintained by the community.
 Here are some of them: [Fedora COPR](https://copr.fedorainfracloud.org/coprs/yalter/ymir/) and [nightly COPR](https://copr.fedorainfracloud.org/coprs/yalter/ymir-git/), [NixOS Flake](https://github.com/epireyn/ymir-flake) (maintained fork of [sodiboo/ymir-flake](https://github.com/sodiboo/ymir-flake)), and some more from repology below, including a [pacstall package](https://pacstall.dev/packages/ymir/) for Debian-based distros.
-This repository also ships its own [flake.nix](https://github.com/5raxton/ymir/blob/main/flake.nix) and an [Arch PKGBUILD](https://github.com/5raxton/ymir/blob/main/PKGBUILD).
+This repository also ships its own [flake.nix](https://lab.braxton.onl/braxton/ymir/src/branch/main/flake.nix) and an [Arch PKGBUILD](https://lab.braxton.onl/braxton/ymir/src/branch/main/PKGBUILD).
 See the [Building](#building) section if you'd like to compile ymir yourself and the [Packaging ymir](./Packaging-ymir.md) page if you want to package ymir.
 
 [![Packaging status](https://repology.org/badge/vertical-allrepos/ymir.svg)](https://repology.org/project/ymir/versions)
@@ -107,7 +107,7 @@ crw-rw-rw-@ 226,129 root 14 мая 07:07 renderD129
 
 You will likely have one `render` device and two `card` devices.
 
-Open the ymir config file at `~/.config/ymir/config.lua` and put your `render` device path like this:
+Open the ymir config file at `~/.config/ymir/init.lua` and put your `render` device path like this:
 
 ```lua
 return {

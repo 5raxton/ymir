@@ -18,8 +18,8 @@ You can find documentation for various sections of the config on these wiki page
 
 ### Loading
 
-Ymir will load configuration from `$XDG_CONFIG_HOME/ymir/config.lua` or `~/.config/ymir/config.lua`, falling back to `/etc/ymir/config.lua`.
-If both of these files are missing, ymir will create `$XDG_CONFIG_HOME/ymir/config.lua` with the contents of [the default configuration file](https://github.com/5raxton/ymir/blob/main/resources/default-config.lua), which are embedded into the ymir binary at build time.
+Ymir will load configuration from `$XDG_CONFIG_HOME/ymir/init.lua` or `~/.config/ymir/init.lua`, falling back to `/etc/ymir/init.lua`.
+If both of these files are missing, ymir will create `$XDG_CONFIG_HOME/ymir/init.lua` with the contents of [the default configuration file](https://lab.braxton.onl/braxton/ymir/src/branch/main/resources/default-config.lua), which are embedded into the ymir binary at build time.
 Please use the default configuration file as the starting point for your custom configuration.
 
 The configuration is live-reloaded.

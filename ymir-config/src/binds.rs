@@ -829,7 +829,7 @@ impl FromStr for Key {
             // [0]: https://github.com/xkbcommon/libxkbcommon/blob/45a118d5325b051343b4b174f60c1434196fa7d4/src/keysym.c#L276
             // [1]: https://docs.rs/xkbcommon/latest/xkbcommon/xkb/keysyms/index.html#:~:text=KEY%5FXF86ScreenSaver
             //
-            // See https://github.com/ymir-wm/ymir/issues/1969
+            // See https://lab.braxton.onl/braxton/ymir/issues/1969
             if keysym == Keysym::XF86_Screensaver {
                 keysym = keysym_from_name(key, KEYSYM_NO_FLAGS);
                 if keysym.raw() == KEY_NoSymbol {

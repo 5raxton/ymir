@@ -1,8 +1,8 @@
 site_name: ymir
 docs_dir: wiki
-site_url: https://5raxton.github.io/ymir
-repo_url: https://github.com/5raxton/ymir
-edit_uri: edit/main/docs/wiki/
+site_url: https://lab.braxton.onl/braxton/ymir
+repo_url: https://lab.braxton.onl/braxton/ymir
+edit_uri: _edit/branch/main/docs/wiki/
 use_directory_urls: false
 
 theme:

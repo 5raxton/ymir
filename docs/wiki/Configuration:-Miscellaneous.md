@@ -369,7 +369,7 @@ return {
 
 ### `blur`
 
-<sup>Since: 26.04</sup>
+<sup>Since: 1.0.0</sup>
 
 Blur configuration that affects all background blur.
 

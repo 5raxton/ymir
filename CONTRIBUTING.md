@@ -31,7 +31,7 @@ I would really appreciate help with testing and reviewing them.
 ### Testing
 
 Pick a pull request you like, then build it and give it a go.
-The [Developing ymir wiki page](https://ymir-wm.github.io/ymir/Development:-Developing-ymir) has guidance on running ymir test builds.
+The [Developing ymir wiki page](https://lab.braxton.onl/braxton/ymir/src/branch/main/docs/wiki/Development:-Developing-ymir.md) has guidance on running ymir test builds.
 
 Be really thorough with your testing.
 We're striving for polished features in ymir, so point out any issues and bugs, even small ones like animation jank.
@@ -84,7 +84,7 @@ When creating pull requests, please keep the following in mind.
     - When working on bigger features, I usually start with a big messy commit, then gradually split out smaller self-contained changes from it as the code gets into shape.
     - [git-rebase.io](https://git-rebase.io/) is a helpful guide for splitting commits and cleaning up history in git.
 - When you address a review comment, mark it as resolved.
-- Remember to [run tests](https://ymir-wm.github.io/ymir/Development:-Developing-ymir#tests) and format the code with `cargo +nightly fmt --all`.
+- Remember to [run tests](https://lab.braxton.onl/braxton/ymir/src/branch/main/docs/wiki/Development:-Developing-ymir.md#tests) and format the code with `cargo +nightly fmt --all`.
 - For new layout actions, remember to add them to the randomized tests. For weird Wayland handling, adding client-server tests in `src/tests/` could be very useful.
 - Test your changes by hand thoroughly, including for edge cases and weird interactions. See the Testing section above for some tips.
 - Remember to document new config options on the wiki.

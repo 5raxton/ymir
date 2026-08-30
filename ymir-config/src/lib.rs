@@ -102,9 +102,9 @@ pub enum ConfigPath {
     /// Prioritize the user path, fallback to the system path, fallback to creating the user path
     /// at compositor startup.
     Regular {
-        /// User config path, usually `$XDG_CONFIG_HOME/ymir/config.lua`.
+        /// User config path, usually `$XDG_CONFIG_HOME/ymir/init.lua`.
         user_path: PathBuf,
-        /// System config path, usually `/etc/ymir/config.lua`.
+        /// System config path, usually `/etc/ymir/init.lua`.
         system_path: PathBuf,
     },
 }
@@ -174,7 +174,7 @@ impl Config {
     }
 
     pub fn parse_mem(text: &str) -> Result<Self, ConfigIncludeError> {
-        Self::parse(Path::new("config.lua"), text).config
+        Self::parse(Path::new("init.lua"), text).config
     }
 }
 
@@ -228,6 +228,25 @@ impl ConfigPath {
                 } else if system_path.exists() {
                     system_path.as_path()
                 } else {
+                    // The canonical config name is `init.lua` (Phase 2 of the Lua engine). Reject
+                    // the legacy `config.lua` name with a clear message instead of silently
+                    // falling back to (or shadowing) an old-format config.
+                    let found_legacy = [user_path, system_path]
+                        .into_iter()
+                        .map(|path| path.with_file_name("config.lua"))
+                        .filter(|path| path.exists())
+                        .map(|path| path.display().to_string())
+                        .collect::<Vec<_>>();
+                    if !found_legacy.is_empty() {
+                        return ConfigParseResult::from_err(miette!(
+                            "found legacy config file{} {}: ymir now loads the `init.lua` config at \
+                             {:?}. Rename your config to `init.lua` to migrate",
+                            if found_legacy.len() > 1 { "s" } else { "" },
+                            found_legacy.join(" and "),
+                            user_path,
+                        ));
+                    }
+
                     match maybe_create(user_path.as_path(), system_path.as_path()) {
                         Ok(x) => x,
                         Err(err) => return ConfigParseResult::from_err(miette!(err)),

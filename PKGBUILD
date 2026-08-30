@@ -4,18 +4,18 @@
 pkgname=ymir
 pkgdesc="A scrollable-tiling Wayland compositor with dwindle column mode"
 # Placeholder; the pkgver() function below overrides it with the git version at build time.
-pkgver=26.4.0
+pkgver=1.0.0
 pkgver() {
     if git -C "$srcdir/$pkgname" describe --always --tags >/dev/null 2>&1; then
         git -C "$srcdir/$pkgname" describe --always --tags | sed 's/^v//; s/-/./g'
     else
         # Fallback so that e.g. `makepkg --printsrcinfo` works without fetching the source.
-        echo "26.4.0"
+        echo "1.0.0"
     fi
 }
 pkgrel=1
 arch=('x86_64')
-url="https://github.com/5raxton/ymir"
+url="https://lab.braxton.onl/braxton/ymir"
 # !lto: Arch's default CFLAGS add -flto, which makes cc compile the libspa-sys
 # static libspa-rs-reexports archive with LTO; rustc then fails to resolve its
 # symbols at link time (undefined libspa_rs_* / *_libspa_rs).
@@ -56,7 +56,7 @@ optdepends=(
     'xdg-desktop-portal-gtk: file chooser portal'
     'ydotool: synthetic input for night manipulation scripts'
 )
-source=("$pkgname::git+https://github.com/5raxton/ymir.git#branch=main")
+source=("$pkgname::git+https://lab.braxton.onl/braxton/ymir.git#branch=main")
 sha256sums=('SKIP')
 
 build() {

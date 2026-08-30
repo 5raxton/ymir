@@ -6,16 +6,17 @@ Every column has exactly one display mode:
 
 - `normal` — classic scrollable tiling (windows stacked vertically in a column);
 - `tabbed` — tabbed windows (see [Tabs](./Tabs.md));
-- `dwindle` — recursive binary-split tree of windows.
+- `dwindle` — recursive binary-split tree of windows;
+- `depth` — deck-style queue: a full-size apex card with the rest of the queue fanned into decks behind it (see [Depth](./Configuration:-Depth.md)).
 
-New columns are created in dwindle mode out of the box: the shipped config sets `default_column_display = "dwindle"` in its `layout` table. A ready-made config is also provided at [`resources/dwindle-config.lua`](https://github.com/5raxton/ymir/blob/main/resources/dwindle-config.lua).
+New columns are created in dwindle mode out of the box: the shipped config sets `default_column_display = "dwindle"` in its `layout` table. A ready-made config is also provided at [`resources/dwindle-config.lua`](https://lab.braxton.onl/braxton/ymir/src/branch/main/resources/dwindle-config.lua).
 
 The rest of this page documents the dwindle actions, key bindings, and behavior. The general rules for switching display modes live in [`default-column-display`](./Configuration:-Layout.md#default-column-display).
 
 ### Switching the layout mode
 
-- `switch_column_display` — toggle the focused column between dwindle and scrollable (`normal`). A tabbed column is switched to dwindle. Bound to `Mod+Shift+D` in the default config.
-- `set_column_display` — set the display mode explicitly: `"normal"`, `"tabbed"` or `"dwindle"`.
+- `switch_column_display` — toggle the focused column between dwindle and scrollable (`normal`). A tabbed or depth column is switched to dwindle. Bound to `Mod+Shift+D` in the default config.
+- `set_column_display` — set the display mode explicitly: `"normal"`, `"tabbed"`, `"dwindle"` or `"depth"`.
 
 ```lua
 return {

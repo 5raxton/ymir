@@ -86,21 +86,21 @@ I wouldn't be too surprised if, down the road, xwayland-satellite becomes the st
 
 ### Can I enable blur behind semitransparent windows?
 
-<sup>Since: 26.04</sup> Yes.
+<sup>Since: 1.0.0</sup> Yes.
 See the [window effects](./Window-Effects.md) wiki page.
 
 ### Can I make a window sticky / pinned / always on top / appear on all workspaces?
 
-Not yet, follow/upvote [this issue](https://github.com/ymir-wm/ymir/issues/932).
+Not yet, follow/upvote [this issue](https://lab.braxton.onl/braxton/ymir/issues/932).
 
 You can emulate this with a script that uses the ymir IPC.
-For example, a status-bar tool with a `toggle-follow-mode` feature can do this (see [issue #932](https://github.com/ymir-wm/ymir/issues/932)).
+For example, a status-bar tool with a `toggle-follow-mode` feature can do this (see [issue #932](https://lab.braxton.onl/braxton/ymir/issues/932)).
 
 ### How do I make the Bitwarden window in Firefox open as floating?
 
 Firefox seems to first open the Bitwarden window with a generic Firefox title, and only later change the window title to Bitwarden, so you can't effectively target it with an `open-floating` window rule.
 
-You'll need to use a script, for example [this one](https://github.com/ymir-wm/ymir/discussions/1599) or other ones (search ymir issues and discussions for Bitwarden).
+You'll need to use a script, for example [this one](https://lab.braxton.onl/braxton/ymir/discussions/1599) or other ones (search ymir issues and discussions for Bitwarden).
 
 ### Can I open a window directly in the current column / in the same column as another window?
 
@@ -110,7 +110,7 @@ Listen to the event stream for a new window opening, then call an action like `c
 Adding this directly to ymir is challenging:
 
 - The act of "opening a window directly in some column" by itself is quite involved. Ymir will have to compute the exact initial window size provided how other windows in a column would resize in response. This logic exists, but it isn't directly pluggable to the code computing a size for a new window. Then, it'll need to handle all sorts of edge cases like the column disappearing, or new windows getting added to the column, before the target window had a chance to appear.
-- How do you indicate if a new window should spawn in an existing column (and in which one), as opposed to a new column? Different people seem to have different needs here (including very complex rules based on parent PID, etc.), and it's very unclear design-wise what kind of (simple) setting is actually needed and would be useful. See also https://github.com/ymir-wm/ymir/discussions/1125.
+- How do you indicate if a new window should spawn in an existing column (and in which one), as opposed to a new column? Different people seem to have different needs here (including very complex rules based on parent PID, etc.), and it's very unclear design-wise what kind of (simple) setting is actually needed and would be useful. See also https://lab.braxton.onl/braxton/ymir/discussions/1125.
 
 ### Why does moving the mouse against a monitor edge focus the next window, but only sometimes?
 
@@ -153,7 +153,7 @@ return {
 
 If you require different output configurations depending on what outputs are connected then you can use [Kanshi](https://gitlab.freedesktop.org/emersion/kanshi).
 
-Kanshi has its own simple configuration and communicates with ymir via IPC. You may want to launch kanshi from the ymir config.lua e.g. `spawn_at_startup = { { command = { "/usr/bin/kanshi" } } }`
+Kanshi has its own simple configuration and communicates with ymir via IPC. You may want to launch kanshi from the ymir config (e.g. `init.lua`) e.g. `spawn_at_startup = { { command = { "/usr/bin/kanshi" } } }`
 
 For example, if you wish to scale your laptop display differently when an external monitor is connected, you might use a Kanshi config like this:
 ```

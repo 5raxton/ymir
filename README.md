@@ -1,8 +1,8 @@
 <h1 align="center">ymir</h1>
 <p align="center">A scrollable-tiling Wayland compositor with dwindle-style binary tiling.</p>
 <p align="center">
-    <a href="https://github.com/5raxton/ymir/blob/main/LICENSE"><img alt="License" src="https://img.shields.io/github/license/5raxton/ymir"></a>
-    <a href="https://github.com/5raxton/ymir/releases"><img alt="Release" src="https://img.shields.io/github/v/release/5raxton/ymir?logo=github"></a>
+    <a href="https://lab.braxton.onl/braxton/ymir/src/branch/main/LICENSE"><img alt="License" src="https://img.shields.io/badge/license-GPL--3.0--or--later-blue"></a>
+    <a href="https://lab.braxton.onl/braxton/ymir/releases"><img alt="Release" src="https://img.shields.io/badge/release-1.0.0-blue"></a>
     <img alt="Platform" src="https://img.shields.io/badge/platform-Linux-lightgrey">
 </p>
 
@@ -18,8 +18,9 @@ inside a column, each new window splits the focused window in two and takes half
 The result is a resizable binary tree that partitions the whole work area — Hyprland-style,
 living inside a scrollable column strip.
 
-Three column display modes are available — `dwindle`, `normal` (classic
-scrollable columns) and `tabbed` — and you can switch a column between them at any time.
+Four column display modes are available — `dwindle`, `normal` (classic
+scrollable columns), `tabbed` and `depth` (a deck-style queue with a full-size
+apex card) — and you can switch a column between them at any time.
 
 ymir began as a fork of [niri] and has grown its own tiling model and identity since.
 
@@ -95,14 +96,14 @@ the build/runtime dependencies, clones the latest `main`, builds and installs:
 
 ```sh
 # bash/zsh
-curl -sL https://raw.githubusercontent.com/5raxton/ymir/main/scripts/install.sh | bash
+curl -sL https://lab.braxton.onl/braxton/ymir/raw/branch/main/scripts/install.sh | bash
 
 # fish
-curl -sL https://raw.githubusercontent.com/5raxton/ymir/main/scripts/install.fish | fish
+curl -sL https://lab.braxton.onl/braxton/ymir/raw/branch/main/scripts/install.fish | fish
 ```
 
 On Arch it builds with `makepkg` from the bundled PKGBUILD; elsewhere it builds with `cargo`
-and installs into `/usr/local`. It seeds `~/.config/ymir/config.lua` with the dwindle example
+and installs into `/usr/local`. It seeds `~/.config/ymir/init.lua` with the dwindle example
 config if absent, and installs the `ymir.desktop` session entry so "Ymir" appears in your login
 manager (GDM, SDDM, ...). From a bare TTY you can start it with `ymir-session`. Re-running the
 installer pulls the latest `main` and rebuilds, so it doubles as an updater.
@@ -113,7 +114,7 @@ installer pulls the latest `main` and rebuilds, so it doubles as an updater.
 cargo build --release
 ```
 
-On first start, ymir creates a config at `~/.config/ymir/config.lua` based on the embedded
+On first start, ymir creates a config at `~/.config/ymir/init.lua` based on the embedded
 default config (which enables dwindle). Start it with `target/release/ymir --session` from an
 unlocked TTY. Development shells are also provided via `nix develop`.
 
@@ -126,7 +127,7 @@ size.
 
 | Key combo | Action |
 | --- | --- |
-| `Mod+Shift+D` | switch-column-display: cycle the focused column between dwindle, normal (scrollable) and tabbed |
+| `Mod+Shift+D` | switch-column-display: cycle the focused column between dwindle, normal (scrollable), tabbed and depth |
 | `Mod+Space` | toggle-split: flip the split orientation of the focused window's container |
 | `Mod+Ctrl+Space` | preselect `"bottom"`: split direction for the next window opened in the column |
 | `Mod+Shift+Home` | promote-window: move the focused window to the head of the dwindle tree |

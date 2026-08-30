@@ -104,7 +104,7 @@ return {
 
 #### `layer`
 
-<sup>Since: 26.04</sup>
+<sup>Since: 1.0.0</sup>
 
 Matches surfaces on this layer-shell layer.
 Can be `"background"`, `"bottom"`, `"top"`, or `"overlay"`.
@@ -262,7 +262,7 @@ return {
 
 #### `background-effect`
 
-<sup>Since: 26.04</sup>
+<sup>Since: 1.0.0</sup>
 
 Override the background effect options for this surface.
 
@@ -293,7 +293,7 @@ return {
 
 #### `popups`
 
-<sup>Since: 26.04</sup>
+<sup>Since: 1.0.0</sup>
 
 Override properties for this layer surface's pop-ups (e.g. a menu opened by clicking an item in Waybar).
 

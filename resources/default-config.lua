@@ -1,12 +1,12 @@
 -- This config is a Lua program. The table it returns describes the config.
 -- You can also call functions from the `ymir` prelude (for example include_config)
 -- before returning. Check the wiki for a full description of the configuration:
--- https://5raxton.github.io/ymir/Configuration:-Introduction
+-- https://lab.braxton.onl/braxton/ymir/wiki/Configuration:-Introduction
 
 return {
   -- Input device configuration.
   -- Find the full list of options on the wiki:
-  -- https://5raxton.github.io/ymir/Configuration:-Input
+  -- https://lab.braxton.onl/braxton/ymir/wiki/Configuration:-Input
   input = {
     keyboard = {
       xkb = {
@@ -74,7 +74,7 @@ return {
   -- by running `ymir msg outputs` while inside a ymir instance.
   -- The built-in laptop monitor is usually called "eDP-1".
   -- Find more information on the wiki:
-  -- https://5raxton.github.io/ymir/Configuration:-Outputs
+  -- https://lab.braxton.onl/braxton/ymir/wiki/Configuration:-Outputs
   -- Remember to uncomment the entry by removing "--"!
   -- outputs = {
   --   {
@@ -112,7 +112,7 @@ return {
 
   -- Settings that influence how windows are positioned and sized.
   -- Find more information on the wiki:
-  -- https://5raxton.github.io/ymir/Configuration:-Layout
+  -- https://lab.braxton.onl/braxton/ymir/wiki/Configuration:-Layout
   layout = {
     -- Set gaps around windows in logical pixels.
     gaps = 16,
@@ -344,7 +344,7 @@ return {
 
   -- Animation settings.
   -- The wiki explains how to configure individual animations:
-  -- https://5raxton.github.io/ymir/Configuration:-Animations
+  -- https://lab.braxton.onl/braxton/ymir/wiki/Configuration:-Animations
   animations = {
     -- Uncomment to turn off all animations.
     -- off = true
@@ -355,7 +355,7 @@ return {
 
   -- Window rules let you adjust behavior for individual windows.
   -- Find more information on the wiki:
-  -- https://5raxton.github.io/ymir/Configuration:-Window-Rules
+  -- https://lab.braxton.onl/braxton/ymir/wiki/Configuration:-Window-Rules
 
   -- Work around WezTerm's initial configure bug
   -- by setting an empty default_column_width.

@@ -665,7 +665,7 @@ impl Tty {
                     let device = self.devices.get_mut(&node).unwrap();
 
                     // Someone on an old device hit what seems to be a driver bug without this:
-                    // https://github.com/ymir-wm/ymir/issues/3048
+                    // https://lab.braxton.onl/braxton/ymir/issues/3048
                     let force_disable = self
                         .config
                         .borrow()
@@ -1745,8 +1745,8 @@ impl Tty {
                 // This is an error!() because it shouldn't happen, but on some systems it somehow
                 // does. Kernel sending rogue vblank events?
                 //
-                // https://github.com/ymir-wm/ymir/issues/556
-                // https://github.com/ymir-wm/ymir/issues/615
+                // https://lab.braxton.onl/braxton/ymir/issues/556
+                // https://lab.braxton.onl/braxton/ymir/issues/615
                 error!(
                     "unexpected redraw state for output {name} (should be WaitingForVBlank); \
                      can happen when resuming from sleep or powering on monitors: {state:?}"

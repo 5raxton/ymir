@@ -298,7 +298,7 @@ Valid output names are the same as the ones used for output configuration.
 
 Settings specific to `tablet`:
 
-- `map_to_focused_output`: <sup>Since: 26.04</sup> will map the tablet to the focused output, takes precedence over `map_to_output`.
+- `map_to_focused_output`: <sup>Since: 1.0.0</sup> will map the tablet to the focused output, takes precedence over `map_to_output`.
 
 - `map_to_focused_window`: <sup>Since: next release</sup> will map the tablet to the focused window's geometry, takes precedence over `map_to_focused_output` and `map_to_output`.
 Falls back to those when no window is focused (for example, in the overview).

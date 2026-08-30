@@ -565,6 +565,10 @@ pub enum HitType {
         /// Whether the hit was on the tab indicator.
         is_tab_indicator: bool,
     },
+    /// The hit was on a depth-queue deck card. Activating the window pulls the card to the apex;
+    /// it never sends input events to the (hidden) card's surface, and it does not trigger
+    /// focus-follows-mouse (hovering the deck shouldn't shuffle it).
+    ActivateDepthCard,
 }
 
 #[derive(Debug)]
@@ -654,7 +658,7 @@ impl HitType {
     pub fn offset_win_pos(mut self, offset: Point<f64, Logical>) -> Self {
         match &mut self {
             HitType::Input { win_pos } => *win_pos += offset,
-            HitType::Activate { .. } => (),
+            HitType::Activate { .. } | HitType::ActivateDepthCard => (),
         }
         self
     }
@@ -674,7 +678,7 @@ impl HitType {
             HitType::Input { .. } => HitType::Activate {
                 is_tab_indicator: false,
             },
-            HitType::Activate { .. } => self,
+            HitType::Activate { .. } | HitType::ActivateDepthCard => self,
         }
     }
 }

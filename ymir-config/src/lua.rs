@@ -150,7 +150,7 @@ pub fn run_program(
     let filename = path
         .file_name()
         .and_then(OsStr::to_str)
-        .unwrap_or("config.lua");
+        .unwrap_or("init.lua");
     let display_path = relative_to_root(path, &base)
         .unwrap_or_else(|| PathBuf::from(filename));
 

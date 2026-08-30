@@ -119,7 +119,7 @@ return {
 
 ### `force-disable-connectors-on-resume`
 
-<sup>Since: 26.04</sup>
+<sup>Since: 1.0.0</sup>
 
 Force-disables all outputs upon resuming ymir (TTY switch or waking up from suspend).
 This causes a modeset/screen blank on all outputs.

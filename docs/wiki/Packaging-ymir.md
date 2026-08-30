@@ -47,7 +47,7 @@ Set them as automatically-installed optional dependencies, if possible.
 Working hardware acceleration is required for running ymir.
 - Some notification daemon like `mako`, generally required for apps to work correctly.
 
-Finally, you may want to auto-install some of the applications bound in ymir's [default configuration file](https://github.com/5raxton/ymir/blob/main/resources/default-config.lua) (search for `spawn`), such as `alacritty` and `fuzzel`.
+Finally, you may want to auto-install some of the applications bound in ymir's [default configuration file](https://lab.braxton.onl/braxton/ymir/src/branch/main/resources/default-config.lua) (search for `spawn`), such as `alacritty` and `fuzzel`.
 
 ### Running tests
 

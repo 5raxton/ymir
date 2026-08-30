@@ -3,17 +3,17 @@ First, for creating a ymir package, see the [Packaging](./Packaging-ymir.md) pag
 
 ### Configuration
 
-Ymir will load configuration from `$XDG_CONFIG_HOME/ymir/config.lua` or `~/.config/ymir/config.lua`, falling back to `/etc/ymir/config.lua`.
-If both of these files are missing, ymir will create `$XDG_CONFIG_HOME/ymir/config.lua` with the contents of [the default configuration file](https://github.com/5raxton/ymir/blob/main/resources/default-config.lua), which are embedded into the ymir binary at build time.
+Ymir will load configuration from `$XDG_CONFIG_HOME/ymir/init.lua` or `~/.config/ymir/init.lua`, falling back to `/etc/ymir/init.lua`.
+If both of these files are missing, ymir will create `$XDG_CONFIG_HOME/ymir/init.lua` with the contents of [the default configuration file](https://lab.braxton.onl/braxton/ymir/src/branch/main/resources/default-config.lua), which are embedded into the ymir binary at build time.
 
-This means that you can customize your distribution defaults by creating `/etc/ymir/config.lua`.
+This means that you can customize your distribution defaults by creating `/etc/ymir/init.lua`.
 When this file is present, ymir *will not* automatically create a config at `~/.config/ymir/`, so you'll need to direct your users how to do it themselves.
 
-Keep in mind that we update the default config in new releases, so if you have a custom `/etc/ymir/config.lua`, you likely want to inspect and apply the relevant changes too.
+Keep in mind that we update the default config in new releases, so if you have a custom `/etc/ymir/init.lua`, you likely want to inspect and apply the relevant changes too.
 
 The default configuration locations can be overridden with the `YMIR_CONFIG` environment variable.
 
-<sup>Since: 26.04</sup> You can also change the configuration path at runtime via the ymir IPC or using the command `ymir msg action load-config-file --path <path-to-config.lua>`.
+<sup>Since: 1.0.0</sup> You can also change the configuration path at runtime via the ymir IPC or using the command `ymir msg action load-config-file --path <path-to-init.lua>`.
 
 <sup>Since: 25.11</sup> You can split the ymir config file into multiple files using [`include`](./Configuration:-Include.md).
 
@@ -36,7 +36,7 @@ Make sure your system installer sets the keyboard layout via systemd-localed, an
 ### Autostart
 
 Ymir works with the normal systemd autostart.
-The default [ymir.service](https://github.com/5raxton/ymir/blob/main/resources/ymir.service) brings up `graphical-session.target` as well as `xdg-desktop-autostart.target`.
+The default [ymir.service](https://lab.braxton.onl/braxton/ymir/src/branch/main/resources/ymir.service) brings up `graphical-session.target` as well as `xdg-desktop-autostart.target`.
 
 To make a program run at ymir startup without editing the ymir config, you can either link its .desktop to `~/.config/autostart/`, or use a .service file with `WantedBy=graphical-session.target`.
 See the [example systemd setup](./Example-systemd-Setup.md) page for some examples.

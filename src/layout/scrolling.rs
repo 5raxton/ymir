@@ -3389,8 +3389,12 @@ impl<W: LayoutElement> ScrollingSpace<W> {
 
         cancel_resize_for_column(&mut self.interactive_resize, col);
 
-        if is_fullscreen && (col.tiles.len() > 1 && !is_tabbed && !col.is_dwindle()) {
+        if is_fullscreen
+            && (col.tiles.len() > 1 && !is_tabbed && !col.is_dwindle() && !col.is_depth())
+        {
             // This wasn't the only window in its column; extract it into a separate column.
+            // Depth columns fullscreen in place: the deck hides for the fullscreen duration and
+            // is restored on un-fullscreen, so extraction isn't needed.
             self.consume_or_expel_window_right(Some(window));
             col_idx += 1;
             col = &mut self.columns[col_idx];
@@ -3420,8 +3424,12 @@ impl<W: LayoutElement> ScrollingSpace<W> {
 
         cancel_resize_for_column(&mut self.interactive_resize, col);
 
-        if maximize && (col.tiles.len() > 1 && !is_tabbed && !col.is_dwindle()) {
+        if maximize
+            && (col.tiles.len() > 1 && !is_tabbed && !col.is_dwindle() && !col.is_depth())
+        {
             // This wasn't the only window in its column; extract it into a separate column.
+            // Depth columns maximize in place: the deck hides for the maximized duration and
+            // is restored on un-maximize, so extraction isn't needed.
             self.consume_or_expel_window_right(Some(window));
             col_idx += 1;
             col = &mut self.columns[col_idx];
@@ -3563,6 +3571,29 @@ impl<W: LayoutElement> ScrollingSpace<W> {
                 if let Some(rv) = HitType::hit_tile(tile, tile_pos, pos) {
                     return Some(rv);
                 }
+            }
+        }
+
+        // In depth mode, a click on a fanned deck card hits the card (activating it pulls it to the
+        // apex) rather than passing through to the background. Deck cards sit behind the apex, so
+        // they're never in `tiles_in_render_order` above; hit them by their fanned rects instead.
+        // Nearest cards win on overlap, mirroring the far-to-near drawing order.
+        for (col, col_pos) in self.columns_with_render_positions() {
+            if !col.is_depth_visible() {
+                continue;
+            }
+
+            let mut deck: Vec<(usize, Rectangle<f64, Logical>)> = col
+                .depth_deck_rects()
+                .into_iter()
+                .map(|(tile_idx, pose)| {
+                    let rect = col.depth_card_rect(pose);
+                    (tile_idx, Rectangle::new(rect.loc + col_pos, rect.size))
+                })
+                .collect();
+            deck.sort_unstable_by_key(|(tile_idx, _)| tile_idx.abs_diff(col.active_tile_idx));
+            if let Some((tile_idx, _)) = deck.into_iter().find(|(_, rect)| rect.contains(pos)) {
+                return Some((col.tiles[tile_idx].window(), HitType::ActivateDepthCard));
             }
         }
 
@@ -6243,7 +6274,15 @@ impl<W: LayoutElement> Column<W> {
         let cfg = &self.options.layout.depth_queue;
         let height = self.working_area.size.h - self.options.layout.gaps * 2.;
         let width = self.resolve_column_width(self.width);
-        let apex_h = (height * cfg.card_height_ratio).max(1.);
+        // The apex card honors the apex window's min size by growing, never below the configured
+        // ratio and bounded to the working area.
+        let min_h = self
+            .tiles
+            .get(self.active_tile_idx)
+            .map(Tile::min_size_nonfullscreen)
+            .map(|size| size.h)
+            .unwrap_or(0.);
+        let apex_h = (height * cfg.card_height_ratio).max(min_h).clamp(1., height);
         let size = Size::from((width, apex_h));
         let mut loc = self.tiles_origin();
         loc.y += (height - apex_h) / 2.;

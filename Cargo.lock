@@ -4602,7 +4602,7 @@ checksum = "cfe53a6657fd280eaa890a3bc59152892ffa3e30101319d168b781ed6529b049"
 
 [[package]]
 name = "ymir"
-version = "26.4.0"
+version = "1.0.0"
 dependencies = [
  "accesskit",
  "accesskit_unix",
@@ -4664,7 +4664,7 @@ dependencies = [
 
 [[package]]
 name = "ymir-config"
-version = "26.4.0"
+version = "1.0.0"
 dependencies = [
  "bitflags 2.13.1",
  "csscolorparser",
@@ -4682,7 +4682,7 @@ dependencies = [
 
 [[package]]
 name = "ymir-ipc"
-version = "26.4.0"
+version = "1.0.0"
 dependencies = [
  "clap",
  "schemars",
@@ -4692,7 +4692,7 @@ dependencies = [
 
 [[package]]
 name = "ymir-visual-tests"
-version = "26.4.0"
+version = "1.0.0"
 dependencies = [
  "anyhow",
  "gtk4",

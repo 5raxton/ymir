@@ -7,19 +7,19 @@
 #   - cleans stale build/download artifacts from previous runs
 #   - builds and installs ymir (makepkg on Arch, cargo + /usr/local elsewhere)
 #   - installs the session .desktop file and ports/config units automatically
-#   - seeds ~/.config/ymir/config.lua with the dwindle example config if absent
+#   - seeds ~/.config/ymir/init.lua with the dwindle example config if absent
 #
 # Safe to re-run any time: each run pulls the latest main, cleans stale
 # artifacts, and does a fresh build, so it also serves as a full update.
 set -euo pipefail
 
-REPO_URL="https://github.com/5raxton/ymir.git"
+REPO_URL="https://lab.braxton.onl/braxton/ymir.git"
 REPO_DIR="${YMIR_REPO_DIR:-$HOME/src/ymir}"
 BRANCH="${YMIR_BRANCH:-main}"
 PREFIX="${YMIR_PREFIX:-/usr/local}"
 DESKTOP_DIR="${YMIR_DESKTOP_DIR:-/usr/share/wayland-sessions}"
 CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/ymir"
-CONFIG_FILE="$CONFIG_DIR/config.lua"
+CONFIG_FILE="$CONFIG_DIR/init.lua"
 
 log()  { printf '\033[1;34m>>>\033[0m %s\n' "$*"; }
 die()  { printf '\033[1;31merror:\033[0m %s\n' "$*" >&2; exit 1; }

@@ -1,6 +1,6 @@
 # ymir-ipc
 
-Types and helpers for interfacing with the [ymir](https://github.com/ymir-wm/ymir) Wayland compositor.
+Types and helpers for interfacing with the [ymir](https://lab.braxton.onl/braxton/ymir) Wayland compositor.
 
 ## Backwards compatibility
 
@@ -12,5 +12,5 @@ Use an exact version requirement to avoid breaking changes:
 
 ```toml
 [dependencies]
-ymir-ipc = "=26.4.0"
+ymir-ipc = "=1.0.0"
 ```

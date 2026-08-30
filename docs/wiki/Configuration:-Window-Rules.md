@@ -782,7 +782,7 @@ Values:
 The default behavior, when this rule is unset, picks between focusing and marking the window urgent based on the serial that the application provides when creating the activation token.
 Requests with a valid serial focus the target window, and requests without a serial mark it urgent.
 
-Requests with a set, but invalid, serial, are always ignored, which you can change with the [`honor-xdg-activation-with-invalid-serial`](https://5raxton.github.io/ymir/Configuration%3A-Debug-Options.html#honor-xdg-activation-with-invalid-serial) debug flag.
+Requests with a set, but invalid, serial, are always ignored, which you can change with the [`honor-xdg-activation-with-invalid-serial`](https://lab.braxton.onl/braxton/ymir/wiki/Configuration:-Debug-Options#honor-xdg-activation-with-invalid-serial) debug flag.
 
 This is useful for apps that steal focus on incoming messages or when opening popup windows like Picture-in-Picture.
 
@@ -1230,7 +1230,7 @@ https://github.com/user-attachments/assets/3f4cb1a4-40b2-4766-98b7-eec014c19509
 
 #### `background-effect`
 
-<sup>Since: 26.04</sup>
+<sup>Since: 1.0.0</sup>
 
 Override the background effect options for this window.
 
@@ -1264,7 +1264,7 @@ return {
 
 #### `popups`
 
-<sup>Since: 26.04</sup>
+<sup>Since: 1.0.0</sup>
 
 Override properties for this window's pop-ups (menus and tooltips).
 

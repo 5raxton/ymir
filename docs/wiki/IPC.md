@@ -26,7 +26,7 @@ To get a taste of the events, run `ymir msg event-stream`.
 Though, this is more of a debug function than anything.
 You can get raw events from `ymir msg --json event-stream`, or by connecting to the ymir socket and requesting an event stream manually.
 
-You can find the full list of events along with documentation [here](https://5raxton.github.io/ymir/ymir_ipc/enum.Event.html).
+You can find the full list of events along with documentation [here](https://lab.braxton.onl/braxton/ymir/src/branch/main/ymir-ipc/src/lib.rs).
 
 ### Programmatic Access
 
@@ -57,7 +57,7 @@ $ env YMIR_SOCKET=./temp.sock ymir msg action focus-workspace 2
 {"Action":{"FocusWorkspace":{"reference":{"Index":2}}}}
 ```
 
-You can find all available requests and response types in the [ymir-ipc sub-crate documentation](https://5raxton.github.io/ymir/ymir_ipc/).
+You can find all available requests and response types in the [ymir-ipc sub-crate documentation](https://lab.braxton.onl/braxton/ymir/src/branch/main/ymir-ipc/).
 
 ### Backwards Compatibility
 

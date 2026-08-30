@@ -21,7 +21,7 @@ You can include by filename or path.
 
 * Relative to the current file: `other.lua` or `./other.lua`
 * By absolute path: `/path/to/file.lua`
-* <sup>Since: 26.04</sup> Home dir paths: `~/file.lua` expands to `/home/user/file.lua`
+* <sup>Since: 1.0.0</sup> Home dir paths: `~/file.lua` expands to `/home/user/file.lua`
 
 Includes work only at the top level of the config, as function calls before the returned table:
 
@@ -177,7 +177,7 @@ return {
 
 ### Optional includes
 
-<sup>Since: 26.04</sup>
+<sup>Since: 1.0.0</sup>
 
 By default, including a nonexistent file will cause an error.
 You can allow nonexistent includes by passing an options table to `include_config` with `optional = true`:

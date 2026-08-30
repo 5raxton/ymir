@@ -320,7 +320,7 @@ pub struct Ymir {
     // verified that a black single-pixel-buffer background lets the foreground surface to be
     // unredirected.
     //
-    // https://github.com/ymir-wm/ymir/issues/619
+    // https://lab.braxton.onl/braxton/ymir/issues/619
     #[cfg(test)]
     pub single_pixel_buffer_state: SinglePixelBufferState,
 
@@ -6263,13 +6263,11 @@ impl Ymir {
             if !self.layout.is_overview_open() && current_focus.window.as_ref() != Some(window) {
                 let (window, hit) = window;
 
-                // Don't trigger focus-follows-mouse over the tab indicator.
-                if matches!(
-                    hit,
-                    HitType::Activate {
-                        is_tab_indicator: true
-                    }
-                ) {
+                // Don't trigger focus-follows-mouse over the tab indicator or a depth deck card
+                // (hovering the deck shouldn't shuffle it; clicking a card pulls it to the apex).
+                if matches!(hit, HitType::Activate { is_tab_indicator: true })
+                    || matches!(hit, HitType::ActivateDepthCard)
+                {
                     return;
                 }
 

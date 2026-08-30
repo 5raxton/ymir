@@ -98,7 +98,7 @@
           buildNoDefaultFeatures = true;
 
           # ever since this commit:
-          # https://github.com/ymir-wm/ymir/commit/771ea1e81557ffe7af9cbdbec161601575b64d81
+          # https://lab.braxton.onl/braxton/ymir/commit/771ea1e81557ffe7af9cbdbec161601575b64d81
           # ymir now runs an actual instance of the real compositor (with a mock backend) during tests
           # and thus creates a real socket file in the runtime dir.
           # this is fine for our build, we just need to make sure it has a directory to write to.
@@ -148,7 +148,7 @@
 
           meta = {
             description = "Scrollable-tiling Wayland compositor";
-            homepage = "https://github.com/ymir-wm/ymir";
+            homepage = "https://lab.braxton.onl/braxton/ymir";
             license = lib.licenses.gpl3Only;
             mainProgram = "ymir";
             platforms = lib.platforms.linux;

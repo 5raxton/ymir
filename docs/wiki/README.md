@@ -4,9 +4,9 @@ Feel free to look through usage and [Getting started](./Getting-Started.md).
 If you're looking for ways to configure ymir, check out the [introduction to configuration](./Configuration:-Introduction.md).
 
 If you'd like to help with ymir, there are plenty of both coding- and non-coding-related ways to do so.
-See [CONTRIBUTING.md](https://github.com/5raxton/ymir/blob/main/CONTRIBUTING.md) for an overview.
+See [CONTRIBUTING.md](https://lab.braxton.onl/braxton/ymir/src/branch/main/CONTRIBUTING.md) for an overview.
 
-If you're not already here, check out our new wiki website! https://5raxton.github.io/ymir/
+If you're not already here, check out our new wiki website! https://lab.braxton.onl/braxton/ymir/
 
 ---
 

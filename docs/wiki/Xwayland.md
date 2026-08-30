@@ -47,7 +47,7 @@ It will open as a new window.
 
 This method involves invoking XWayland directly and running it as its own window, it also requires an extra X11 window manager running inside it.
 
-![Xwayland running in rootful mode.](https://github.com/ymir-wm/ymir/assets/1794388/b64e96c4-a0bb-4316-94a0-ff445d4c7da7)
+![Xwayland running in rootful mode.](https://lab.braxton.onl/braxton/ymir/assets/1794388/b64e96c4-a0bb-4316-94a0-ff445d4c7da7)
 
 Here's how you do it:
 

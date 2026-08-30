@@ -378,11 +378,11 @@ mod tests {
 
     #[test]
     fn change_file() -> Result {
-        TestPath::Explicit("ymir/config.lua")
-            .setup(|sh| sh.write_file("ymir/config.lua", "a"))
+        TestPath::Explicit("ymir/init.lua")
+            .setup(|sh| sh.write_file("ymir/init.lua", "a"))
             .assert_initial("a")
             .run(|sh, test| {
-                sh.write_file("ymir/config.lua", "b")?;
+                sh.write_file("ymir/init.lua", "b")?;
                 test.assert_changed_to("b");
 
                 Ok(())
@@ -391,11 +391,11 @@ mod tests {
 
     #[test]
     fn overwrite_but_dont_change_file() -> Result {
-        TestPath::Explicit("ymir/config.lua")
-            .setup(|sh| sh.write_file("ymir/config.lua", "a"))
+        TestPath::Explicit("ymir/init.lua")
+            .setup(|sh| sh.write_file("ymir/init.lua", "a"))
             .assert_initial("a")
             .run(|sh, test| {
-                sh.write_file("ymir/config.lua", "a")?;
+                sh.write_file("ymir/init.lua", "a")?;
                 test.assert_changed_to("a");
 
                 Ok(())
@@ -404,11 +404,11 @@ mod tests {
 
     #[test]
     fn touch_file() -> Result {
-        TestPath::Explicit("ymir/config.lua")
-            .setup(|sh| sh.write_file("ymir/config.lua", "a"))
+        TestPath::Explicit("ymir/init.lua")
+            .setup(|sh| sh.write_file("ymir/init.lua", "a"))
             .assert_initial("a")
             .run(|sh, test| {
-                cmd!(sh, "touch ymir/config.lua").run()?;
+                cmd!(sh, "touch ymir/init.lua").run()?;
                 test.assert_changed_to("a");
 
                 Ok(())
@@ -417,11 +417,11 @@ mod tests {
 
     #[test]
     fn create_file() -> Result {
-        TestPath::Explicit("ymir/config.lua")
+        TestPath::Explicit("ymir/init.lua")
             .setup(|sh| sh.create_dir("ymir"))
             .assert_initial_not_exists()
             .run(|sh, test| {
-                sh.write_file("ymir/config.lua", "a")?;
+                sh.write_file("ymir/init.lua", "a")?;
                 test.assert_changed_to("a");
 
                 Ok(())
@@ -430,10 +430,10 @@ mod tests {
 
     #[test]
     fn create_dir_and_file() -> Result {
-        TestPath::Explicit("ymir/config.lua")
+        TestPath::Explicit("ymir/init.lua")
             .without_setup()
             .run(|sh, test| {
-                sh.write_file("ymir/config.lua", "a")?;
+                sh.write_file("ymir/init.lua", "a")?;
                 test.assert_changed_to("a");
 
                 Ok(())
@@ -442,10 +442,10 @@ mod tests {
 
     #[test]
     fn change_linked_file() -> Result {
-        TestPath::Explicit("ymir/config.lua")
+        TestPath::Explicit("ymir/init.lua")
             .setup(|sh| {
                 sh.write_file("ymir/config2.lua", "a")?;
-                cmd!(sh, "ln -sf config2.lua ymir/config.lua").run()
+                cmd!(sh, "ln -sf config2.lua ymir/init.lua").run()
             })
             .assert_initial("a")
             .run(|sh, test| {
@@ -458,14 +458,14 @@ mod tests {
 
     #[test]
     fn change_file_in_linked_dir() -> Result {
-        TestPath::Explicit("ymir/config.lua")
+        TestPath::Explicit("ymir/init.lua")
             .setup(|sh| {
-                sh.write_file("ymir2/config.lua", "a")?;
+                sh.write_file("ymir2/init.lua", "a")?;
                 cmd!(sh, "ln -s ymir2 ymir").run()
             })
             .assert_initial("a")
             .run(|sh, test| {
-                sh.write_file("ymir2/config.lua", "b")?;
+                sh.write_file("ymir2/init.lua", "b")?;
                 test.assert_changed_to("b");
 
                 Ok(())
@@ -474,11 +474,11 @@ mod tests {
 
     #[test]
     fn remove_file() -> Result {
-        TestPath::Explicit("ymir/config.lua")
-            .setup(|sh| sh.write_file("ymir/config.lua", "a"))
+        TestPath::Explicit("ymir/init.lua")
+            .setup(|sh| sh.write_file("ymir/init.lua", "a"))
             .assert_initial("a")
             .run(|sh, test| {
-                sh.remove_path("ymir/config.lua")?;
+                sh.remove_path("ymir/init.lua")?;
                 test.assert_unchanged();
 
                 Ok(())
@@ -487,8 +487,8 @@ mod tests {
 
     #[test]
     fn remove_dir() -> Result {
-        TestPath::Explicit("ymir/config.lua")
-            .setup(|sh| sh.write_file("ymir/config.lua", "a"))
+        TestPath::Explicit("ymir/init.lua")
+            .setup(|sh| sh.write_file("ymir/init.lua", "a"))
             .assert_initial("a")
             .run(|sh, test| {
                 sh.remove_path("ymir")?;
@@ -500,12 +500,12 @@ mod tests {
 
     #[test]
     fn recreate_file() -> Result {
-        TestPath::Explicit("ymir/config.lua")
-            .setup(|sh| sh.write_file("ymir/config.lua", "a"))
+        TestPath::Explicit("ymir/init.lua")
+            .setup(|sh| sh.write_file("ymir/init.lua", "a"))
             .assert_initial("a")
             .run(|sh, test| {
-                sh.remove_path("ymir/config.lua")?;
-                sh.write_file("ymir/config.lua", "b")?;
+                sh.remove_path("ymir/init.lua")?;
+                sh.write_file("ymir/init.lua", "b")?;
                 test.assert_changed_to("b");
 
                 Ok(())
@@ -514,15 +514,15 @@ mod tests {
 
     #[test]
     fn recreate_dir() -> Result {
-        TestPath::Explicit("ymir/config.lua")
+        TestPath::Explicit("ymir/init.lua")
             .setup(|sh| {
-                sh.write_file("ymir/config.lua", "a")?;
+                sh.write_file("ymir/init.lua", "a")?;
                 Ok(())
             })
             .assert_initial("a")
             .run(|sh, test| {
                 sh.remove_path("ymir")?;
-                sh.write_file("ymir/config.lua", "b")?;
+                sh.write_file("ymir/init.lua", "b")?;
                 test.assert_changed_to("b");
 
                 Ok(())
@@ -531,11 +531,11 @@ mod tests {
 
     #[test]
     fn swap_dir() -> Result {
-        TestPath::Explicit("ymir/config.lua")
-            .setup(|sh| sh.write_file("ymir/config.lua", "a"))
+        TestPath::Explicit("ymir/init.lua")
+            .setup(|sh| sh.write_file("ymir/init.lua", "a"))
             .assert_initial("a")
             .run(|sh, test| {
-                sh.write_file("ymir2/config.lua", "b")?;
+                sh.write_file("ymir2/init.lua", "b")?;
                 sh.remove_path("ymir")?;
                 cmd!(sh, "mv ymir2 ymir").run()?;
                 test.assert_changed_to("b");
@@ -546,14 +546,14 @@ mod tests {
 
     #[test]
     fn swap_dir_link() -> Result {
-        TestPath::Explicit("ymir/config.lua")
+        TestPath::Explicit("ymir/init.lua")
             .setup(|sh| {
-                sh.write_file("ymir2/config.lua", "a")?;
+                sh.write_file("ymir2/init.lua", "a")?;
                 cmd!(sh, "ln -s ymir2 ymir").run()
             })
             .assert_initial("a")
             .run(|sh, test| {
-                sh.write_file("ymir3/config.lua", "b")?;
+                sh.write_file("ymir3/init.lua", "b")?;
                 sh.remove_path("ymir")?;
                 cmd!(sh, "ln -s ymir3 ymir").run()?;
                 test.assert_changed_to("b");
@@ -564,9 +564,9 @@ mod tests {
 
     #[test]
     fn change_included_file() -> Result {
-        TestPath::Explicit("ymir/config.lua")
+        TestPath::Explicit("ymir/init.lua")
             .setup(|sh| {
-                sh.write_file("ymir/config.lua", "include_config(\"colors.lua\")")?;
+                sh.write_file("ymir/init.lua", "include_config(\"colors.lua\")")?;
                 sh.write_file("ymir/colors.lua", "-- Colors")
             })
             .assert_initial("include_config(\"colors.lua\")")
@@ -580,9 +580,9 @@ mod tests {
 
     #[test]
     fn remove_included_file() -> Result {
-        TestPath::Explicit("ymir/config.lua")
+        TestPath::Explicit("ymir/init.lua")
             .setup(|sh| {
-                sh.write_file("ymir/config.lua", "include_config(\"colors.lua\")")?;
+                sh.write_file("ymir/init.lua", "include_config(\"colors.lua\")")?;
                 sh.write_file("ymir/colors.lua", "-- Colors")
             })
             .assert_initial("include_config(\"colors.lua\")")
@@ -596,9 +596,9 @@ mod tests {
 
     #[test]
     fn nested_includes() -> Result {
-        TestPath::Explicit("ymir/config.lua")
+        TestPath::Explicit("ymir/init.lua")
             .setup(|sh| {
-                sh.write_file("ymir/config.lua", "include_config(\"a.lua\")")?;
+                sh.write_file("ymir/init.lua", "include_config(\"a.lua\")")?;
                 sh.write_file("ymir/a.lua", "include_config(\"b.lua\")")?;
                 sh.write_file("ymir/b.lua", "return {}")
             })
@@ -613,9 +613,9 @@ mod tests {
 
     #[test]
     fn broken_include_still_gets_watched() -> Result {
-        TestPath::Explicit("ymir/config.lua")
+        TestPath::Explicit("ymir/init.lua")
             .setup(|sh| {
-                sh.write_file("ymir/config.lua", "include_config(\"colors.lua\")")?;
+                sh.write_file("ymir/init.lua", "include_config(\"colors.lua\")")?;
                 sh.write_file("ymir/colors.lua", "broken")
             })
             .assert_initial("include_config(\"colors.lua\")")
@@ -643,7 +643,7 @@ mod tests {
 
     #[test]
     fn swap_just_link() -> Result {
-        TestPath::Explicit("ymir/config.lua")
+        TestPath::Explicit("ymir/init.lua")
             .setup_any(|sh| {
                 let dir = sh.current_dir().join("ymir");
 
@@ -652,13 +652,13 @@ mod tests {
                 create_epoch(dir.join("config2.lua"), "a")?;
                 create_epoch(dir.join("config3.lua"), "b")?;
 
-                cmd!(sh, "ln -s config2.lua ymir/config.lua").run()?;
+                cmd!(sh, "ln -s config2.lua ymir/init.lua").run()?;
 
                 Ok(())
             })
             .assert_initial("a")
             .run(|sh, test| {
-                cmd!(sh, "ln -sf config3.lua ymir/config.lua").run()?;
+                cmd!(sh, "ln -sf config3.lua ymir/init.lua").run()?;
                 test.assert_changed_to("b");
 
                 Ok(())
@@ -668,31 +668,31 @@ mod tests {
     #[test]
     fn swap_many_regular() -> Result {
         TestPath::Regular {
-            user_path: "user-ymir/config.lua",
-            system_path: "system-ymir/config.lua",
+            user_path: "user-ymir/init.lua",
+            system_path: "system-ymir/init.lua",
         }
-        .setup(|sh| sh.write_file("system-ymir/config.lua", "system config"))
+        .setup(|sh| sh.write_file("system-ymir/init.lua", "system config"))
         .assert_initial("system config")
         .run(|sh, test| {
-            sh.write_file("user-ymir/config.lua", "user config")?;
+            sh.write_file("user-ymir/init.lua", "user config")?;
             test.assert_changed_to("user config");
 
-            cmd!(sh, "touch system-ymir/config.lua").run()?;
+            cmd!(sh, "touch system-ymir/init.lua").run()?;
             test.assert_unchanged();
 
             sh.remove_path("system-ymir")?;
             test.assert_unchanged();
 
-            sh.write_file("system-ymir/config.lua", "new system config")?;
+            sh.write_file("system-ymir/init.lua", "new system config")?;
             test.assert_unchanged();
 
             sh.remove_path("user-ymir")?;
             test.assert_changed_to("new system config");
 
-            sh.write_file("system-ymir/config.lua", "updated system config")?;
+            sh.write_file("system-ymir/init.lua", "updated system config")?;
             test.assert_changed_to("updated system config");
 
-            sh.write_file("user-ymir/config.lua", "new user config")?;
+            sh.write_file("user-ymir/init.lua", "new user config")?;
             test.assert_changed_to("new user config");
 
             Ok(())
@@ -702,8 +702,8 @@ mod tests {
     #[test]
     fn swap_many_links_regular_like_nix() -> Result {
         TestPath::Regular {
-            user_path: "user-ymir/config.lua",
-            system_path: "system-ymir/config.lua",
+            user_path: "user-ymir/init.lua",
+            system_path: "system-ymir/init.lua",
         }
         .setup_any(|sh| {
             let store = sh.current_dir().join("store");
@@ -724,31 +724,65 @@ mod tests {
             let store = sh.current_dir().join("store");
             test.assert_unchanged();
 
-            cmd!(sh, "ln -s {store}/gen1 user-ymir/config.lua").run()?;
+            cmd!(sh, "ln -s {store}/gen1 user-ymir/init.lua").run()?;
             test.assert_changed_to("gen 1");
 
-            cmd!(sh, "ln -s {store}/gen2 system-ymir/config.lua").run()?;
+            cmd!(sh, "ln -s {store}/gen2 system-ymir/init.lua").run()?;
             test.assert_unchanged();
 
-            cmd!(sh, "unlink user-ymir/config.lua").run()?;
+            cmd!(sh, "unlink user-ymir/init.lua").run()?;
             test.assert_changed_to("gen 2");
 
-            cmd!(sh, "ln -s {store}/gen3 user-ymir/config.lua").run()?;
+            cmd!(sh, "ln -s {store}/gen3 user-ymir/init.lua").run()?;
             test.assert_changed_to("gen 3");
 
-            cmd!(sh, "ln -sf {store}/gen1 system-ymir/config.lua").run()?;
+            cmd!(sh, "ln -sf {store}/gen1 system-ymir/init.lua").run()?;
             test.assert_unchanged();
 
-            cmd!(sh, "unlink system-ymir/config.lua").run()?;
+            cmd!(sh, "unlink system-ymir/init.lua").run()?;
             test.assert_unchanged();
 
-            cmd!(sh, "ln -s {store}/gen1 system-ymir/config.lua").run()?;
+            cmd!(sh, "ln -s {store}/gen1 system-ymir/init.lua").run()?;
             test.assert_unchanged();
 
-            cmd!(sh, "unlink user-ymir/config.lua").run()?;
+            cmd!(sh, "unlink user-ymir/init.lua").run()?;
             test.assert_changed_to("gen 1");
 
             Ok(())
         })
+    }
+
+    #[test]
+    fn legacy_config_lua_is_rejected() {
+        let sh = Shell::new().unwrap();
+        let temp_dir = sh.create_temp_dir().unwrap();
+        sh.change_dir(temp_dir.path());
+        let dir = sh.current_dir();
+
+        fs::create_dir_all(dir.join("user-ymir")).unwrap();
+        fs::write(dir.join("user-ymir/config.lua"), "return {}").unwrap();
+
+        let config_path = ConfigPath::Regular {
+            user_path: dir.join("user-ymir/init.lua"),
+            system_path: dir.join("system-ymir/init.lua"),
+        };
+
+        let res = config_path.load();
+        let err = res.config.unwrap_err();
+        // The outer context ("error loading config") is chained on top; the full diagnostic
+        // carries the legacy-config message.
+        let message = format!("{err:?}");
+        assert!(
+            message.contains("config.lua"),
+            "error should mention the legacy file, got: {message}"
+        );
+        assert!(
+            message.contains("init.lua"),
+            "error should point to init.lua, got: {message}"
+        );
+        assert!(
+            !dir.join("user-ymir/init.lua").exists(),
+            "rejection must not create init.lua over the legacy file"
+        );
     }
 }

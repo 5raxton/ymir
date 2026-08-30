@@ -1,6 +1,7 @@
 use std::collections::HashMap;
-use std::ffi::CString;
+use std::ffi::{CStr, CString};
 use std::rc::Rc;
+use std::sync::OnceLock;
 
 use glam::{Mat3, Vec2};
 use smithay::backend::renderer::element::{Element, Id, Kind, RenderElement, UnderlyingStorage};
@@ -17,6 +18,32 @@ use super::renderer::AsGlesFrame;
 use super::resources::Resources;
 use super::shaders::{ProgramType, Shaders};
 use crate::backend::tty::{TtyFrame, TtyRenderer, TtyRendererError};
+
+// `GL_CLAMP_TO_BORDER` is core only in GLES 3.2+ (and never in the GLES 2.0 context
+// smithay creates by default), so probe for support before using it. The renderer lives
+// for the whole process with a single GL context, so a one-time probe is enough.
+fn supports_clamp_to_border(gl: &ffi::Gles2) -> bool {
+    static SUPPORT: OnceLock<bool> = OnceLock::new();
+    *SUPPORT.get_or_init(|| {
+        let version =
+            unsafe { CStr::from_ptr(gl.GetString(ffi::VERSION) as *const _) }.to_string_lossy();
+        let gles32 = version
+            .strip_prefix("OpenGL ES ")
+            .and_then(|rest| {
+                let mut parts = rest.split('.');
+                let major = parts.next()?.parse::<u32>().ok()?;
+                let minor = parts.next()?.parse::<u32>().ok()?;
+                Some((major, minor) >= (3, 2))
+            })
+            .unwrap_or(false);
+
+        let extensions =
+            unsafe { CStr::from_ptr(gl.GetString(ffi::EXTENSIONS) as *const _) }.to_string_lossy();
+        gles32
+            || extensions.contains("GL_EXT_texture_border_clamp")
+            || extensions.contains("GL_NV_texture_border_clamp")
+    })
+}
 
 /// Renders a shader with optional texture input, on the primary GPU.
 #[derive(Debug, Clone)]
@@ -386,21 +413,29 @@ impl RenderElement<GlesRenderer> for ShaderRenderElement {
             };
 
             unsafe {
+                let border_clamp = supports_clamp_to_border(gl);
                 for (i, texture) in self.textures.values().enumerate() {
                     gl.ActiveTexture(ffi::TEXTURE0 + i as u32);
                     gl.BindTexture(ffi::TEXTURE_2D, texture.tex_id());
                     gl.TexParameteri(ffi::TEXTURE_2D, ffi::TEXTURE_MIN_FILTER, ffi::LINEAR as i32);
                     gl.TexParameteri(ffi::TEXTURE_2D, ffi::TEXTURE_MAG_FILTER, ffi::LINEAR as i32);
-                    gl.TexParameteri(
-                        ffi::TEXTURE_2D,
-                        ffi::TEXTURE_WRAP_S,
-                        ffi::CLAMP_TO_BORDER as i32,
-                    );
-                    gl.TexParameteri(
-                        ffi::TEXTURE_2D,
-                        ffi::TEXTURE_WRAP_T,
-                        ffi::CLAMP_TO_BORDER as i32,
-                    );
+                    let wrap = if border_clamp {
+                        ffi::CLAMP_TO_BORDER as i32
+                    } else {
+                        ffi::CLAMP_TO_EDGE as i32
+                    };
+                    gl.TexParameteri(ffi::TEXTURE_2D, ffi::TEXTURE_WRAP_S, wrap);
+                    gl.TexParameteri(ffi::TEXTURE_2D, ffi::TEXTURE_WRAP_T, wrap);
+                    if border_clamp {
+                        // Crossfade snapshots are sampled past [0, 1]; extend the border
+                        // transparently instead of whatever border color the driver defaults to.
+                        let transparent_border = [0.0f32; 4];
+                        gl.TexParameterfv(
+                            ffi::TEXTURE_2D,
+                            ffi::TEXTURE_BORDER_COLOR,
+                            transparent_border.as_ptr(),
+                        );
+                    }
                 }
 
                 gl.UseProgram(program.program);

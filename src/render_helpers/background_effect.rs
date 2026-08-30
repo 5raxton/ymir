@@ -1,13 +1,12 @@
 use std::sync::{Arc, Mutex};
 
-use ymir_config::CornerRadius;
 use smithay::backend::renderer::gles::GlesRenderer;
 use smithay::utils::{Logical, Point, Rectangle, Scale};
 use smithay::wayland::compositor::{with_states, SurfaceData};
 use wayland_server::protocol::wl_surface::WlSurface;
+use ymir_config::CornerRadius;
 
 use crate::handlers::background_effect::get_cached_blur_region;
-use crate::ymir_render_elements;
 use crate::render_helpers::blur::BlurOptions;
 use crate::render_helpers::damage::ExtraDamage;
 use crate::render_helpers::framebuffer_effect::{FramebufferEffect, FramebufferEffectElement};
@@ -15,6 +14,7 @@ use crate::render_helpers::xray::{XrayElement, XrayPos};
 use crate::render_helpers::RenderCtx;
 use crate::utils::region::TransformedRegion;
 use crate::utils::surface_geo;
+use crate::ymir_render_elements;
 
 #[derive(Debug)]
 pub struct BackgroundEffect {
@@ -65,9 +65,8 @@ pub struct RenderParams {
 impl RenderParams {
     fn fit_clip_radius(&mut self) {
         if let Some((geo, radius)) = &mut self.clip {
-            // HACK: increase radius to avoid slight bleed on rounded corners.
-            *radius = radius.expanded_by(1.);
-
+            // The blur halo that this used to compensate for is gone since the blur passes
+            // no longer sample past the captured region with a symmetric edge extension.
             *radius = radius.fit_to(geo.size.w as f32, geo.size.h as f32);
         }
     }

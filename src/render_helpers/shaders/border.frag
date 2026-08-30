@@ -7,7 +7,6 @@ uniform float ymir_tint;
 uniform float ymir_alpha;
 uniform float ymir_scale;
 
-uniform vec2 ymir_size;
 varying vec2 ymir_v_coords;
 
 uniform float colorspace;
@@ -59,12 +58,18 @@ vec4 premul_mix_unpremul_lch(vec4 color1, vec4 color2, float ratio) {
     return unpremul_lch(mixed);
 }
 
+// Piecewise sRGB EOTF and its inverse (IEC 61966-2-1), avoiding the drift of the
+// `pow(c, 2.2)` approximation in the shadows.
 vec3 srgb_to_linear(vec3 color) {
-    return pow(color, vec3(2.2));
+    vec3 low = color / 12.92;
+    vec3 high = pow((color + 0.055) / 1.055, vec3(2.4));
+    return mix(high, low, vec3(lessThanEqual(color, vec3(0.04045))));
 }
 
 vec3 linear_to_srgb(vec3 color) {
-    return pow(color, vec3(1.0 / 2.2));
+    vec3 low = color * 12.92;
+    vec3 high = 1.055 * pow(max(color, vec3(0.0)), vec3(1.0 / 2.4)) - 0.055;
+    return mix(high, low, vec3(lessThanEqual(color, vec3(0.0031308))));
 }
 
 vec3 lab_to_lch(vec3 color) {
@@ -118,8 +123,32 @@ vec3 oklab_to_linear(vec3 color){
         vec3(-0.0041960863, -0.7034186147, 1.7076147010)
     );
     vec3 lms = color * oklab_to_lms;
-    lms = pow(lms, vec3(3.0));
+    // Clamp negative LMS so `pow` can't produce NaN from out-of-gamut colors.
+    lms = pow(max(lms, vec3(0.0)), vec3(3.0));
     return lms * lms_to_rgb;
+}
+
+// Hue-preserving sRGB gamut mapping: if a linear color falls outside [0, 1], desaturate
+// it along its Oklch chroma until it is back in gamut, instead of clipping each channel
+// independently (which distorts hue). In-gamut colors pass through unchanged.
+vec3 reduce_gamut(vec3 linear) {
+    bvec3 in_low = greaterThanEqual(linear, vec3(0.0));
+    bvec3 in_high = lessThanEqual(linear, vec3(1.0));
+    if (all(in_low) && all(in_high))
+        return linear;
+
+    vec3 lch = lab_to_lch(linear_to_oklab(linear));
+    float lo = 0.0;
+    float hi = lch.y;
+    for (int i = 0; i < 12; i++) {
+        float mid = (lo + hi) * 0.5;
+        vec3 rgb = oklab_to_linear(lch_to_lab(vec3(lch.x, mid, lch.z)));
+        if (all(greaterThanEqual(rgb, vec3(0.0))) && all(lessThanEqual(rgb, vec3(1.0))))
+            lo = mid;
+        else
+            hi = mid;
+    }
+    return oklab_to_linear(lch_to_lab(vec3(lch.x, lo, lch.z)));
 }
 
 vec4 color_mix(vec4 color1, vec4 color2, float color_ratio) {
@@ -141,7 +170,7 @@ vec4 color_mix(vec4 color1, vec4 color2, float color_ratio) {
         color1.xyz = linear_to_oklab(color1.rgb);
         color2.xyz = linear_to_oklab(color2.rgb);
         color_out = premul_mix_unpremul_rect(color1, color2, color_ratio);
-        color_out.rgb = oklab_to_linear(color_out.xyz);
+        color_out.rgb = reduce_gamut(oklab_to_linear(color_out.xyz));
     // oklch
     } else if (colorspace == 3.0) {
         color1.xyz = lab_to_lch(linear_to_oklab(color1.rgb));
@@ -187,7 +216,7 @@ vec4 color_mix(vec4 color1, vec4 color2, float color_ratio) {
                     path_mod :
                     path_direct ;
         }
-        color_out.rgb = clamp(oklab_to_linear(lch_to_lab(color_out.xyz)), 0.0, 1.0);
+        color_out.rgb = reduce_gamut(oklab_to_linear(lch_to_lab(color_out.xyz)));
     }
 
     return premul_rect(vec4(linear_to_srgb(color_out.rgb), color_out.a));

@@ -15,21 +15,21 @@ use clap::{CommandFactory, Parser};
 use clap_complete::Shell;
 use clap_complete_nushell::Nushell;
 use directories::ProjectDirs;
+use sd_notify::NotifyState;
+use smithay::reexports::wayland_server::Display;
+use tracing_subscriber::EnvFilter;
 use ymir::cli::{Cli, CompletionShell, Sub};
 #[cfg(feature = "dbus")]
 use ymir::dbus;
 use ymir::ipc::client::handle_msg;
-use ymir::ymir::State;
 use ymir::utils::spawning::{
     spawn, spawn_sh, store_and_increase_nofile_rlimit, CHILD_DISPLAY, CHILD_ENV,
     REMOVE_ENV_RUST_BACKTRACE, REMOVE_ENV_RUST_LIB_BACKTRACE,
 };
 use ymir::utils::{cause_panic, version, watcher, xwayland, IS_SYSTEMD_SERVICE};
+use ymir::ymir::State;
 use ymir_config::{Config, ConfigPath};
 use ymir_ipc::socket::SOCKET_PATH_ENV;
-use sd_notify::NotifyState;
-use smithay::reexports::wayland_server::Display;
-use tracing_subscriber::EnvFilter;
 
 const DEFAULT_LOG_FILTER: &str = "ymir=debug,smithay::backend::renderer::gles=error";
 
@@ -158,6 +158,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut config = config_load_result.config.unwrap_or_else(|err| {
         warn!("{err:?}");
         Config::load_default()
+            .config
+            .unwrap_or_else(|err| panic!("the embedded default config failed to parse: {err:?}"))
     });
     let config_includes = config_load_result.includes;
 

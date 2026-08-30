@@ -2,11 +2,6 @@ use std::cmp::max;
 use std::rc::Rc;
 use std::time::Duration;
 
-use ymir_config::utils::MergeWith as _;
-use ymir_config::{
-    CenterFocusedColumn, CornerRadius, OutputName, PresetSize, Workspace as WorkspaceConfig,
-};
-use ymir_ipc::{ColumnDisplay, PositionChange, SizeChange, WindowLayout};
 use smithay::backend::renderer::element::Kind;
 use smithay::backend::renderer::gles::GlesRenderer;
 use smithay::desktop::{layer_map_for_output, Window};
@@ -16,6 +11,11 @@ use smithay::reexports::wayland_server::protocol::wl_surface::WlSurface;
 use smithay::utils::{Logical, Point, Rectangle, Serial, Size, Transform};
 use smithay::wayland::compositor::with_states;
 use smithay::wayland::shell::xdg::SurfaceCachedState;
+use ymir_config::utils::MergeWith as _;
+use ymir_config::{
+    CenterFocusedColumn, CornerRadius, OutputName, PresetSize, Workspace as WorkspaceConfig,
+};
+use ymir_ipc::{ColumnDisplay, PositionChange, SizeChange, WindowLayout};
 
 use super::dwindle::SplitSide;
 use super::floating::{FloatingSpace, FloatingSpaceRenderElement};
@@ -30,7 +30,6 @@ use super::{
 };
 use crate::animation::Clock;
 use crate::layout::RenderLayer;
-use crate::ymir_render_elements;
 use crate::render_helpers::renderer::YmirRenderer;
 use crate::render_helpers::shadow::ShadowRenderElement;
 use crate::render_helpers::solid_color::{SolidColorBuffer, SolidColorRenderElement};
@@ -43,6 +42,7 @@ use crate::utils::{
     ResizeEdge,
 };
 use crate::window::ResolvedWindowRules;
+use crate::ymir_render_elements;
 
 #[derive(Debug)]
 pub struct Workspace<W: LayoutElement> {
@@ -688,21 +688,19 @@ impl<W: LayoutElement> Workspace<W> {
                 }
             }
             WorkspaceAddWindowTarget::NextTo(next_to) => {
-                let activate = activate.map_smart(|| self.active_window().unwrap().id() == next_to);
+                let activate = activate
+                    .map_smart(|| self.active_window().map(|win| win.id()) == Some(next_to));
 
                 let floating_has_window = self.floating.has_window(next_to);
 
                 if is_floating && tile.window().pending_sizing_mode().is_normal() {
                     if floating_has_window {
                         self.floating.add_tile_above(next_to, tile, activate);
-                    } else {
-                        // FIXME: use static pos
-                        let (next_to_tile, render_pos, _visible) = self
-                            .scrolling
-                            .tiles_with_render_positions()
-                            .find(|(tile, _, _)| tile.window().id() == next_to)
-                            .unwrap();
-
+                    } else if let Some((next_to_tile, render_pos, _visible)) = self
+                        .scrolling
+                        .tiles_with_render_positions()
+                        .find(|(tile, _, _)| tile.window().id() == next_to)
+                    {
                         // Position the new tile in the center above the next_to tile. Think a
                         // dialog opening on top of a window.
                         let tile_size = tile.tile_size();
@@ -713,6 +711,10 @@ impl<W: LayoutElement> Workspace<W> {
                         let pos = self.floating.logical_to_size_frac(pos);
                         tile.floating_pos = Some(pos);
 
+                        self.floating.add_tile(tile, activate);
+                    } else {
+                        // The next_to window is gone or not laid out anywhere; fall back to
+                        // placing the floating tile on its own.
                         self.floating.add_tile(tile, activate);
                     }
 
@@ -1417,11 +1419,14 @@ impl<W: LayoutElement> Workspace<W> {
             // The window is in the scrolling layout and we're requesting to unmaximize. If it is
             // indeed maximized (i.e. this isn't a duplicate unmaximize request), then we may
             // need to unmaximize into floating.
-            let tile = self
+            let Some(tile) = self
                 .scrolling
                 .tiles()
                 .find(|tile| tile.window().id() == window)
-                .unwrap();
+            else {
+                // The window was destroyed between the request and this update; no-op.
+                return;
+            };
             // The tile cannot unmaximize into fullscreen (pending_sizing_mode() will be fullscreen
             // in that case and not maximized), so this check works.
             if tile.window().pending_sizing_mode().is_maximized() && tile.restore_to_floating {
@@ -1432,21 +1437,26 @@ impl<W: LayoutElement> Workspace<W> {
             }
         }
 
-        let tile = self
+        let Some(tile) = self
             .scrolling
             .tiles()
             .find(|tile| tile.window().id() == window)
-            .unwrap();
+        else {
+            // The window is gone; treat the request as a no-op.
+            return;
+        };
         let was_normal = tile.window().pending_sizing_mode().is_normal();
 
         self.scrolling.set_maximized(window, maximize);
 
         // When going from normal to maximized, remember if we should unmaximize to floating.
-        let tile = self
+        let Some(tile) = self
             .scrolling
             .tiles_mut()
             .find(|tile| tile.window().id() == window)
-            .unwrap();
+        else {
+            return;
+        };
         if was_normal && !tile.window().pending_sizing_mode().is_normal() {
             tile.restore_to_floating = restore_to_floating;
         }

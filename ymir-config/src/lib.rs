@@ -460,19 +460,33 @@ where
 }
 
 impl Config {
-    pub fn load_default() -> Self {
+    pub fn load_default() -> ConfigParseResult<Self, miette::Report> {
         let res = Config::parse(
             Path::new("default-config.kdl"),
             include_str!("../../resources/default-config.kdl"),
         );
 
-        // Includes in the default config can break its parsing at runtime.
-        assert!(
-            res.includes.is_empty(),
-            "default config must not have includes",
-        );
+        let includes_in_default = !res.includes.is_empty();
+        let config = match res.config {
+            Ok(config) if !includes_in_default => Ok(config),
+            // Includes in the default config would require files that only exist on disk at
+            // runtime. Report this as a parse error instead of asserting, so a broken embedded
+            // default is diagnosable rather than an unconditional boot panic.
+            Ok(_) => Err(miette!(
+                "the embedded default config unexpectedly has includes: {}",
+                res.includes
+                    .iter()
+                    .map(|path| path.display().to_string())
+                    .collect::<Vec<_>>()
+                    .join(", "),
+            )),
+            Err(main) => Err(miette!(main).context("error parsing the embedded default config")),
+        };
 
-        res.config.unwrap()
+        ConfigParseResult {
+            config,
+            includes: Vec::new(),
+        }
     }
 
     pub fn load(path: &Path) -> ConfigParseResult<Self, miette::Report> {
@@ -638,7 +652,9 @@ mod tests {
 
     #[test]
     fn can_create_default_config() {
-        let _ = Config::load_default();
+        let _ = Config::load_default()
+            .config
+            .expect("embedded default config must parse");
     }
 
     #[test]
@@ -2474,7 +2490,9 @@ mod tests {
         // We try to write the config defaults in such a way that empty sections (and an empty
         // config) give the same outcome as the default config bundled with ymir. This test
         // verifies the actual differences between the two.
-        let mut default_config = Config::load_default();
+        let mut default_config = Config::load_default()
+            .config
+            .expect("embedded default config must parse");
         let empty_config = Config::parse_mem("").unwrap();
 
         // Some notable omissions: the default config has some window rules, and an empty config

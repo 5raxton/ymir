@@ -3,12 +3,12 @@ use std::iter::{self, zip};
 use std::rc::Rc;
 use std::time::Duration;
 
-use ymir_config::utils::MergeWith as _;
-use ymir_config::{CenterFocusedColumn, PresetSize, Struts};
-use ymir_ipc::{ColumnDisplay, SizeChange, WindowLayout};
 use ordered_float::NotNan;
 use smithay::backend::renderer::gles::GlesRenderer;
 use smithay::utils::{Logical, Point, Rectangle, Scale, Serial, Size};
+use ymir_config::utils::MergeWith as _;
+use ymir_config::{CenterFocusedColumn, PresetSize, Struts};
+use ymir_ipc::{ColumnDisplay, SizeChange, WindowLayout};
 
 use super::closing_window::{ClosingWindow, ClosingWindowRenderElement};
 use super::dwindle::{DwindleTree, LeafPath, SpatialDir, SplitSide};
@@ -20,7 +20,6 @@ use super::{ConfigureIntent, HitType, InteractiveResizeData, LayoutElement, Opti
 use crate::animation::{Animation, Clock};
 use crate::input::swipe_tracker::SwipeTracker;
 use crate::layout::{RenderLayer, SizingMode};
-use crate::ymir_render_elements;
 use crate::render_helpers::renderer::YmirRenderer;
 use crate::render_helpers::xray::XrayPos;
 use crate::render_helpers::RenderCtx;
@@ -28,6 +27,7 @@ use crate::utils::id::IdCounter;
 use crate::utils::transaction::{Transaction, TransactionBlocker};
 use crate::utils::ResizeEdge;
 use crate::window::ResolvedWindowRules;
+use crate::ymir_render_elements;
 
 /// Amount of touchpad movement to scroll the view for the width of one working area.
 const VIEW_GESTURE_WORKING_AREA_MOVEMENT: f64 = 1200.;
@@ -947,7 +947,12 @@ impl<W: LayoutElement> ScrollingSpace<W> {
         let prev_active_window_id = if target_column.tiles.is_empty() {
             None
         } else {
-            Some(target_column.tiles[prev_active_tile_idx].window().id().clone())
+            Some(
+                target_column.tiles[prev_active_tile_idx]
+                    .window()
+                    .id()
+                    .clone(),
+            )
         };
         let new_tile_idx = target_column.add_tile_at(tile_idx, tile);
         self.data[col_idx].update(target_column);
@@ -1227,8 +1232,15 @@ impl<W: LayoutElement> ScrollingSpace<W> {
         let prev_offsets: Vec<Point<f64, Logical>> =
             column.tile_offsets().take(column.tiles.len()).collect();
 
-        let path = column.dwindle_tree.leaf_paths()[tile_idx].clone();
-        let removed_value = column.dwindle_tree.expel(&path).unwrap();
+        let leaf_paths = column.dwindle_tree.leaf_paths();
+        let path = leaf_paths
+            .get(tile_idx)
+            .expect("dwindle tree and tiles are out of sync")
+            .clone();
+        let removed_value = column
+            .dwindle_tree
+            .expel(&path)
+            .expect("failed to expel a leaf path returned by leaf_paths()");
         debug_assert_eq!(removed_value, tile_idx);
 
         let tile = column.tiles.remove(tile_idx);
@@ -1260,14 +1272,16 @@ impl<W: LayoutElement> ScrollingSpace<W> {
             }
         }
         let paths = column.dwindle_tree.leaf_paths();
-        column.dwindle_tree.set_active(&paths[column.active_tile_idx]);
+        column.dwindle_tree.set_active(
+            paths
+                .get(column.active_tile_idx)
+                .expect("dwindle tree and tiles are out of sync"),
+        );
         column.tiles[column.active_tile_idx].ensure_alpha_animates_to_1();
+        column.debug_assert_dwindle_invariant();
 
         let was_normal = column.sizing_mode().is_normal();
-        if column_idx == self.active_column_idx
-            && !was_normal
-            && column.sizing_mode().is_normal()
-        {
+        if column_idx == self.active_column_idx && !was_normal && column.sizing_mode().is_normal() {
             self.view_offset_to_restore = None;
         }
 
@@ -1343,7 +1357,9 @@ impl<W: LayoutElement> ScrollingSpace<W> {
 
     /// Returns the display mode of the active column, if any.
     pub fn active_column_display(&self) -> Option<ColumnDisplay> {
-        self.columns.get(self.active_column_idx).map(|col| col.display_mode)
+        self.columns
+            .get(self.active_column_idx)
+            .map(|col| col.display_mode)
     }
 
     pub fn remove_active_column(&mut self) -> Option<Column<W>> {
@@ -2074,12 +2090,8 @@ impl<W: LayoutElement> ScrollingSpace<W> {
                 Transaction::new(),
                 Some(self.options.animations.window_movement.0),
             );
-            let new_tile_idx = self.add_tile_to_column(
-                target_column_idx,
-                None,
-                tile,
-                source_tile_was_active,
-            );
+            let new_tile_idx =
+                self.add_tile_to_column(target_column_idx, None, tile, source_tile_was_active);
 
             let target_column = &mut self.columns[target_column_idx];
             offset -= target_column.render_offset();
@@ -2479,8 +2491,10 @@ impl<W: LayoutElement> ScrollingSpace<W> {
         col.update_tile_sizes(true);
 
         // Disable fullscreen if needed.
-        if !matches!(col.display_mode, ColumnDisplay::Tabbed | ColumnDisplay::Dwindle)
-            && col.tiles.len() > 1
+        if !matches!(
+            col.display_mode,
+            ColumnDisplay::Tabbed | ColumnDisplay::Dwindle
+        ) && col.tiles.len() > 1
         {
             let window = col.tiles[col.active_tile_idx].window().id().clone();
             self.set_fullscreen(&window, false);
@@ -2662,6 +2676,21 @@ impl<W: LayoutElement> ScrollingSpace<W> {
         self.columns.iter()
     }
 
+    #[cfg(test)]
+    pub(crate) fn debug_assert_dwindle_invariants(&self) {
+        for col in &self.columns {
+            col.debug_assert_dwindle_invariant();
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn dwindle_invariant_holds(&self) -> bool {
+        self.columns
+            .iter()
+            .filter(|col| col.is_dwindle())
+            .all(|col| col.dwindle_tree.leaf_paths().len() == col.tiles.len())
+    }
+
     fn columns_mut(&mut self) -> impl Iterator<Item = (&mut Column<W>, f64)> + '_ {
         let offsets = self.column_xs(self.data.iter().copied());
         zip(&mut self.columns, offsets)
@@ -2726,9 +2755,8 @@ impl<W: LayoutElement> ScrollingSpace<W> {
         // position additionally shifts everything by `-view_pos()`. The dwindle content geometry
         // is in tape space, so shift it by that same amount before comparing against the cursor.
         let view_off = -self.view_pos();
-        self.columns_in_render_order().find_map(|(col, col_x)| {
-            col.dwindle_resize_edges_under(pos, col_x + view_off)
-        })
+        self.columns_in_render_order()
+            .find_map(|(col, col_x)| col.dwindle_resize_edges_under(pos, col_x + view_off))
     }
 
     pub fn tiles_with_render_positions(
@@ -3918,17 +3946,22 @@ impl<W: LayoutElement> ScrollingSpace<W> {
 
         let is_centering = self.is_centering_focused_column();
 
-        let col = self
-            .columns
-            .iter_mut()
-            .find(|col| col.contains(window))
-            .unwrap();
+        let Some(col) = self.columns.iter_mut().find(|col| col.contains(window)) else {
+            // The column vanished mid-grab (e.g. its last window was closed or a move/tab-cycle
+            // reorganized the workspace); stop the resize.
+            self.interactive_resize = None;
+            return false;
+        };
 
-        let tile_idx = col
+        let Some(tile_idx) = col
             .tiles
             .iter()
             .position(|tile| tile.window().id() == window)
-            .unwrap();
+        else {
+            // The window left the column mid-grab (tab cycle / move); stop the resize.
+            self.interactive_resize = None;
+            return false;
+        };
 
         if col.is_dwindle() {
             // In dwindle mode, resizing moves the divider of the split that separates the
@@ -4748,7 +4781,12 @@ impl<W: LayoutElement> Column<W> {
         }
 
         if self.is_dwindle() {
-            let path = self.dwindle_tree.leaf_paths()[idx].clone();
+            let path = self
+                .dwindle_tree
+                .leaf_paths()
+                .get(idx)
+                .expect("activate_idx index is out of sync with the dwindle tree")
+                .clone();
             self.dwindle_tree.set_active(&path);
         }
 
@@ -5471,12 +5509,18 @@ impl<W: LayoutElement> Column<W> {
             return false;
         };
         let focal: Point<f64, Logical> = match dir {
-            SpatialDir::Up => Point::from((active_rect.loc.x + active_rect.size.w / 2., active_rect.loc.y - 1.)),
+            SpatialDir::Up => Point::from((
+                active_rect.loc.x + active_rect.size.w / 2.,
+                active_rect.loc.y - 1.,
+            )),
             SpatialDir::Down => Point::from((
                 active_rect.loc.x + active_rect.size.w / 2.,
                 active_rect.loc.y + active_rect.size.h + 1.,
             )),
-            SpatialDir::Left => Point::from((active_rect.loc.x - 1., active_rect.loc.y + active_rect.size.h / 2.)),
+            SpatialDir::Left => Point::from((
+                active_rect.loc.x - 1.,
+                active_rect.loc.y + active_rect.size.h / 2.,
+            )),
             SpatialDir::Right => Point::from((
                 active_rect.loc.x + active_rect.size.w + 1.,
                 active_rect.loc.y + active_rect.size.h / 2.,
@@ -5961,39 +6005,39 @@ impl<W: LayoutElement> Column<W> {
         self.preset_width_idx = None;
     }
 
-/// Reorders a vector in place so that `out[i] == old[order[i]]`. `order` must be a permutation of
-/// `0..out.len()`.
-///
-/// A length or content mismatch here means the dwindle tree and the tile list disagree about
-/// window order; that used to panic (via `expect`) even in release builds, taking the compositor
-/// down. Instead, validate the order at runtime and leave the vector untouched when it is invalid.
-fn apply_permutation<T>(out: &mut Vec<T>, order: &[usize]) {
-    if order.len() != out.len() || !Self::is_permutation(order) {
-        error!(
+    /// Reorders a vector in place so that `out[i] == old[order[i]]`. `order` must be a permutation of
+    /// `0..out.len()`.
+    ///
+    /// A length or content mismatch here means the dwindle tree and the tile list disagree about
+    /// window order; that used to panic (via `expect`) even in release builds, taking the compositor
+    /// down. Instead, validate the order at runtime and leave the vector untouched when it is invalid.
+    fn apply_permutation<T>(out: &mut Vec<T>, order: &[usize]) {
+        if order.len() != out.len() || !Self::is_permutation(order) {
+            error!(
             "dwindle tree order desynced from tiles (order len {}, tile len {}); skipping reorder",
             order.len(),
             out.len(),
         );
-        return;
-    }
-    let mut old: Vec<Option<T>> = out.drain(..).map(Some).collect();
-    out.reserve(order.len());
-    for &old_pos in order {
-        out.push(old[old_pos].take().expect("order is a permutation"));
-    }
-}
-
-/// Whether `order` is a permutation of `0..order.len()` (each position exactly once).
-fn is_permutation(order: &[usize]) -> bool {
-    let mut seen = vec![false; order.len()];
-    for &pos in order {
-        match seen.get_mut(pos) {
-            Some(slot) if !*slot => *slot = true,
-            _ => return false,
+            return;
+        }
+        let mut old: Vec<Option<T>> = out.drain(..).map(Some).collect();
+        out.reserve(order.len());
+        for &old_pos in order {
+            out.push(old[old_pos].take().expect("order is a permutation"));
         }
     }
-    true
-}
+
+    /// Whether `order` is a permutation of `0..order.len()` (each position exactly once).
+    fn is_permutation(order: &[usize]) -> bool {
+        let mut seen = vec![false; order.len()];
+        for &pos in order {
+            match seen.get_mut(pos) {
+                Some(slot) if !*slot => *slot = true,
+                _ => return false,
+            }
+        }
+        true
+    }
 
     fn tiles_origin(&self) -> Point<f64, Logical> {
         let mut origin = Point::from((0., 0.));
@@ -6020,10 +6064,7 @@ fn is_permutation(order: &[usize]) -> bool {
 
     // HACK: pass a self.data iterator in manually as a workaround for the lack of method partial
     // borrowing. Note that this method's return value does not borrow the entire &Self!
-    fn tile_offsets_iter(
-        &self,
-        data: impl Iterator<Item = TileData>,
-    ) -> Vec<Point<f64, Logical>> {
+    fn tile_offsets_iter(&self, data: impl Iterator<Item = TileData>) -> Vec<Point<f64, Logical>> {
         if self.is_dwindle() {
             // Dwindle tile positions come straight from the tree.
             return self.dwindle_offsets();
@@ -6075,7 +6116,8 @@ fn is_permutation(order: &[usize]) -> bool {
     }
 
     fn tile_offsets(&self) -> impl Iterator<Item = Point<f64, Logical>> + '_ {
-        self.tile_offsets_iter(self.data.iter().copied()).into_iter()
+        self.tile_offsets_iter(self.data.iter().copied())
+            .into_iter()
     }
 
     fn tile_offset(&self, tile_idx: usize) -> Point<f64, Logical> {
@@ -6141,7 +6183,10 @@ fn is_permutation(order: &[usize]) -> bool {
     }
 
     fn is_tabbed_or_dwindle(&self) -> bool {
-        matches!(self.display_mode, ColumnDisplay::Tabbed | ColumnDisplay::Dwindle)
+        matches!(
+            self.display_mode,
+            ColumnDisplay::Tabbed | ColumnDisplay::Dwindle
+        )
     }
 
     /// The outer region that the dwindle tree partitions between its leaves.
@@ -6160,7 +6205,9 @@ fn is_permutation(order: &[usize]) -> bool {
     /// leaf (for gap-based hit-testing).
     fn dwindle_offsets(&self) -> Vec<Point<f64, Logical>> {
         let gaps = self.options.layout.gaps;
-        let rects = self.dwindle_tree.leaf_rects(self.dwindle_content_rect(), gaps);
+        let rects = self
+            .dwindle_tree
+            .leaf_rects(self.dwindle_content_rect(), gaps);
 
         let mut rv: Vec<Point<f64, Logical>> = rects.iter().map(|(_, r)| r.loc).collect();
         if let Some((_, last)) = rects.last() {
@@ -6168,6 +6215,19 @@ fn is_permutation(order: &[usize]) -> bool {
         }
 
         rv
+    }
+
+    /// Panics (in debug builds) when the dwindle tree and the tile list disagree: the leaf count
+    /// must always equal the tile count after every tree mutation. Only meaningful in dwindle
+    /// display mode (elsewhere the tree is a single-stub placeholder).
+    fn debug_assert_dwindle_invariant(&self) {
+        if self.is_dwindle() {
+            debug_assert_eq!(
+                self.dwindle_tree.leaf_paths().len(),
+                self.tiles.len(),
+                "dwindle tree and tiles are out of sync"
+            );
+        }
     }
 
     /// Re-sorts `tiles`/`data` to match the tree's depth-first leaf order, then re-numbers leaf
@@ -6183,6 +6243,7 @@ fn is_permutation(order: &[usize]) -> bool {
         Self::apply_permutation(&mut self.tiles, &order);
         Self::apply_permutation(&mut self.data, &order);
         self.dwindle_tree.reindex(|value, i| *value = i);
+        self.debug_assert_dwindle_invariant();
         order
     }
 
@@ -6201,6 +6262,7 @@ fn is_permutation(order: &[usize]) -> bool {
         if self.dwindle_tree.toggle_split(&paths[self.active_tile_idx]) {
             self.update_tile_sizes(true);
         }
+        self.debug_assert_dwindle_invariant();
     }
 
     /// Moves the focused window to the head (first) position of the dwindle tree.
@@ -6340,7 +6402,10 @@ fn is_permutation(order: &[usize]) -> bool {
         // assertions below check, so validate only the basics and defer the rest to the engine.
         if self.display_mode == ColumnDisplay::Dwindle {
             assert_eq!(self.dwindle_tree.len(), self.tiles.len());
-            assert_eq!(*self.dwindle_tree.active_value().unwrap(), self.active_tile_idx);
+            assert_eq!(
+                *self.dwindle_tree.active_value().unwrap(),
+                self.active_tile_idx
+            );
             return;
         }
 

@@ -99,11 +99,6 @@ impl LeafPath {
     pub fn is_empty(&self) -> bool {
         self.0.is_empty()
     }
-
-    #[cfg(test)]
-    fn child(&self, idx: usize) -> Child {
-        self.0[idx]
-    }
 }
 
 /// A node of the dwindle split tree.
@@ -230,12 +225,8 @@ impl<T> DwindleTree<T> {
             (Node::Leaf(v), None) => Some(v),
             (Node::Leaf(_), Some(_)) => None,
             (Node::Split { .. }, None) => None,
-            (Node::Split { first, second: _, .. }, Some(Child::First)) => {
-                self.leaf_impl(first, &path[1..])
-            }
-            (Node::Split { first: _, second, .. }, Some(Child::Second)) => {
-                self.leaf_impl(second, &path[1..])
-            }
+            (Node::Split { first, .. }, Some(Child::First)) => self.leaf_impl(first, &path[1..]),
+            (Node::Split { second, .. }, Some(Child::Second)) => self.leaf_impl(second, &path[1..]),
         }
     }
 
@@ -1093,10 +1084,10 @@ fn leaf_value_mut_of<'a, T>(node: &'a mut Node<T>, path: &[Child]) -> Option<&'a
         (Node::Leaf(v), None) => Some(v),
         (Node::Leaf(_), Some(_)) => None,
         (Node::Split { .. }, None) => None,
-        (Node::Split { first, second: _, .. }, Some(Child::First)) => {
+        (Node::Split { first, .. }, Some(Child::First)) => {
             leaf_value_mut_of(first, &path[1..])
         }
-        (Node::Split { first: _, second, .. }, Some(Child::Second)) => {
+        (Node::Split { second, .. }, Some(Child::Second)) => {
             leaf_value_mut_of(second, &path[1..])
         }
     }
@@ -1124,7 +1115,7 @@ fn adjust_ratio_impl<T>(node: &mut Node<T>, path: &[Child], delta: f64) -> bool 
 }
 
 fn clamp_ratio(ratio: f64) -> f64 {
-    f64::max(MIN_RATIO, f64::min(MAX_RATIO, ratio))
+    ratio.clamp(MIN_RATIO, MAX_RATIO)
 }
 
 /// Walks `path` from the root, tracking the child slot of the deepest split whose axis matches

@@ -1,8 +1,7 @@
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use glam::{Mat3, Vec2};
-use ymir_config::CornerRadius;
+use glam::{DMat3, DVec2};
 use smithay::backend::renderer::element::{Element, Id, Kind, RenderElement, UnderlyingStorage};
 use smithay::backend::renderer::gles::{GlesError, GlesFrame, GlesRenderer, GlesTexture, Uniform};
 use smithay::backend::renderer::utils::{CommitCounter, DamageSet, OpaqueRegions};
@@ -10,6 +9,7 @@ use smithay::backend::renderer::Texture as _;
 use smithay::gpu_span_location;
 use smithay::utils::user_data::UserDataMap;
 use smithay::utils::{Buffer, Logical, Physical, Rectangle, Scale, Size, Transform};
+use ymir_config::CornerRadius;
 
 use super::renderer::{AsGlesFrame, YmirRenderer};
 use super::shader_element::ShaderRenderElement;
@@ -52,37 +52,39 @@ impl ResizeRenderElement {
             combined_geo.size.to_logical(scale),
         );
 
-        // Convert Smithay types into glam types.
-        let area_loc = Vec2::new(area.loc.x as f32, area.loc.y as f32);
-        let area_size = Vec2::new(area.size.w as f32, area.size.h as f32);
+        // Convert Smithay types into glam types, keeping the matrices in f64 until the final
+        // conversion: f32 intermediate products drift at sub-texel levels when a window spans
+        // two outputs with different fractional scales.
+        let area_loc = DVec2::new(area.loc.x, area.loc.y);
+        let area_size = DVec2::new(area.size.w, area.size.h);
 
-        let curr_geo_loc = Vec2::new(curr_geo.loc.x as f32, curr_geo.loc.y as f32);
-        let curr_geo_size = Vec2::new(curr_geo.size.w as f32, curr_geo.size.h as f32);
+        let curr_geo_loc = DVec2::new(curr_geo.loc.x, curr_geo.loc.y);
+        let curr_geo_size = DVec2::new(curr_geo.size.w, curr_geo.size.h);
 
-        let tex_prev_geo_loc = Vec2::new(tex_prev_geo.loc.x as f32, tex_prev_geo.loc.y as f32);
-        let tex_prev_size = Vec2::new(texture_prev.width() as f32, texture_prev.height() as f32);
+        let tex_prev_geo_loc = DVec2::new(tex_prev_geo.loc.x as f64, tex_prev_geo.loc.y as f64);
+        let tex_prev_size = DVec2::new(texture_prev.width() as f64, texture_prev.height() as f64);
 
-        let tex_next_geo_loc = Vec2::new(tex_next_geo.loc.x as f32, tex_next_geo.loc.y as f32);
-        let tex_next_size = Vec2::new(texture_next.width() as f32, texture_next.height() as f32);
+        let tex_next_geo_loc = DVec2::new(tex_next_geo.loc.x as f64, tex_next_geo.loc.y as f64);
+        let tex_next_size = DVec2::new(texture_next.width() as f64, texture_next.height() as f64);
 
-        let size_prev = Vec2::new(size_prev.w as f32, size_prev.h as f32);
-        let size_next = Vec2::new(size_next.w as f32, size_next.h as f32);
+        let size_prev = DVec2::new(size_prev.w, size_prev.h);
+        let size_next = DVec2::new(size_next.w, size_next.h);
 
-        let scale = Vec2::new(scale.x as f32, scale.y as f32);
+        let scale_vec = DVec2::new(scale.x, scale.y);
 
         // Compute the transformation matrices.
-        let input_to_curr_geo = Mat3::from_scale(area_size / curr_geo_size)
-            * Mat3::from_translation((area_loc - curr_geo_loc) / area_size);
+        let input_to_curr_geo = DMat3::from_scale(area_size / curr_geo_size)
+            * DMat3::from_translation((area_loc - curr_geo_loc) / area_size);
 
-        let curr_geo_to_prev_geo = Mat3::from_scale(curr_geo_size / size_prev);
-        let curr_geo_to_next_geo = Mat3::from_scale(curr_geo_size / size_next);
+        let curr_geo_to_prev_geo = DMat3::from_scale(curr_geo_size / size_prev);
+        let curr_geo_to_next_geo = DMat3::from_scale(curr_geo_size / size_next);
 
-        let geo_to_tex_prev = Mat3::from_translation(-tex_prev_geo_loc / tex_prev_size)
-            * Mat3::from_scale(size_prev / tex_prev_size * scale);
-        let geo_to_tex_next = Mat3::from_translation(-tex_next_geo_loc / tex_next_size)
-            * Mat3::from_scale(size_next / tex_next_size * scale);
+        let geo_to_tex_prev = DMat3::from_translation(-tex_prev_geo_loc / tex_prev_size)
+            * DMat3::from_scale(size_prev / tex_prev_size * scale_vec);
+        let geo_to_tex_next = DMat3::from_translation(-tex_next_geo_loc / tex_next_size)
+            * DMat3::from_scale(size_next / tex_next_size * scale_vec);
 
-        let corner_radius = corner_radius.fit_to(curr_geo_size.x, curr_geo_size.y);
+        let corner_radius = corner_radius.fit_to(curr_geo_size.x as f32, curr_geo_size.y as f32);
         let clip_to_geometry = if clip_to_geometry { 1. } else { 0. };
 
         // Create the shader.
@@ -91,15 +93,15 @@ impl ResizeRenderElement {
                 ProgramType::Resize,
                 area.size,
                 None,
-                scale.x,
+                scale_vec.x as f32,
                 result_alpha,
                 Rc::new([
-                    mat3_uniform("ymir_input_to_curr_geo", input_to_curr_geo),
-                    mat3_uniform("ymir_curr_geo_to_prev_geo", curr_geo_to_prev_geo),
-                    mat3_uniform("ymir_curr_geo_to_next_geo", curr_geo_to_next_geo),
-                    Uniform::new("ymir_curr_geo_size", curr_geo_size.to_array()),
-                    mat3_uniform("ymir_geo_to_tex_prev", geo_to_tex_prev),
-                    mat3_uniform("ymir_geo_to_tex_next", geo_to_tex_next),
+                    mat3_uniform("ymir_input_to_curr_geo", input_to_curr_geo.as_mat3()),
+                    mat3_uniform("ymir_curr_geo_to_prev_geo", curr_geo_to_prev_geo.as_mat3()),
+                    mat3_uniform("ymir_curr_geo_to_next_geo", curr_geo_to_next_geo.as_mat3()),
+                    Uniform::new("ymir_curr_geo_size", curr_geo_size.as_vec2().to_array()),
+                    mat3_uniform("ymir_geo_to_tex_prev", geo_to_tex_prev.as_mat3()),
+                    mat3_uniform("ymir_geo_to_tex_next", geo_to_tex_next.as_mat3()),
                     Uniform::new("ymir_progress", progress),
                     Uniform::new("ymir_clamped_progress", clamped_progress),
                     Uniform::new("ymir_corner_radius", <[f32; 4]>::from(corner_radius)),

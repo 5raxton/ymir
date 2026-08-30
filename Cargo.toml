@@ -8,7 +8,7 @@ members = [
 [workspace.package]
 version = "26.4.0"
 description = "A scrollable-tiling Wayland compositor"
-authors = ["Ivan Molodetskikh <yalterz@gmail.com>"]
+authors = ["Braxton <bddc@duck.com>"]
 license = "GPL-3.0-or-later"
 edition = "2021"
 repository = "https://github.com/5raxton/ymir"

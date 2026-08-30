@@ -37,11 +37,6 @@ use std::rc::Rc;
 use std::time::Duration;
 
 use monitor::{InsertHint, InsertPosition, InsertWorkspace, MonitorAddWindowTarget};
-use ymir_config::utils::MergeWith as _;
-use ymir_config::{
-    Config, CornerRadius, LayoutPart, PresetSize, Workspace as WorkspaceConfig, WorkspaceReference,
-};
-use ymir_ipc::{ColumnDisplay, PositionChange, SizeChange, SplitDirection, WindowLayout};
 use scrolling::{Column, ColumnWidth};
 use smithay::backend::renderer::element::surface::WaylandSurfaceRenderElement;
 use smithay::backend::renderer::element::utils::RescaleRenderElement;
@@ -51,6 +46,11 @@ use smithay::reexports::wayland_server::protocol::wl_surface::WlSurface;
 use smithay::utils::{Logical, Point, Rectangle, Scale, Serial, Size, Transform};
 use tile::{Tile, TileRenderElement};
 use workspace::{WorkspaceAddWindowTarget, WorkspaceId};
+use ymir_config::utils::MergeWith as _;
+use ymir_config::{
+    Config, CornerRadius, LayoutPart, PresetSize, Workspace as WorkspaceConfig, WorkspaceReference,
+};
+use ymir_ipc::{ColumnDisplay, PositionChange, SizeChange, SplitDirection, WindowLayout};
 
 pub use self::monitor::MonitorRenderElement;
 use self::monitor::{Monitor, WorkspaceSwitch};
@@ -59,7 +59,6 @@ use crate::animation::{Animation, Clock};
 use crate::input::swipe_tracker::SwipeTracker;
 use crate::layout::dwindle::SplitSide;
 use crate::layout::scrolling::ScrollDirection;
-use crate::ymir_render_elements;
 use crate::render_helpers::background_effect::BackgroundEffectElement;
 use crate::render_helpers::offscreen::OffscreenData;
 use crate::render_helpers::renderer::YmirRenderer;
@@ -75,6 +74,7 @@ use crate::utils::{
     round_logical_in_physical_max1, ResizeEdge,
 };
 use crate::window::ResolvedWindowRules;
+use crate::ymir_render_elements;
 
 pub mod closing_window;
 pub mod dwindle;
@@ -2306,7 +2306,7 @@ impl<W: LayoutElement> Layout<W> {
         workspace.swap_window_in_direction(direction);
     }
 
-pub fn toggle_column_tabbed_display(&mut self) {
+    pub fn toggle_column_tabbed_display(&mut self) {
         let Some(workspace) = self.active_workspace_mut() else {
             return;
         };
@@ -4039,20 +4039,22 @@ pub fn toggle_column_tabbed_display(&mut self) {
                 }
                 .band(sq_dist / INTERACTIVE_MOVE_START_THRESHOLD);
 
-                let (is_floating, tile, workspace_config) = self
+                let Some((is_floating, tile, workspace_config)) = self
                     .workspaces_mut()
                     .find(|ws| ws.has_window(&window_id))
-                    .map(|ws| {
+                    .and_then(|ws| {
                         let workspace_config = ws.layout_config().cloned().map(|c| (ws.id(), c));
-                        (
-                            ws.is_floating(&window_id),
-                            ws.tiles_mut()
-                                .find(|tile| *tile.window().id() == window_id)
-                                .unwrap(),
-                            workspace_config,
-                        )
+                        let is_floating = ws.is_floating(&window_id);
+                        ws.tiles_mut()
+                            .find(|tile| *tile.window().id() == window_id)
+                            .map(|tile| (is_floating, tile, workspace_config))
                     })
-                    .unwrap();
+                else {
+                    // The window was destroyed mid-grab; no tile to move. The caller's next frame
+                    // will observe the cleared state and end the grab.
+                    self.interactive_move = None;
+                    return true;
+                };
                 tile.interactive_move_offset = pointer_delta.upscale(factor);
 
                 // Put it back to be able to easily return.

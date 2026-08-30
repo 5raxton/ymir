@@ -9,8 +9,8 @@ use smithay::wayland::shell::wlr_layer::{
 use smithay::wayland::shell::xdg::PopupSurface;
 
 use crate::layer::{MappedLayer, ResolvedLayerRules};
-use crate::ymir::State;
 use crate::utils::{is_mapped, output_size, send_scale_transform};
+use crate::ymir::State;
 
 impl WlrLayerShellHandler for State {
     fn shell_state(&mut self) -> &mut WlrLayerShellState {
@@ -36,12 +36,24 @@ impl WlrLayerShellHandler for State {
         };
 
         let wl_surface = surface.wl_surface().clone();
-        let is_new = self.ymir.unmapped_layer_surfaces.insert(wl_surface);
-        assert!(is_new);
+        if !self.ymir.unmapped_layer_surfaces.insert(wl_surface) {
+            // A wl_surface commits as a layer surface only once; this only fires on a
+            // double-commit race where the surface is already queued for mapping. Make the
+            // insert idempotent and drop the duplicate instead of panicking.
+            warn!("layer surface already pending for mapping, closing");
+            surface.send_close();
+            return;
+        }
 
         let mut map = layer_map_for_output(&output);
-        map.map_layer(&LayerSurface::new(surface, namespace))
-            .unwrap();
+        let layer = LayerSurface::new(surface, namespace);
+        if let Err(err) = map.map_layer(&layer) {
+            // The output is gone or the layer was already mapped elsewhere; close the
+            // surface so the client can fall back instead of crashing the compositor.
+            warn!("failed to map layer surface: {err}");
+            layer.layer_surface().send_close();
+            self.ymir.unmapped_layer_surfaces.remove(layer.wl_surface());
+        }
     }
 
     fn layer_destroyed(&mut self, surface: WlrLayerSurface) {

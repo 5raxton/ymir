@@ -14,9 +14,9 @@ use smithay::utils::{IsAlive, Logical, Point, SERIAL_COUNTER};
 
 use crate::input::AnyStartData;
 use crate::layout::workspace::{Workspace, WorkspaceId};
-use crate::ymir::State;
 use crate::utils::get_monotonic_time;
 use crate::window::Mapped;
+use crate::ymir::State;
 
 // When the touch is stationary for this much time, it becomes an interactive move.
 const INTERACTIVE_MOVE_THRESHOLD: Duration = Duration::from_millis(500);
@@ -152,7 +152,14 @@ impl TouchOverviewGrab {
                 .workspace_switch_gesture_update(-delta.y, timestamp, false)
                 .is_some(),
             GestureState::InteractiveMove => {
-                let window = self.window.as_ref().unwrap();
+                let Some(window) = self.window.as_ref() else {
+                    return false;
+                };
+                // The window may have been destroyed mid-grab. End the move cleanly.
+                if !window.alive() {
+                    layout.interactive_move_end(window);
+                    return false;
+                }
                 if let Some((output, pos_within_output)) = data.ymir.output_under(self.new_location)
                 {
                     let output = output.clone();

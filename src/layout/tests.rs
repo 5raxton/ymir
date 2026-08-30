@@ -1,15 +1,15 @@
 use std::cell::{Cell, OnceCell, RefCell};
 
+use proptest::prelude::*;
+use proptest_derive::Arbitrary;
+use smithay::output::{Mode, PhysicalProperties, Subpixel};
+use smithay::utils::Rectangle;
 use ymir_config::utils::Flag;
 use ymir_config::workspace::WorkspaceName;
 use ymir_config::{
     CenterFocusedColumn, FloatOrInt, OutputName, Struts, TabIndicatorLength, TabIndicatorPosition,
     WorkspaceReference,
 };
-use proptest::prelude::*;
-use proptest_derive::Arbitrary;
-use smithay::output::{Mode, PhysicalProperties, Subpixel};
-use smithay::utils::Rectangle;
 
 use super::*;
 
@@ -1816,10 +1816,18 @@ fn dwindle_columns_span_the_full_work_area() {
         options,
         [
             Op::AddOutput(0),
-            Op::AddWindow { params: TestWindowParams::new(0) },
-            Op::AddWindow { params: TestWindowParams::new(1) },
-            Op::AddWindow { params: TestWindowParams::new(2) },
-            Op::AddWindow { params: TestWindowParams::new(3) },
+            Op::AddWindow {
+                params: TestWindowParams::new(0),
+            },
+            Op::AddWindow {
+                params: TestWindowParams::new(1),
+            },
+            Op::AddWindow {
+                params: TestWindowParams::new(2),
+            },
+            Op::AddWindow {
+                params: TestWindowParams::new(3),
+            },
         ],
     );
 
@@ -1853,8 +1861,12 @@ fn dwindle_interactive_resize_moves_divider() {
         options,
         [
             Op::AddOutput(0),
-            Op::AddWindow { params: TestWindowParams::new(0) },
-            Op::AddWindow { params: TestWindowParams::new(1) },
+            Op::AddWindow {
+                params: TestWindowParams::new(0),
+            },
+            Op::AddWindow {
+                params: TestWindowParams::new(1),
+            },
         ],
     );
 
@@ -1894,8 +1906,12 @@ fn dwindle_interactive_resize_moves_divider() {
         },
         [
             Op::AddOutput(0),
-            Op::AddWindow { params: TestWindowParams::new(0) },
-            Op::AddWindow { params: TestWindowParams::new(1) },
+            Op::AddWindow {
+                params: TestWindowParams::new(0),
+            },
+            Op::AddWindow {
+                params: TestWindowParams::new(1),
+            },
         ],
     );
     reference.interactive_resize_begin(0usize, ResizeEdge::RIGHT);
@@ -1906,12 +1922,24 @@ fn dwindle_interactive_resize_moves_divider() {
         .map(|(_, win)| win.requested_size().unwrap())
         .collect();
 
-    assert_eq!(after[0].w, expected[0].w, "three-frame drag must match one-frame drag");
-    assert_eq!(after[1].w, expected[1].w, "three-frame drag must match one-frame drag");
+    assert_eq!(
+        after[0].w, expected[0].w,
+        "three-frame drag must match one-frame drag"
+    );
+    assert_eq!(
+        after[1].w, expected[1].w,
+        "three-frame drag must match one-frame drag"
+    );
     layout.interactive_resize_end(&w0);
 
-    assert!(after[0].w > before[0].w, "left window should grow: {before:?} -> {after:?}");
-    assert!(after[1].w < before[1].w, "right window should shrink: {before:?} -> {after:?}");
+    assert!(
+        after[0].w > before[0].w,
+        "left window should grow: {before:?} -> {after:?}"
+    );
+    assert!(
+        after[1].w < before[1].w,
+        "right window should shrink: {before:?} -> {after:?}"
+    );
 
     // The column still tiles the full work area: the two windows plus the gap keep the same
     // total width (the divider simply moved), so nothing overlaps and nothing leaks off-screen.
@@ -1936,8 +1964,12 @@ fn dwindle_interactive_resize_left_child_edge() {
         options,
         [
             Op::AddOutput(0),
-            Op::AddWindow { params: TestWindowParams::new(0) },
-            Op::AddWindow { params: TestWindowParams::new(1) },
+            Op::AddWindow {
+                params: TestWindowParams::new(0),
+            },
+            Op::AddWindow {
+                params: TestWindowParams::new(1),
+            },
         ],
     );
 
@@ -1957,8 +1989,14 @@ fn dwindle_interactive_resize_left_child_edge() {
         .windows()
         .map(|(_, win)| win.requested_size().unwrap())
         .collect();
-    assert!(after[1].w > before[1].w, "right window should grow: {before:?} -> {after:?}");
-    assert!(after[0].w < before[0].w, "left window should shrink: {before:?} -> {after:?}");
+    assert!(
+        after[1].w > before[1].w,
+        "right window should grow: {before:?} -> {after:?}"
+    );
+    assert!(
+        after[0].w < before[0].w,
+        "left window should shrink: {before:?} -> {after:?}"
+    );
 
     // The divider moved without changing the total tiled width.
     assert_eq!(
@@ -1986,11 +2024,19 @@ fn dwindle_resize_moves_outer_divider_seen_from_deep_leaf() {
         options,
         [
             Op::AddOutput(0),
-            Op::AddWindow { params: TestWindowParams::new(0) },
-            Op::AddWindow { params: TestWindowParams::new(1) },
+            Op::AddWindow {
+                params: TestWindowParams::new(0),
+            },
+            Op::AddWindow {
+                params: TestWindowParams::new(1),
+            },
             Op::FocusWindow(0),
-            Op::AddWindow { params: TestWindowParams::new(2) },
-            Op::AddWindow { params: TestWindowParams::new(3) },
+            Op::AddWindow {
+                params: TestWindowParams::new(2),
+            },
+            Op::AddWindow {
+                params: TestWindowParams::new(3),
+            },
         ],
     );
     check_ops_on_layout(&mut layout, [Op::CompleteAnimations]);
@@ -2043,8 +2089,12 @@ fn normal_mode_interactive_resize_resizes_column_not_tree() {
         Options::default(),
         [
             Op::AddOutput(0),
-            Op::AddWindow { params: TestWindowParams::new(0) },
-            Op::AddWindow { params: TestWindowParams::new(1) },
+            Op::AddWindow {
+                params: TestWindowParams::new(0),
+            },
+            Op::AddWindow {
+                params: TestWindowParams::new(1),
+            },
             Op::FocusWindow(0),
         ],
     );
@@ -2107,11 +2157,19 @@ fn dwindle_resize_grab_zones_follow_real_divider() {
         options,
         [
             Op::AddOutput(0),
-            Op::AddWindow { params: TestWindowParams::new(0) },
-            Op::AddWindow { params: TestWindowParams::new(1) },
+            Op::AddWindow {
+                params: TestWindowParams::new(0),
+            },
+            Op::AddWindow {
+                params: TestWindowParams::new(1),
+            },
             Op::FocusWindow(0),
-            Op::AddWindow { params: TestWindowParams::new(2) },
-            Op::AddWindow { params: TestWindowParams::new(3) },
+            Op::AddWindow {
+                params: TestWindowParams::new(2),
+            },
+            Op::AddWindow {
+                params: TestWindowParams::new(3),
+            },
         ],
     );
     check_ops_on_layout(&mut layout, [Op::CompleteAnimations]);
@@ -2129,7 +2187,10 @@ fn dwindle_resize_grab_zones_follow_real_divider() {
     let workspace = layout.active_workspace().unwrap();
     // Near window 3's right edge (the root divider): the grab zone must report the RIGHT edge,
     // even though that divider belongs to an OUTER split the leaf isn't directly a child of.
-    let near_right = Point::from((tile3_pos.x + tile3_size.w - 2., tile3_pos.y + tile3_size.h / 2.));
+    let near_right = Point::from((
+        tile3_pos.x + tile3_size.w - 2.,
+        tile3_pos.y + tile3_size.h / 2.,
+    ));
     assert_eq!(
         workspace.resize_edges_under(near_right),
         Some(ResizeEdge::RIGHT),
@@ -2143,13 +2204,19 @@ fn dwindle_resize_grab_zones_follow_real_divider() {
         "the inner divider zone must be grabbable from window 3"
     );
     // The middle of the tile is not a resize zone.
-    let center = Point::from((tile3_pos.x + tile3_size.w / 2., tile3_pos.y + tile3_size.h / 2.));
+    let center = Point::from((
+        tile3_pos.x + tile3_size.w / 2.,
+        tile3_pos.y + tile3_size.h / 2.,
+    ));
     assert_eq!(workspace.resize_edges_under(center), None);
 
     // And the same zone radii apply to a leaf of the OTHER dimension (top edge of window 3 is the
     // H divider above the bottom row).
     let near_top = Point::from((tile3_pos.x + tile3_size.w / 2., tile3_pos.y + 2.));
-    assert_eq!(workspace.resize_edges_under(near_top), Some(ResizeEdge::TOP));
+    assert_eq!(
+        workspace.resize_edges_under(near_top),
+        Some(ResizeEdge::TOP)
+    );
 }
 
 #[test]
@@ -2160,8 +2227,12 @@ fn normal_and_dwindle_resize_stay_separate() {
         Options::default(),
         [
             Op::AddOutput(0),
-            Op::AddWindow { params: TestWindowParams::new(0) },
-            Op::AddWindow { params: TestWindowParams::new(1) },
+            Op::AddWindow {
+                params: TestWindowParams::new(0),
+            },
+            Op::AddWindow {
+                params: TestWindowParams::new(1),
+            },
             Op::FocusWindow(0),
         ],
     );
@@ -2219,8 +2290,12 @@ fn normal_mode_interactive_resize_left_edge_grows_column() {
         Options::default(),
         [
             Op::AddOutput(0),
-            Op::AddWindow { params: TestWindowParams::new(0) },
-            Op::AddWindow { params: TestWindowParams::new(1) },
+            Op::AddWindow {
+                params: TestWindowParams::new(0),
+            },
+            Op::AddWindow {
+                params: TestWindowParams::new(1),
+            },
         ],
     );
     check_ops_on_layout(&mut layout, [Op::CompleteAnimations]);
@@ -2276,8 +2351,12 @@ fn normal_mode_interactive_resize_multi_frame_matches_single_frame() {
             Options::default(),
             [
                 Op::AddOutput(0),
-                Op::AddWindow { params: TestWindowParams::new(0) },
-                Op::AddWindow { params: TestWindowParams::new(1) },
+                Op::AddWindow {
+                    params: TestWindowParams::new(0),
+                },
+                Op::AddWindow {
+                    params: TestWindowParams::new(1),
+                },
             ],
         );
         check_ops_on_layout(&mut layout, [Op::CompleteAnimations]);
@@ -2295,7 +2374,10 @@ fn normal_mode_interactive_resize_multi_frame_matches_single_frame() {
 
     let multi = after_drag(&[30., 50., 120.]);
     let single = after_drag(&[120.]);
-    assert_eq!(multi, single, "a cumulative multi-frame drag must match a single-frame drag");
+    assert_eq!(
+        multi, single,
+        "a cumulative multi-frame drag must match a single-frame drag"
+    );
     assert!(
         single[0] > single[1],
         "the dragged window must have grown: {single:?}"
@@ -2312,8 +2394,12 @@ fn normal_mode_resize_zones_follow_window_thirds() {
         Options::default(),
         [
             Op::AddOutput(0),
-            Op::AddWindow { params: TestWindowParams::new(0) },
-            Op::AddWindow { params: TestWindowParams::new(1) },
+            Op::AddWindow {
+                params: TestWindowParams::new(0),
+            },
+            Op::AddWindow {
+                params: TestWindowParams::new(1),
+            },
         ],
     );
     check_ops_on_layout(&mut layout, [Op::CompleteAnimations]);
@@ -2353,7 +2439,10 @@ fn normal_mode_resize_zones_follow_window_thirds() {
     );
     // The top third is a TOP grab zone (dwindle mirror asserted the same).
     let near_top = Point::from((tile1_pos.x + tile1_bbox.w / 2., tile1_pos.y + 2.));
-    assert_eq!(workspace.resize_edges_under(near_top), Some(ResizeEdge::TOP));
+    assert_eq!(
+        workspace.resize_edges_under(near_top),
+        Some(ResizeEdge::TOP)
+    );
 }
 
 #[test]
@@ -2494,10 +2583,18 @@ fn dwindle_spatial_focus_directions() {
         options,
         [
             Op::AddOutput(0),
-            Op::AddWindow { params: TestWindowParams::new(0) },
-            Op::AddWindow { params: TestWindowParams::new(1) },
-            Op::AddWindow { params: TestWindowParams::new(2) },
-            Op::AddWindow { params: TestWindowParams::new(3) },
+            Op::AddWindow {
+                params: TestWindowParams::new(0),
+            },
+            Op::AddWindow {
+                params: TestWindowParams::new(1),
+            },
+            Op::AddWindow {
+                params: TestWindowParams::new(2),
+            },
+            Op::AddWindow {
+                params: TestWindowParams::new(3),
+            },
             Op::FocusWindow(0),
         ],
     );
@@ -2562,10 +2659,18 @@ fn dwindle_spatial_move_single_window() {
         options,
         [
             Op::AddOutput(0),
-            Op::AddWindow { params: TestWindowParams::new(0) },
-            Op::AddWindow { params: TestWindowParams::new(1) },
-            Op::AddWindow { params: TestWindowParams::new(2) },
-            Op::AddWindow { params: TestWindowParams::new(3) },
+            Op::AddWindow {
+                params: TestWindowParams::new(0),
+            },
+            Op::AddWindow {
+                params: TestWindowParams::new(1),
+            },
+            Op::AddWindow {
+                params: TestWindowParams::new(2),
+            },
+            Op::AddWindow {
+                params: TestWindowParams::new(3),
+            },
             Op::FocusWindow(0),
         ],
     );
@@ -2601,7 +2706,11 @@ fn dwindle_spatial_move_single_window() {
         before.1,
         after.1
     );
-    assert_eq!(*layout.focus().unwrap().id(), 0, "focus stays on the moved window");
+    assert_eq!(
+        *layout.focus().unwrap().id(),
+        0,
+        "focus stays on the moved window"
+    );
 }
 
 /// Regression for the "fullscreen on brackets" bug: in dwindle mode, move-window left/right and
@@ -2621,8 +2730,12 @@ fn dwindle_consume_or_expel_moves_window_spatially() {
         options,
         [
             Op::AddOutput(0),
-            Op::AddWindow { params: TestWindowParams::new(0) },
-            Op::AddWindow { params: TestWindowParams::new(1) },
+            Op::AddWindow {
+                params: TestWindowParams::new(0),
+            },
+            Op::AddWindow {
+                params: TestWindowParams::new(1),
+            },
             Op::FocusWindow(1),
             Op::CompleteAnimations,
         ],
@@ -2645,7 +2758,10 @@ fn dwindle_consume_or_expel_moves_window_spatially() {
     // consume-or-expel-window-left on a 2-window dwindle split swaps cleanly, no fullscreen.
     layout.consume_or_expel_window_left(None);
     check_ops_on_layout(&mut layout, [Op::CompleteAnimations]);
-    assert!(x_of(&layout, 1) < x_of(&layout, 0), "window 1 should swap to the left");
+    assert!(
+        x_of(&layout, 1) < x_of(&layout, 0),
+        "window 1 should swap to the left"
+    );
 
     // Still two side-by-side windows (neither fills the whole area).
     let poses: Vec<f64> = layout
@@ -2655,12 +2771,18 @@ fn dwindle_consume_or_expel_moves_window_spatially() {
         .map(|(_, pos, _)| pos.x)
         .collect();
     assert_eq!(poses.len(), 2);
-    assert!(poses[0] < poses[1], "two distinct x positions, side by side");
+    assert!(
+        poses[0] < poses[1],
+        "two distinct x positions, side by side"
+    );
 
     // consume-or-expel-window-right moves it back the other way.
     layout.consume_or_expel_window_right(None);
     check_ops_on_layout(&mut layout, [Op::CompleteAnimations]);
-    assert!(x_of(&layout, 1) > x_of(&layout, 0), "window 1 should swap back to the right");
+    assert!(
+        x_of(&layout, 1) > x_of(&layout, 0),
+        "window 1 should swap back to the right"
+    );
 }
 
 /// The new move-window-left/right actions perform a dwindle spatial move.
@@ -2678,8 +2800,12 @@ fn dwindle_move_window_left_right_spatially() {
         options,
         [
             Op::AddOutput(0),
-            Op::AddWindow { params: TestWindowParams::new(0) },
-            Op::AddWindow { params: TestWindowParams::new(1) },
+            Op::AddWindow {
+                params: TestWindowParams::new(0),
+            },
+            Op::AddWindow {
+                params: TestWindowParams::new(1),
+            },
             Op::FocusWindow(1),
             Op::CompleteAnimations,
         ],
@@ -2699,12 +2825,22 @@ fn dwindle_move_window_left_right_spatially() {
     assert!(x_of(&layout, 1) > x_of(&layout, 0));
     layout.move_window_left();
     check_ops_on_layout(&mut layout, [Op::CompleteAnimations]);
-    assert!(x_of(&layout, 1) < x_of(&layout, 0), "move-window-left should swap window 1 left");
-    assert_eq!(*layout.focus().unwrap().id(), 1, "focus should stay on moved window");
+    assert!(
+        x_of(&layout, 1) < x_of(&layout, 0),
+        "move-window-left should swap window 1 left"
+    );
+    assert_eq!(
+        *layout.focus().unwrap().id(),
+        1,
+        "focus should stay on moved window"
+    );
 
     layout.move_window_right();
     check_ops_on_layout(&mut layout, [Op::CompleteAnimations]);
-    assert!(x_of(&layout, 1) > x_of(&layout, 0), "move-window-right should swap window 1 back");
+    assert!(
+        x_of(&layout, 1) > x_of(&layout, 0),
+        "move-window-right should swap window 1 back"
+    );
 }
 
 #[test]
@@ -4867,6 +5003,37 @@ proptest! {
 
         check_ops_with_options(options, ops);
     }
+
+    #[test]
+    fn dwindle_tree_stays_in_sync_with_tiles(
+        ops: Vec<Op>,
+        layout_config in arbitrary_layout_part(),
+    ) {
+        // Every dwindle-tree mutation in a dwindle column must leave exactly one leaf per tile &&
+        // reverse: randomly mutate the layout (open/close/focus/promote/toggle/display ops) and
+        // re-check the invariant after EVERY op, not just at the end.
+        let options = Options {
+            layout: ymir_config::Layout {
+                default_column_display: ymir_ipc::ColumnDisplay::Dwindle,
+                ..ymir_config::Layout::from_part(&layout_config)
+            },
+            ..Default::default()
+        };
+
+        let mut layout = Layout::with_options(Clock::with_time(Duration::ZERO), options);
+        for op in ops {
+            let op_desc = format!("{op:?}");
+            op.apply(&mut layout);
+            layout.verify_invariants();
+            for (_, _, ws) in layout.workspaces() {
+                ws.scrolling().debug_assert_dwindle_invariants();
+                assert!(
+                    ws.scrolling().dwindle_invariant_holds(),
+                    "dwindle tree and tiles desynced after {op_desc}"
+                );
+            }
+        }
+    }
 }
 /// Regression: a directional move must place the window directly in that direction from its
 /// current spot (Hyprland-style re-split), never slide it diagonally into a different column.
@@ -4883,9 +5050,15 @@ fn dwindle_move_up_tiles_with_window_directly_above() {
         options,
         [
             Op::AddOutput(0),
-            Op::AddWindow { params: TestWindowParams::new(0) },
-            Op::AddWindow { params: TestWindowParams::new(1) },
-            Op::AddWindow { params: TestWindowParams::new(2) },
+            Op::AddWindow {
+                params: TestWindowParams::new(0),
+            },
+            Op::AddWindow {
+                params: TestWindowParams::new(1),
+            },
+            Op::AddWindow {
+                params: TestWindowParams::new(2),
+            },
             Op::FocusWindow(2),
             Op::CompleteAnimations,
         ],
@@ -4903,16 +5076,33 @@ fn dwindle_move_up_tiles_with_window_directly_above() {
 
     // layout: 0 = tall left column; 1 = top-right; 2 = bottom-right (H{0, V{1,2}}).
     let (x2_before, y2_before) = pos(&layout, 2);
-    assert!(y2_before > pos(&layout, 1).1, "window 2 starts below window 1");
+    assert!(
+        y2_before > pos(&layout, 1).1,
+        "window 2 starts below window 1"
+    );
 
     Op::MoveWindowUp.apply(&mut layout);
     check_ops_on_layout(&mut layout, [Op::CompleteAnimations]);
 
     let (x2, y2) = pos(&layout, 2);
     // Moving up must keep window 2 in the same (right) column -- no diagonal jump to the left.
-    assert!((x2 - x2_before).abs() < 1.0, "window 2 should stay in its column (x {}->{})", x2_before, x2);
+    assert!(
+        (x2 - x2_before).abs() < 1.0,
+        "window 2 should stay in its column (x {}->{})",
+        x2_before,
+        x2
+    );
     // ...and place it directly above its former spot in that column.
-    assert!(y2 < y2_before, "window 2 moved up (y {}->{})", y2_before, y2);
+    assert!(
+        y2 < y2_before,
+        "window 2 moved up (y {}->{})",
+        y2_before,
+        y2
+    );
     assert!(y2 < pos(&layout, 1).1, "window 2 now sits above window 1");
-    assert_eq!(*layout.focus().unwrap().id(), 2, "focus stays on the moved window");
+    assert_eq!(
+        *layout.focus().unwrap().id(),
+        2,
+        "focus stays on the moved window"
+    );
 }

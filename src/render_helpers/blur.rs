@@ -118,47 +118,50 @@ impl Blur {
         let passes = options.passes.clamp(1, 31) as usize;
         let size = source.size();
 
-        if let Some(output) = self.textures.first_mut() {
-            let old_size = output.size();
-            if old_size != size {
-                trace!(
-                    "recreating textures: output size changed from {} × {} to {} × {}",
-                    old_size.w,
-                    old_size.h,
-                    size.w,
-                    size.h
-                );
-                self.textures.clear();
-            } else if !output.is_unique_reference() {
-                debug!("recreating textures: not unique",);
-                // We only need to recreate the output texture here, but this case shouldn't really
-                // happen anyway, and this is simpler.
-                self.textures.clear();
-            }
-        }
-
-        // Create any missing textures.
+        // Size of each level of the desired chain, largest first.
+        let mut chain_sizes = Vec::with_capacity(passes + 1);
         let mut w = size.w;
         let mut h = size.h;
-        for i in 0..=passes {
-            let size = Size::new(w, h);
+        for _ in 0..=passes {
+            chain_sizes.push(Size::new(w, h));
             w = max(1, w / 2);
             h = max(1, h / 2);
+        }
+        let target_len = chain_sizes.len();
 
-            if self.textures.len() > i {
-                // This texture already exists.
-                continue;
-            }
-
-            // debug!("creating texture for step {i} sized {w} × {h}");
-
-            let texture: GlesTexture =
-                create_texture(Fourcc::Abgr8888, size).context("error creating texture")?;
-            self.textures.push(texture);
+        // Reuse the longest suffix of the existing chain whose levels still have the
+        // same ½ⁿ sizes. During live resize only the large levels change, so we avoid
+        // reallocating the whole chain every frame.
+        let old_len = self.textures.len();
+        let mut keep = 0;
+        while keep < old_len
+            && keep < target_len
+            && self.textures[old_len - 1 - keep].size() == chain_sizes[target_len - 1 - keep]
+        {
+            keep += 1;
+        }
+        if keep == target_len && !self.textures[0].is_unique_reference() {
+            debug!("recreating textures: not unique");
+            // The output texture is still referenced by a blurred element; recreate it.
+            self.textures.clear();
+            keep = 0;
         }
 
-        // Drop any no longer needed textures.
-        self.textures.drain(passes + 1..);
+        let kept = if keep > 0 {
+            self.textures.split_off(old_len - keep)
+        } else {
+            Vec::new()
+        };
+
+        // Create the missing large levels, then keep the reused tail.
+        let mut textures = Vec::with_capacity(target_len);
+        for size in chain_sizes.iter().take(target_len - keep) {
+            let texture: GlesTexture =
+                create_texture(Fourcc::Abgr8888, *size).context("error creating texture")?;
+            textures.push(texture);
+        }
+        textures.extend(kept);
+        self.textures = textures;
 
         Ok(())
     }

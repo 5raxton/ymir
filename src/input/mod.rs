@@ -5,10 +5,6 @@ use std::time::Duration;
 
 use calloop::timer::{TimeoutAction, Timer};
 use input::event::gesture::GestureEventCoordinates as _;
-use ymir_config::{
-    Action, Bind, Binds, Config, Key, ModKey, Modifiers, MruDirection, SwitchBinds, Trigger,
-};
-use ymir_ipc::LayoutSwitchTarget;
 use smithay::backend::input::{
     AbsolutePositionEvent, Axis, AxisSource, ButtonState, Device, DeviceCapability, Event,
     GestureBeginEvent, GestureEndEvent, GesturePinchUpdateEvent as _, GestureSwipeUpdateEvent as _,
@@ -39,6 +35,10 @@ use smithay::utils::{Logical, Point, Rectangle, Transform, SERIAL_COUNTER};
 use smithay::wayland::keyboard_shortcuts_inhibit::KeyboardShortcutsInhibitor;
 use smithay::wayland::pointer_constraints::{with_pointer_constraint, PointerConstraint};
 use touch_overview_grab::TouchOverviewGrab;
+use ymir_config::{
+    Action, Bind, Binds, Config, Key, ModKey, Modifiers, MruDirection, SwitchBinds, Trigger,
+};
+use ymir_ipc::LayoutSwitchTarget;
 
 use self::move_grab::MoveGrab;
 use self::pick_color_grab::PickColorGrab;
@@ -49,11 +49,11 @@ use self::spatial_movement_grab::SpatialMovementGrab;
 use crate::dbus::freedesktop_a11y::KbMonBlock;
 use crate::layout::scrolling::ScrollDirection;
 use crate::layout::{ActivateWindow, LayoutElement as _};
-use crate::ymir::{CastTarget, PointerVisibility, State};
 use crate::ui::mru::{WindowMru, WindowMruUi};
 use crate::ui::screenshot_ui::ScreenshotUi;
 use crate::utils::spawning::{spawn, spawn_sh};
 use crate::utils::{center, get_monotonic_time, CastSessionId, ResizeEdge};
+use crate::ymir::{CastTarget, PointerVisibility, State};
 
 pub mod backend_ext;
 pub mod click_grab;
@@ -1618,7 +1618,9 @@ impl State {
                 self.ymir.queue_redraw_all();
             }
             Action::Preselect(direction) => {
-                self.ymir.layout.preselect_in_column(ymir_ipc::SplitDirection::from(direction));
+                self.ymir
+                    .layout
+                    .preselect_in_column(ymir_ipc::SplitDirection::from(direction));
                 self.ymir.queue_redraw_all();
             }
             Action::PromoteWindow => {

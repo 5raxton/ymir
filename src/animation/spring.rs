@@ -58,22 +58,15 @@ impl Spring {
             return Duration::ZERO;
         }
 
-        let omega0 = (self.params.stiffness / self.params.mass).sqrt();
-
-        // As first ansatz for the overdamped solution,
-        // and general estimation for the oscillating ones
-        // we take the value of the envelope when it's < epsilon.
+        // First ansatz for all damping regimes: the time at which the decay envelope
+        // (with the initial displacement as the amplitude) drops to `epsilon`. For the
+        // underdamped and critically damped solutions this is only an estimate, because
+        // their amplitudes also depend on the initial velocity and the polynomial factor
+        // of the critically damped case, so the ansatz alone can undershoot the real
+        // settling time. It still makes a good seed for the Newton refinement below.
         let mut x0 = -self.params.epsilon.ln() / beta;
 
-        // f64::EPSILON is too small for this specific comparison, so we use
-        // f32::EPSILON even though it's doubles.
-        if (beta - omega0).abs() <= f64::from(f32::EPSILON) || beta < omega0 {
-            return Duration::from_secs_f64(x0);
-        }
-
-        // Since the overdamped solution decays way slower than the envelope
-        // we need to use the value of the oscillation itself.
-        // Newton's root finding method is a good candidate in this particular case:
+        // Newton's root finding for the value crossing `to ± epsilon`.
         // https://en.wikipedia.org/wiki/Newton%27s_method
         let mut y0 = self.oscillate(x0);
         let m = (self.oscillate(x0 + DELTA) - y0) / DELTA;
@@ -95,7 +88,7 @@ impl Spring {
             x1 = (self.to - y0 + m * x0) / m;
             y1 = self.oscillate(x1);
 
-            // Overdamped springs have some numerical stability issues...
+            // Some springs have numerical stability issues...
             if !y1.is_finite() {
                 return Duration::from_secs_f64(x0);
             }
@@ -205,5 +198,34 @@ mod tests {
         let _ = spring.duration();
         let _ = spring.clamped_duration();
         let _ = spring.value_at(Duration::ZERO);
+    }
+
+    #[test]
+    fn duration_settles_to_value_for_underdamped_and_critical_ratios() {
+        // `duration()` must return a time where the spring has actually settled within
+        // `epsilon` of its target, not the loose decay-envelope estimate that used to
+        // leave a visible residual (and later hard snap) at the end of scrolls.
+        for ratio in [0.3, 0.6, 0.8, 1.0] {
+            let epsilon = 0.0001;
+            let spring = Spring {
+                from: 0.,
+                to: 1.,
+                initial_velocity: 0.,
+                params: SpringParams::new(ratio, 850., epsilon),
+            };
+            let duration = spring.duration();
+            let residual = (spring.value_at(duration) - spring.to).abs();
+            assert!(
+                residual <= epsilon,
+                "ratio {ratio}: residual {residual} exceeds epsilon {epsilon} at {duration:?}"
+            );
+
+            // Past the computed duration the value must stay settled.
+            let later = spring.value_at(duration + Duration::from_secs_f64(0.5));
+            assert!(
+                (later - spring.to).abs() <= epsilon,
+                "ratio {ratio}: drifted at +0.5s"
+            );
+        }
     }
 }

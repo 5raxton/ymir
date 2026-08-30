@@ -19,8 +19,8 @@ use smithay::output::Output;
 use smithay::utils::{IsAlive, Logical, Point, SERIAL_COUNTER};
 
 use crate::input::AnyStartData;
-use crate::ymir::State;
 use crate::utils::get_monotonic_time;
+use crate::ymir::State;
 
 pub struct MoveGrab {
     start_data: AnyStartData<State>,
@@ -222,6 +222,13 @@ impl MoveGrab {
         match self.gesture {
             GestureState::Recognizing => return true,
             GestureState::Move => {
+                // The window may have been destroyed mid-grab. End the move cleanly so the
+                // layout-side Starting/Moving state is released.
+                if !self.window.alive() {
+                    data.ymir.layout.interactive_move_end(&self.window);
+                    return false;
+                }
+
                 let Some((output, pos_within_output)) = data.ymir.output_under(self.last_location)
                 else {
                     return true;

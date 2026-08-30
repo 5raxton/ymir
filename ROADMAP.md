@@ -156,6 +156,24 @@ All high-severity claims were re-verified by a second, direct read of the cited 
 
 **Exit criteria:** `cargo test --workspace`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo fmt --check` green; no panic-capable unwrap remains on: pointer-motion, key-binding, surface-commit or output-hotplug paths (re-grep + CI gate, see Phase 4); on-screen visual check of gradient borders, blur corners, and end-of-scroll under 1.5× fractional scale.
 
+#### Phase 1 — status
+
+Landed in the initial Part B pass (on top of `2df9499`):
+
+- **1.1** B1–B6 complete (`move_grab.rs`/`touch_overview_grab.rs`/`interactive_resize_update` guarded lookups; `set_maximized` and `add_tile(NextTo)` stales; dwindle invariant asserts + fuzz proptest; layer-shell idempotent map + handled `map_layer` error).
+- **1.2** R1/R4/R5 (`border.frag` piecewise EOTF, negative-LMS guard, LCh-invariant gamut reduction for both oklab/oklch arms + CPU-side mirror tests in `render_helpers/mod.rs`), R2 (GLES/extension border-clamp probe with `CLAMP_TO_BORDER` ↔ `CLAMP_TO_EDGE` fallback), R3 (spring `duration()` Newton refinement for all damping regimes + ratio-sweep unit test), R6 (coverage-weighted blur taps retire the +1px HACK), R7 (mip-chain reuse in `prepare_textures`), R8 (f64 matrices up to the final `to_physical_precise_round`), R9 (`uniform vec2 ymir_size` removed).
+- **1.3** I1 (bind repeat/cooldown timers cancelled on `binds_changed`), I2 (scroll-tracker reset on every config reload), I4 (`get_keyboard().unwrap()` → `if let`) — all in the `reload_config` path.
+- **C1** `Config::load_default` now returns a miette `ConfigParseResult` (no boot `assert!`).
+- **1.4** niri metadata: `Cargo.toml` author re-pointed to the fork maintainer; wiki COPR links were already cleaned (A.6). Tile width/height conversions are single-sourced on `Tile` already (verified: `scrolling.rs` calls the `tile.*_for_*` methods, no inline border math).
+- With the first clippy gate: `dwindle.rs` dead/needless patterns and `LeafPath::child` removed, `clamp_ratio` → `.clamp()`, the dwindle invariant checker is exercised by the proptest.
+
+Verification: `cargo test --workspace` (273/273) and `cargo clippy --workspace --all-targets -- -D warnings` green. `cargo fmt --check` caveat: `rustfmt.toml` uses nightly-only options (`imports_granularity`, `group_imports`, `wrap_comments`, `comment_width`) and this tree only has stable rustfmt, so whole-tree `fmt --check` reports pre-existing nightly-style files; edited files were formatted with stable rustfmt.
+
+Deferred to the follow-up structural passes (behind Phase basic hardening, non-blocking for the Phase 1 exit above):
+- 1.4 item 1 (de-monolith file splits: `scrolling.rs`, `input/mod.rs`, `layout/mod.rs`, `ymir.rs`) — planned before Phase 3.
+- 1.4 item 3 (single display-mode router / `ColumnDisplay`-aware dispatcher) — the seam Phase 3 plugs `Depth` into.
+- 1.4 item 2 remainder: `scrolling.rs` `TileData`/`ColumnData` bookkeeping single-sourced on `Tile`, and tile/animation helper consolidation into a shared `geometry.rs` (width/height conversions already centralized).
+
 ---
 
 ### Phase 2 — Lua Configuration Engine Overhaul

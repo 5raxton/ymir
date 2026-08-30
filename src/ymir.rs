@@ -13,12 +13,6 @@ use std::{env, mem, thread};
 use _server_decoration::server::org_kde_kwin_server_decoration_manager::Mode as KdeDecorationsMode;
 use anyhow::{bail, ensure, Context};
 use calloop::futures::Scheduler;
-use ymir_config::debug::PreviewRender;
-use ymir_config::output::MaxBpc;
-use ymir_config::{
-    Config, FloatOrInt, Key, Modifiers, OutputName, TrackLayout, WarpMouseToFocusMode,
-    WorkspaceReference, Xkb,
-};
 use smithay::backend::allocator::Fourcc;
 use smithay::backend::input::Keycode;
 use smithay::backend::renderer::damage::OutputDamageTracker;
@@ -113,6 +107,12 @@ use smithay::wayland::virtual_keyboard::VirtualKeyboardManagerState;
 use smithay::wayland::xdg_activation::XdgActivationState;
 use smithay::wayland::xdg_foreign::XdgForeignState;
 use wayland_server::protocol::wl_output::WlOutput;
+use ymir_config::debug::PreviewRender;
+use ymir_config::output::MaxBpc;
+use ymir_config::{
+    Config, FloatOrInt, Key, Modifiers, OutputName, TrackLayout, WarpMouseToFocusMode,
+    WorkspaceReference, Xkb,
+};
 
 #[cfg(feature = "dbus")]
 use crate::a11y::A11y;
@@ -127,7 +127,7 @@ use crate::dbus::freedesktop_login1::Login1ToYmir;
 #[cfg(feature = "dbus")]
 use crate::dbus::gnome_shell_introspect::{self, IntrospectToYmir, YmirToIntrospect};
 #[cfg(feature = "dbus")]
-use crate::dbus::gnome_shell_screenshot::{YmirToScreenshot, ScreenshotToYmir};
+use crate::dbus::gnome_shell_screenshot::{ScreenshotToYmir, YmirToScreenshot};
 use crate::frame_clock::FrameClock;
 use crate::handlers::{configure_lock_surface, XDG_ACTIVATION_TOKEN_TIMEOUT};
 use crate::input::pick_color_grab::PickColorGrab;
@@ -146,7 +146,6 @@ use crate::layout::{
     workspace_default_index, HitType, Layout, LayoutElement as _, LayoutElementRenderElement,
     MonitorRenderElement,
 };
-use crate::ymir_render_elements;
 use crate::protocols::ext_workspace::{self, ExtWorkspaceManagerState};
 use crate::protocols::foreign_toplevel::{self, ForeignToplevelManagerState};
 use crate::protocols::gamma_control::GammaControlManagerState;
@@ -186,6 +185,7 @@ use crate::utils::{
 };
 use crate::window::mapped::MappedId;
 use crate::window::{InitialConfigureState, Mapped, ResolvedWindowRules, Unmapped, WindowRef};
+use crate::ymir_render_elements;
 
 const CLEAR_COLOR_LOCKED: [f32; 4] = [0.3, 0.1, 0.1, 1.];
 
@@ -1519,11 +1519,12 @@ impl State {
         if config.input.keyboard.repeat_rate != old_config.input.keyboard.repeat_rate
             || config.input.keyboard.repeat_delay != old_config.input.keyboard.repeat_delay
         {
-            let keyboard = self.ymir.seat.get_keyboard().unwrap();
-            keyboard.change_repeat_info(
-                config.input.keyboard.repeat_rate.into(),
-                config.input.keyboard.repeat_delay.into(),
-            );
+            if let Some(keyboard) = self.ymir.seat.get_keyboard() {
+                keyboard.change_repeat_info(
+                    config.input.keyboard.repeat_rate.into(),
+                    config.input.keyboard.repeat_delay.into(),
+                );
+            }
         }
 
         if config.input.touchpad != old_config.input.touchpad
@@ -1702,7 +1703,24 @@ impl State {
             self.ymir.reset_pointer_inactivity_timer();
         }
 
+        // Any config reload can leave a finger-scroll gesture mid-accumulation with the
+        // old input settings (e.g. scroll factors); reset the accumulators.
+        self.ymir.horizontal_finger_scroll_tracker.reset();
+        self.ymir.vertical_finger_scroll_tracker.reset();
+
         if binds_changed {
+            // I1: the bind repeat timer captured a clone of the pre-reload bind, so a key
+            // held across the reload would keep firing the stale action. Cancel it, and
+            // drop any in-flight bind cooldown timers whose actions may have changed.
+            if let Some(token) = self.ymir.bind_repeat_timer.take() {
+                self.ymir.event_loop.remove(token);
+            }
+            if !self.ymir.bind_cooldown_timers.is_empty() {
+                for (_, token) in self.ymir.bind_cooldown_timers.drain() {
+                    self.ymir.event_loop.remove(token);
+                }
+            }
+
             self.ymir.window_mru_ui.update_binds();
         }
 

@@ -1,7 +1,6 @@
 use std::ptr;
 
 use anyhow::{ensure, Context as _};
-use ymir_config::BlockOutFrom;
 use smithay::backend::allocator::dmabuf::Dmabuf;
 use smithay::backend::allocator::{Buffer, Fourcc};
 use smithay::backend::renderer::damage::OutputDamageTracker;
@@ -20,6 +19,7 @@ use smithay::utils::user_data::UserDataMap;
 use smithay::utils::{Logical, Physical, Point, Rectangle, Scale, Size, Transform};
 use smithay::wayland::shm;
 use solid_color::{SolidColorBuffer, SolidColorRenderElement};
+use ymir_config::BlockOutFrom;
 
 use self::primary_gpu_texture::PrimaryGpuTextureRenderElement;
 use self::texture::{TextureBuffer, TextureRenderElement};
@@ -404,4 +404,174 @@ fn render_elements(
     }
 
     frame.finish().context("error finishing frame")
+}
+
+#[cfg(test)]
+mod shader_color_tests {
+    //! CPU-side mirror of the color math in `shaders/border.frag` (R1/R4/R5).
+    //!
+    //! The shader can't be executed from a Rust test, so these tests re-implement the
+    //! exact same conversion pipeline to validate the invariants the fixes rely on:
+    //! mixing in-gamut sRGB colors can leave the sRGB gamut in Oklab/Oklch, and the
+    //! resulting linear RGB must be finite and gamut-mapped back into range instead of
+    //! producing NaN (negative LMS) or a hue-distorting per-channel clip.
+
+    fn srgb_to_linear(c: [f64; 3]) -> [f64; 3] {
+        c.map(|v| {
+            if v <= 0.04045 {
+                v / 12.92
+            } else {
+                ((v + 0.055) / 1.055).powf(2.4)
+            }
+        })
+    }
+
+    fn linear_to_srgb(c: [f64; 3]) -> [f64; 3] {
+        c.map(|v| {
+            if v <= 0.0031308 {
+                v * 12.92
+            } else {
+                1.055 * v.max(0.0).powf(1.0 / 2.4) - 0.055
+            }
+        })
+    }
+
+    fn linear_to_oklab(color: [f64; 3]) -> [f64; 3] {
+        let [l1, l2, l3] = [
+            0.4122214708 * color[0] + 0.5363325363 * color[1] + 0.0514459929 * color[2],
+            0.2119034982 * color[0] + 0.6806995451 * color[1] + 0.1073969566 * color[2],
+            0.0883024619 * color[0] + 0.2817188376 * color[1] + 0.6299787005 * color[2],
+        ];
+        let [m1, m2, m3] = [l1.cbrt(), l2.cbrt(), l3.cbrt()];
+        [
+            0.2104542553 * m1 + 0.7936177850 * m2 - 0.0040720468 * m3,
+            1.9779984951 * m1 - 2.4285922050 * m2 + 0.4505937099 * m3,
+            0.0259040371 * m1 + 0.7827717662 * m2 - 0.8086757660 * m3,
+        ]
+    }
+
+    fn oklab_to_linear(color: [f64; 3]) -> [f64; 3] {
+        let [l1, l2, l3] = [
+            color[0] + 0.3963377774 * color[1] + 0.2158037573 * color[2],
+            color[0] - 0.1055613458 * color[1] - 0.0638541728 * color[2],
+            color[0] - 0.0894841775 * color[1] - 1.2914855480 * color[2],
+        ];
+        // Mirror the `max(lms, 0)` guard in the shader: negative LMS must not reach `pow`.
+        let [m1, m2, m3] = [
+            l1.max(0.0).powf(3.0),
+            l2.max(0.0).powf(3.0),
+            l3.max(0.0).powf(3.0),
+        ];
+        [
+            4.0767416621 * m1 - 3.3077115913 * m2 + 0.2309699292 * m3,
+            -1.2684380046 * m1 + 2.6097574011 * m2 - 0.3413193965 * m3,
+            -0.0041960863 * m1 - 0.7034186147 * m2 + 1.7076147010 * m3,
+        ]
+    }
+
+    fn lab_to_lch(color: [f64; 3]) -> [f64; 3] {
+        let c = (color[1] * color[1] + color[2] * color[2]).sqrt();
+        let mut h = color[2].atan2(color[1]).to_degrees();
+        if h <= 0.0 {
+            h += 360.0;
+        }
+        [color[0], c, h]
+    }
+
+    fn lch_to_lab(color: [f64; 3]) -> [f64; 3] {
+        let h = color[2].to_radians();
+        [color[0], color[1] * h.cos(), color[1] * h.sin()]
+    }
+
+    fn in_gamut(c: [f64; 3]) -> bool {
+        c.iter().all(|&v| (0.0..=1.0).contains(&v))
+    }
+
+    fn reduce_gamut(linear: [f64; 3]) -> [f64; 3] {
+        if in_gamut(linear) {
+            return linear;
+        }
+        let lch = lab_to_lch(linear_to_oklab(linear));
+        let mut lo = 0.0;
+        let mut hi = lch[1];
+        for _ in 0..12 {
+            let mid = (lo + hi) * 0.5;
+            let rgb = oklab_to_linear(lch_to_lab([lch[0], mid, lch[2]]));
+            if in_gamut(rgb) {
+                lo = mid;
+            } else {
+                hi = mid;
+            };
+        }
+        oklab_to_linear(lch_to_lab([lch[0], lo, lch[2]]))
+    }
+
+    /// Mixed color between two sRGB endpoints, mirroring the shader's oklab/oklch path.
+    fn mix_colors(a: [f64; 3], b: [f64; 3], ratio: f64, oklch: bool) -> [f64; 4] {
+        let to_signal = |c: [f64; 3]| {
+            if oklch {
+                lab_to_lch(linear_to_oklab(c))
+            } else {
+                linear_to_oklab(c)
+            }
+        };
+        let mix_oklab = |a: [f64; 3], b: [f64; 3]| {
+            a.iter()
+                .zip(b)
+                .map(|(&x, y)| x + (y - x) * ratio)
+                .collect::<Vec<_>>()
+                .try_into()
+                .unwrap()
+        };
+
+        let (m_a, m_b) = (to_signal(srgb_to_linear(a)), to_signal(srgb_to_linear(b)));
+        let mixed = mix_oklab(m_a, m_b);
+        let linear = if oklch {
+            oklab_to_linear(lch_to_lab(mixed))
+        } else {
+            oklab_to_linear(mixed)
+        };
+        let reduced = reduce_gamut(linear);
+        [reduced[0], reduced[1], reduced[2], 1.0]
+    }
+
+    #[test]
+    fn srgb_eotf_roundtrips() {
+        for i in 0..=100 {
+            let v = i as f64 / 100.0;
+            let linear = srgb_to_linear([v; 3]);
+            let back = linear_to_srgb(linear);
+            for (got, expected) in back.iter().zip([v; 3]) {
+                assert!(
+                    (got - expected).abs() < 1e-6,
+                    "roundtrip failed at {v}: {got} vs {expected}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn oklab_mix_out_of_gamut_stays_finite_and_in_gamut() {
+        // Mixing vivid red and blue along the Oklab chord leaves the sRGB gamut for
+        // intermediate ratios; every sample must be finite and end up in-gamut, with no
+        // NaN from negative LMS (R1/R5) and no per-channel clip (R5).
+        let red = [1.0, 0.0, 0.0];
+        let blue = [0.0, 0.0, 1.0];
+        for oklch in [false, true] {
+            for i in 0..=20 {
+                let ratio = i as f64 / 20.0;
+                let mixed = mix_colors(red, blue, ratio, oklch);
+                assert!(
+                    mixed.iter().all(|v| v.is_finite()),
+                    "oklch={oklch} ratio={ratio}: non-finite output {mixed:?}"
+                );
+                for &v in &mixed[..3] {
+                    assert!(
+                        (0.0..=1.0).contains(&v),
+                        "oklch={oklch} ratio={ratio}: out-of-gamut output {mixed:?}"
+                    );
+                }
+            }
+        }
+    }
 }

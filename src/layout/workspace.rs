@@ -163,6 +163,9 @@ pub(super) struct InteractiveResize<W: LayoutElement> {
     pub window: W::Id,
     pub original_window_size: Size<f64, Logical>,
     pub data: InteractiveResizeData,
+    /// Absolute drag delta applied on the previous frame, used to derive the incremental movement
+    /// needed by ratio-based (dwindle) resizes. Initialize to [`Point::ZERO`].
+    pub(super) last_delta: Point<f64, Logical>,
 }
 
 /// Resolved width or height in logical pixels.

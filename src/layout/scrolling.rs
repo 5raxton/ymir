@@ -11,7 +11,7 @@ use smithay::backend::renderer::gles::GlesRenderer;
 use smithay::utils::{Logical, Point, Rectangle, Scale, Serial, Size};
 
 use super::closing_window::{ClosingWindow, ClosingWindowRenderElement};
-use super::dwindle::{DwindleTree, SpatialDir, SplitSide};
+use super::dwindle::{Child, DwindleTree, SpatialDir, SplitAxis, SplitSide};
 use super::monitor::InsertPosition;
 use super::tab_indicator::{TabIndicator, TabIndicatorRenderElement, TabInfo};
 use super::tile::{Tile, TileRenderElement, TileRenderSnapshot};
@@ -3865,6 +3865,7 @@ impl<W: LayoutElement> ScrollingSpace<W> {
             window,
             original_window_size,
             data: InteractiveResizeData { edges },
+            last_delta: Point::default(),
         };
         self.interactive_resize = Some(resize);
 
@@ -3886,6 +3887,13 @@ impl<W: LayoutElement> ScrollingSpace<W> {
             return false;
         }
 
+        // The dwindle branch shifts tree ratios, so it must be driven by the incremental movement
+        // since the last frame (applying the absolute `delta` each frame would over-drift the
+        // divider). Normal columns instead size off the absolute `delta` relative to the original
+        // window size, so they keep using it untouched below.
+        let edges = resize.data.edges;
+        let incremental = delta - resize.last_delta;
+
         let is_centering = self.is_centering_focused_column();
 
         let col = self
@@ -3899,6 +3907,15 @@ impl<W: LayoutElement> ScrollingSpace<W> {
             .iter()
             .position(|tile| tile.window().id() == window)
             .unwrap();
+
+        if col.is_dwindle() {
+            // In dwindle mode, resizing moves the divider of the split that separates the
+            // resized window from a sibling, instead of rescaling the whole column width. The
+            // column always stays full-width; only the tree ratios change.
+            col.interactive_resize_update_dwindle(tile_idx, edges, incremental);
+            self.interactive_resize.as_mut().unwrap().last_delta = delta;
+            return true;
+        }
 
         if resize.data.edges.intersects(ResizeEdge::LEFT_RIGHT) {
             let mut dx = delta.x;
@@ -4800,6 +4817,74 @@ impl<W: LayoutElement> Column<W> {
         }
 
         new_tile_idx
+    }
+
+    /// Applies an interactive resize drag to this dwindle column.
+    ///
+    /// In dwindle mode a window's border is a split divider: dragging it moves the divider of the
+    /// nearest ancestor split whose orientation matches the drag axis (if the dragged edge is the
+    /// one shared with a sibling). Only those dividers can move — the column always spans the full
+    /// work area, so exterior edges are pinned.
+    fn interactive_resize_update_dwindle(
+        &mut self,
+        tile_idx: usize,
+        edges: ResizeEdge,
+        delta: Point<f64, Logical>,
+    ) {
+        if self.dwindle_tree.is_empty() {
+            return;
+        }
+
+        let content = self.dwindle_content_rect();
+        let gaps = self.options.layout.gaps;
+        let usable_w = content.size.w - gaps;
+        let usable_h = content.size.h - gaps;
+
+        let path = self.dwindle_tree.leaf_paths()[tile_idx].clone();
+
+        if edges.intersects(ResizeEdge::LEFT_RIGHT) {
+            // Left/right drags move a vertical divider.
+            if let Some(side) = self
+                .dwindle_tree
+                .leaf_side_in_split(&path, SplitAxis::Vertical)
+            {
+                let interior = match side {
+                    Child::First => ResizeEdge::RIGHT,
+                    Child::Second => ResizeEdge::LEFT,
+                };
+                if edges.contains(interior) {
+                    self.dwindle_tree.adjust_ancestor_ratio(
+                        &path,
+                        SplitAxis::Vertical,
+                        delta.x,
+                        usable_w.max(1.),
+                    );
+                }
+            }
+        }
+
+        if edges.intersects(ResizeEdge::TOP_BOTTOM) {
+            // Top/bottom drags move a horizontal divider.
+            if let Some(side) = self
+                .dwindle_tree
+                .leaf_side_in_split(&path, SplitAxis::Horizontal)
+            {
+                let interior = match side {
+                    Child::First => ResizeEdge::BOTTOM,
+                    Child::Second => ResizeEdge::TOP,
+                };
+                if edges.contains(interior) {
+                    self.dwindle_tree.adjust_ancestor_ratio(
+                        &path,
+                        SplitAxis::Horizontal,
+                        delta.y,
+                        usable_h.max(1.),
+                    );
+                }
+            }
+        }
+
+        self.update_tile_sizes(false);
     }
 
     fn update_window(&mut self, window: &W::Id) {
@@ -5884,11 +5969,11 @@ fn apply_permutation<T>(out: &mut Vec<T>, order: &[usize]) {
     /// The outer region that the dwindle tree partitions between its leaves.
     fn dwindle_content_rect(&self) -> Rectangle<f64, Logical> {
         let height = self.working_area.size.h - self.options.layout.gaps * 2.;
-        let width = if self.is_full_width {
-            self.resolve_column_width(ColumnWidth::Proportion(1.))
-        } else {
-            self.resolve_column_width(self.width)
-        };
+        // A dwindle column always spans the full work area: the tree partitions the entire
+        // screen, so a stored column width must not leak in here (it would shrink the whole
+        // column off-center and make windows overlap as the drag continues).
+        let width = self.resolve_column_width(ColumnWidth::Proportion(1.));
+        let height = height.max(0.);
         let size = Size::from((width, height));
         Rectangle::new(self.tiles_origin(), size)
     }

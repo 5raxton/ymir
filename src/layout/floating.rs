@@ -1120,6 +1120,7 @@ impl<W: LayoutElement> FloatingSpace<W> {
             window,
             original_window_size,
             data: InteractiveResizeData { edges },
+            last_delta: Point::default(),
         };
         self.interactive_resize = Some(resize);
 

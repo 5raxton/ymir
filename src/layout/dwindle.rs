@@ -568,6 +568,37 @@ impl<T> DwindleTree<T> {
         };
         adjust_ratio_impl(root, &path.0, delta)
     }
+
+    /// Returns the child slot (`First`/`Second`) that `path` occupies within the nearest ancestor
+    /// split of `axis` (the deepest split with that orientation lying on the path to the leaf), if
+    /// any.
+    ///
+    /// Used by interactive resize to decide which divider a dragged window can move.
+    pub fn leaf_side_in_split(&self, path: &LeafPath, axis: SplitAxis) -> Option<Child> {
+        leaf_side_in_split_impl(self.root.as_ref()?, &path.0, axis, None)
+    }
+
+    /// Moves the divider of the nearest ancestor split of `axis` that contains `path`, translating
+    /// the divider by `delta_px` logical pixels.
+    ///
+    /// A positive `delta_px` grows the split's `First` child (rightward for a `Vertical` split,
+    /// downward for a `Horizontal` one). The ratio is clamped to `MIN_RATIO`..=`MAX_RATIO`.
+    /// Returns whether such an ancestor split was found and adjusted.
+    pub fn adjust_ancestor_ratio(
+        &mut self,
+        path: &LeafPath,
+        axis: SplitAxis,
+        delta_px: f64,
+        usable: f64,
+    ) -> bool {
+        if usable <= 0. || !delta_px.is_finite() {
+            return false;
+        }
+        let Some(root) = self.root.as_mut() else {
+            return false;
+        };
+        adjust_ancestor_ratio_impl(root, &path.0, axis, delta_px / usable)
+    }
 }
 
 fn reindex_node<T>(node: Option<&mut Node<T>>, i: &mut usize, f: &impl Fn(&mut T, usize)) {
@@ -999,6 +1030,64 @@ fn clamp_ratio(ratio: f64) -> f64 {
     f64::max(MIN_RATIO, f64::min(MAX_RATIO, ratio))
 }
 
+/// Walks `path` from the root, tracking the child slot of the deepest split whose axis matches
+/// `axis`. Returns that slot, or `acc` (which is `None` at the root) if none matches.
+fn leaf_side_in_split_impl<T>(
+    node: &Node<T>,
+    path: &[Child],
+    axis: SplitAxis,
+    acc: Option<Child>,
+) -> Option<Child> {
+    match (node, path.first()) {
+        (Node::Leaf(_), _) => acc,
+        (Node::Split { axis: a, first, .. }, Some(Child::First)) => {
+            let this = if *a == axis {
+                Some(Child::First)
+            } else {
+                acc
+            };
+            leaf_side_in_split_impl(first, &path[1..], axis, this)
+        }
+        (Node::Split { axis: a, second, .. }, Some(Child::Second)) => {
+            let this = if *a == axis {
+                Some(Child::Second)
+            } else {
+                acc
+            };
+            leaf_side_in_split_impl(second, &path[1..], axis, this)
+        }
+        (Node::Split { .. }, None) => acc,
+    }
+}
+
+/// Adjusts the ratio of the deepest split of `axis` on the path to the leaf, adding `delta` (the
+/// ratio increment) to it. Descends fully first so the deepest matching split wins.
+fn adjust_ancestor_ratio_impl<T>(
+    node: &mut Node<T>,
+    path: &[Child],
+    axis: SplitAxis,
+    delta: f64,
+) -> bool {
+    match (node, path.first()) {
+        (Node::Split { axis: a, ratio, first, second }, Some(child)) => {
+            let deeper = match child {
+                Child::First => adjust_ancestor_ratio_impl(first, &path[1..], axis, delta),
+                Child::Second => adjust_ancestor_ratio_impl(second, &path[1..], axis, delta),
+            };
+            if deeper {
+                return true;
+            }
+            if *a == axis {
+                *ratio = clamp_ratio(*ratio + delta);
+                true
+            } else {
+                false
+            }
+        }
+        _ => false,
+    }
+}
+
 fn leaf_paths_of<T>(root: &Option<Node<T>>) -> Vec<LeafPath> {
     let mut out = Vec::new();
     let Some(root) = root else {
@@ -1371,6 +1460,82 @@ mod tests {
             unreachable!();
         };
         assert_eq!(*ratio, MAX_RATIO);
+    }
+
+    #[test]
+    fn adjust_ancestor_ratio_moves_nearest_matching_split() {
+        // Tree with a vertical split nested inside a horizontal one:
+        // H{ A, V{ B, C } }  (A on top, B left, C right)
+        let mut tree = DwindleTree::new();
+        tree.open_new(0, square());
+        tree.open_new_on(1, SplitSide::Bottom, square());
+        tree.open_new_on(2, SplitSide::Right, wide());
+        // A = [First], B = [Second, First], C = [Second, Second]
+
+        // Resizing B (left/First child of the vertical split) grows it rightward: the vertical
+        // split ratio (First share) increases with a positive drag.
+        let b = LeafPath(vec![Child::Second, Child::First]);
+        assert_eq!(tree.leaf_side_in_split(&b, SplitAxis::Vertical), Some(Child::First));
+        assert!(tree.adjust_ancestor_ratio(&b, SplitAxis::Vertical, 50., 200.));
+        let Node::Split { axis: SplitAxis::Vertical, ratio, .. } = walk(
+            &tree,
+            &[Child::Second],
+        ) else {
+            unreachable!();
+        };
+        assert_eq!(*ratio, DEFAULT_RATIO + 0.25);
+
+        // A horizontal drag on B must NOT touch the vertical split (no matching divider to move
+        // there), so the vertical ratio is unchanged and the outer horizontal split is adjusted.
+        assert!(tree.adjust_ancestor_ratio(&b, SplitAxis::Horizontal, 20., 200.));
+        let Node::Split { axis: SplitAxis::Horizontal, ratio, .. } = walk(&tree, &[]) else {
+            unreachable!();
+        };
+        assert_eq!(*ratio, DEFAULT_RATIO + 0.1);
+        let Node::Split { axis: SplitAxis::Vertical, ratio, .. } = walk(
+            &tree,
+            &[Child::Second],
+        ) else {
+            unreachable!();
+        };
+        assert_eq!(*ratio, DEFAULT_RATIO + 0.25);
+
+        // Resizing C (right/Second child) with the same positive drag also moves the same divider
+        // rightward, further growing B (First), so the ratio increases again.
+        let c = LeafPath(vec![Child::Second, Child::Second]);
+        assert_eq!(tree.leaf_side_in_split(&c, SplitAxis::Vertical), Some(Child::Second));
+        assert!(tree.adjust_ancestor_ratio(&c, SplitAxis::Vertical, 10., 100.));
+        let Node::Split { axis: SplitAxis::Vertical, ratio, .. } = walk(
+            &tree,
+            &[Child::Second],
+        ) else {
+            unreachable!();
+        };
+        assert_eq!(*ratio, DEFAULT_RATIO + 0.25 + 0.1);
+    }
+
+    #[test]
+    fn adjust_ancestor_ratio_clamps_to_bounds() {
+        let mut tree = build_chain(2);
+        let leaf = LeafPath(vec![Child::Second]);
+        assert!(tree.adjust_ancestor_ratio(&leaf, SplitAxis::Horizontal, -10000., 100.));
+        let Node::Split { ratio, .. } = walk(&tree, &[]) else {
+            unreachable!();
+        };
+        assert_eq!(*ratio, MIN_RATIO);
+        assert!(tree.adjust_ancestor_ratio(&leaf, SplitAxis::Horizontal, 10000., 100.));
+        let Node::Split { ratio, .. } = walk(&tree, &[]) else {
+            unreachable!();
+        };
+        assert_eq!(*ratio, MAX_RATIO);
+    }
+
+    #[test]
+    fn adjust_ancestor_ratio_noop_when_no_matching_axis() {
+        let mut tree = build_chain(2); // only a horizontal split
+        let leaf = LeafPath(vec![Child::Second]);
+        assert_eq!(tree.leaf_side_in_split(&leaf, SplitAxis::Vertical), None);
+        assert!(!tree.adjust_ancestor_ratio(&leaf, SplitAxis::Vertical, 10., 100.));
     }
 
     #[test]

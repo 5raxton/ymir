@@ -1840,6 +1840,135 @@ fn dwindle_columns_span_the_full_work_area() {
 }
 
 #[test]
+fn dwindle_interactive_resize_moves_divider() {
+    let options = Options {
+        layout: ymir_config::Layout {
+            default_column_display: ymir_ipc::ColumnDisplay::Dwindle,
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+
+    let mut layout = check_ops_with_options(
+        options,
+        [
+            Op::AddOutput(0),
+            Op::AddWindow { params: TestWindowParams::new(0) },
+            Op::AddWindow { params: TestWindowParams::new(1) },
+        ],
+    );
+
+    // A two-window dwindle column is a side-by-side split: window 0 (First) on the left,
+    // window 1 (Second) on the right.
+    let before: Vec<_> = layout
+        .windows()
+        .map(|(_, win)| win.requested_size().unwrap())
+        .collect();
+    assert!(before[0].w > 0 && before[1].w > 0);
+
+    // Dragging window 0's right (divider) edge rightward should grow window 0 and shrink
+    // window 1, keeping the column full-width.
+    let w0 = 0usize;
+    assert!(layout.interactive_resize_begin(w0, ResizeEdge::RIGHT));
+
+    // Split the same total drag across several pointer frames. Resize grabs report the
+    // absolute-from-start delta each frame (cumulative), so the layout sees increasing values
+    // like 30, 50, 120. The dwindle resize must treat the *change* between frames as the applied
+    // movement: naively re-applying each cumulative delta would over-drift the divider.
+    layout.interactive_resize_update(&w0, Point::from((30., 0.)));
+    layout.interactive_resize_update(&w0, Point::from((50., 0.)));
+    layout.interactive_resize_update(&w0, Point::from((120., 0.)));
+    let after: Vec<_> = layout
+        .windows()
+        .map(|(_, win)| win.requested_size().unwrap())
+        .collect();
+
+    // A fresh column dragged by the full amount in a single frame is the expected end state.
+    let mut reference = check_ops_with_options(
+        Options {
+            layout: ymir_config::Layout {
+                default_column_display: ymir_ipc::ColumnDisplay::Dwindle,
+                ..Default::default()
+            },
+            ..Default::default()
+        },
+        [
+            Op::AddOutput(0),
+            Op::AddWindow { params: TestWindowParams::new(0) },
+            Op::AddWindow { params: TestWindowParams::new(1) },
+        ],
+    );
+    reference.interactive_resize_begin(0usize, ResizeEdge::RIGHT);
+    reference.interactive_resize_update(&0usize, Point::from((120., 0.)));
+    reference.interactive_resize_end(&0usize);
+    let expected: Vec<_> = reference
+        .windows()
+        .map(|(_, win)| win.requested_size().unwrap())
+        .collect();
+
+    assert_eq!(after[0].w, expected[0].w, "three-frame drag must match one-frame drag");
+    assert_eq!(after[1].w, expected[1].w, "three-frame drag must match one-frame drag");
+    layout.interactive_resize_end(&w0);
+
+    assert!(after[0].w > before[0].w, "left window should grow: {before:?} -> {after:?}");
+    assert!(after[1].w < before[1].w, "right window should shrink: {before:?} -> {after:?}");
+
+    // The column still tiles the full work area: the two windows plus the gap keep the same
+    // total width (the divider simply moved), so nothing overlaps and nothing leaks off-screen.
+    assert_eq!(
+        after[0].w + after[1].w,
+        before[0].w + before[1].w,
+        "total width must be preserved: {before:?} -> {after:?}"
+    );
+}
+
+#[test]
+fn dwindle_interactive_resize_left_child_edge() {
+    let options = Options {
+        layout: ymir_config::Layout {
+            default_column_display: ymir_ipc::ColumnDisplay::Dwindle,
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+
+    let mut layout = check_ops_with_options(
+        options,
+        [
+            Op::AddOutput(0),
+            Op::AddWindow { params: TestWindowParams::new(0) },
+            Op::AddWindow { params: TestWindowParams::new(1) },
+        ],
+    );
+
+    let before: Vec<_> = layout
+        .windows()
+        .map(|(_, win)| win.requested_size().unwrap())
+        .collect();
+
+    // Window 1 is the right (Second) child. Dragging its left (divider) edge leftward
+    // (negative dx) should grow window 1 and shrink window 0.
+    let w1 = 1usize;
+    assert!(layout.interactive_resize_begin(w1, ResizeEdge::LEFT));
+    layout.interactive_resize_update(&w1, Point::from((-60., 0.)));
+    layout.interactive_resize_end(&w1);
+
+    let after: Vec<_> = layout
+        .windows()
+        .map(|(_, win)| win.requested_size().unwrap())
+        .collect();
+    assert!(after[1].w > before[1].w, "right window should grow: {before:?} -> {after:?}");
+    assert!(after[0].w < before[0].w, "left window should shrink: {before:?} -> {after:?}");
+
+    // The divider moved without changing the total tiled width.
+    assert_eq!(
+        after[0].w + after[1].w,
+        before[0].w + before[1].w,
+        "total width must be preserved: {before:?} -> {after:?}"
+    );
+}
+
+#[test]
 fn dwindle_many_windows_do_not_crash() {
     let options = Options {
         layout: ymir_config::Layout {

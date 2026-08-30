@@ -687,11 +687,7 @@ impl DrmLeaseHandler for State {
     fn drm_lease_state(&mut self, node: DrmNode) -> &mut DrmLeaseState {
         self.backend
             .tty()
-            .get_device_from_node(node)
-            .unwrap()
-            .drm_lease_state
-            .as_mut()
-            .unwrap()
+            .lease_state(node, &self.ymir.display_handle)
     }
 
     fn lease_request(
@@ -703,29 +699,29 @@ impl DrmLeaseHandler for State {
             "Received lease request for {} connectors",
             request.connectors.len()
         );
-        self.backend
-            .tty()
-            .get_device_from_node(node)
-            .unwrap()
-            .lease_request(request)
+        let Some(device) = self.backend.tty().get_device_from_node(node) else {
+            warn!("lease request for an unplugged or unknown DRM device {node:?}");
+            return Err(LeaseRejected::default());
+        };
+        device.lease_request(request)
     }
 
     fn new_active_lease(&mut self, node: DrmNode, lease: DrmLease) {
         debug!("Lease success");
-        self.backend
-            .tty()
-            .get_device_from_node(node)
-            .unwrap()
-            .new_lease(lease);
+        let Some(device) = self.backend.tty().get_device_from_node(node) else {
+            warn!("new lease for an unplugged or unknown DRM device {node:?}; dropping it");
+            return;
+        };
+        device.new_lease(lease);
     }
 
     fn lease_destroyed(&mut self, node: DrmNode, lease_id: u32) {
         debug!("Destroyed lease");
-        self.backend
-            .tty()
-            .get_device_from_node(node)
-            .unwrap()
-            .remove_lease(lease_id);
+        let Some(device) = self.backend.tty().get_device_from_node(node) else {
+            warn!("destroyed lease for an unplugged or unknown DRM device {node:?}");
+            return;
+        };
+        device.remove_lease(lease_id);
     }
 }
 

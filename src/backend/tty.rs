@@ -52,6 +52,7 @@ use smithay::reexports::rustix::fs::OFlags;
 use smithay::reexports::wayland_protocols;
 use smithay::reexports::wayland_server::protocol::wl_surface::WlSurface;
 use smithay::utils::{DeviceFd, Transform};
+use smithay::reexports::wayland_server::DisplayHandle;
 use smithay::wayland::dmabuf::{DmabufFeedback, DmabufFeedbackBuilder, DmabufGlobal};
 use smithay::wayland::drm_lease::{
     DrmLease, DrmLeaseBuilder, DrmLeaseRequest, DrmLeaseState, LeaseRejected,
@@ -93,6 +94,10 @@ pub struct Tty {
     ignored_nodes: HashSet<DrmNode>,
     // Devices indexed by DRM node (not necessarily the render node).
     devices: HashMap<DrmNode, OutputDevice>,
+    // Lease states of devices that were unplugged while a client still held a wp_drm_lease_device
+    // for them. Kept around (parked) so the infallible DrmLeaseHandler can keep serving those
+    // stale resources instead of panicking the compositor.
+    parked_lease_states: HashMap<DrmNode, DrmLeaseState>,
     // The dma-buf global corresponds to the output device (the primary GPU). It is only `Some()`
     // if we have a device corresponding to the primary GPU.
     dmabuf_global: Option<DmabufGlobal>,
@@ -505,6 +510,7 @@ impl Tty {
             primary_render_node,
             ignored_nodes: HashSet::new(),
             devices: HashMap::new(),
+            parked_lease_states: HashMap::new(),
             dmabuf_global: None,
             update_output_config_on_resume: false,
             debug_tint: false,
@@ -931,6 +937,10 @@ impl Tty {
         };
         assert!(self.devices.insert(node, device).is_none());
 
+        // This node may have been unplugged earlier; a freshly created device supersedes any lease
+        // state parked for it.
+        self.parked_lease_states.remove(&node);
+
         self.device_changed(device_id, ymir, true);
 
         Ok(())
@@ -1157,8 +1167,12 @@ impl Tty {
         let mut device = self.devices.remove(&node).unwrap();
         let device_fd = device.drm.device_fd().device_fd();
 
-        if let Some(lease_state) = &mut device.drm_lease_state {
+        // Park the lease state instead of dropping it: clients may still hold a wp_drm_lease_device
+        // (or lease request) resource for this node, and the infallible DrmLeaseHandler must keep
+        // serving them without crashing. The state's global is disabled so no new clients bind.
+        if let Some(mut lease_state) = device.drm_lease_state.take() {
             lease_state.disable_global::<State>();
+            self.parked_lease_states.insert(node, lease_state);
         }
 
         if let Some(render_node) = device.render_node {
@@ -2583,6 +2597,33 @@ impl Tty {
 
     pub fn get_device_from_node(&mut self, node: DrmNode) -> Option<&mut OutputDevice> {
         self.devices.get_mut(&node)
+    }
+
+    /// Resolves the DRM lease state for `node`, creating one if needed.
+    ///
+    /// Prefers the lease state of the live device. If the device was unplugged while clients still
+    /// held resources for it, falls back to the state parked by `device_removed()`. This keeps the
+    /// infallible `DrmLeaseHandler` from panicking the compositor on stale client requests.
+    pub fn lease_state(
+        &mut self,
+        node: DrmNode,
+        display_handle: &DisplayHandle,
+    ) -> &mut DrmLeaseState {
+        match self.devices.get_mut(&node) {
+            Some(device) => device.drm_lease_state.get_or_insert_with(|| {
+                DrmLeaseState::new::<State>(display_handle, &node)
+                    .expect("failed to create DRM lease state")
+            }),
+            None => self.parked_lease_states.entry(node).or_insert_with(|| {
+                DrmLeaseState::new::<State>(display_handle, &node)
+                    .expect("failed to create a fallback DRM lease state")
+            }),
+        }
+    }
+
+    /// Lease states of devices that were unplugged while clients still held resources for them.
+    pub fn parked_lease_states_mut(&mut self) -> &mut HashMap<DrmNode, DrmLeaseState> {
+        &mut self.parked_lease_states
     }
 
     pub fn disconnected_connector_name_by_name_match(&self, target: &str) -> Option<OutputName> {

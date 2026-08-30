@@ -944,14 +944,26 @@ impl<W: LayoutElement> ScrollingSpace<W> {
         let prev_active_tile_idx = target_column.active_tile_idx;
 
         let is_dwindle = target_column.is_dwindle();
+        let prev_active_window_id = if target_column.tiles.is_empty() {
+            None
+        } else {
+            Some(target_column.tiles[prev_active_tile_idx].window().id().clone())
+        };
         let new_tile_idx = target_column.add_tile_at(tile_idx, tile);
         self.data[col_idx].update(target_column);
 
         if is_dwindle {
             // add_tile_at() already made the new leaf active; if we're not activating it, keep the
-            // previously focused window focused.
+            // previously focused window focused. In dwindle mode the tree gets reshuffled into DFS
+            // order while inserting, so the old tile index may now point at a different window
+            // (e.g. when a Top/Left preselected split inserts the new leaf *before* the previously
+            // focused one). Resolve the previously focused window by id instead of index.
             if !activate {
-                target_column.activate_idx(prev_active_tile_idx);
+                if let Some(id) = prev_active_window_id {
+                    if let Some(prev_idx) = target_column.position(&id) {
+                        target_column.activate_idx(prev_idx);
+                    }
+                }
             }
         } else {
             if tile_idx <= prev_active_tile_idx {
@@ -5861,14 +5873,38 @@ impl<W: LayoutElement> Column<W> {
         self.preset_width_idx = None;
     }
 
-/// Reorders a vector in place so that `out[i] == old[order[i]]`. `order` must be a permutation.
+/// Reorders a vector in place so that `out[i] == old[order[i]]`. `order` must be a permutation of
+/// `0..out.len()`.
+///
+/// A length or content mismatch here means the dwindle tree and the tile list disagree about
+/// window order; that used to panic (via `expect`) even in release builds, taking the compositor
+/// down. Instead, validate the order at runtime and leave the vector untouched when it is invalid.
 fn apply_permutation<T>(out: &mut Vec<T>, order: &[usize]) {
-    debug_assert_eq!(order.len(), out.len());
+    if order.len() != out.len() || !Self::is_permutation(order) {
+        error!(
+            "dwindle tree order desynced from tiles (order len {}, tile len {}); skipping reorder",
+            order.len(),
+            out.len(),
+        );
+        return;
+    }
     let mut old: Vec<Option<T>> = out.drain(..).map(Some).collect();
     out.reserve(order.len());
     for &old_pos in order {
         out.push(old[old_pos].take().expect("order is a permutation"));
     }
+}
+
+/// Whether `order` is a permutation of `0..order.len()` (each position exactly once).
+fn is_permutation(order: &[usize]) -> bool {
+    let mut seen = vec![false; order.len()];
+    for &pos in order {
+        match seen.get_mut(pos) {
+            Some(slot) if !*slot => *slot = true,
+            _ => return false,
+        }
+    }
+    true
 }
 
     fn tiles_origin(&self) -> Point<f64, Logical> {

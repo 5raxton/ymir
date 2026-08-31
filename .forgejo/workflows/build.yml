@@ -147,7 +147,7 @@ jobs:
       tty: true
     steps:
       - name: Install tools
-        run: apk add --no-cache curl jq git
+        run: apk add --no-cache curl jq git nodejs
 
       - name: Checkout (for release notes)
         uses: https://data.forgejo.org/actions/checkout@v6

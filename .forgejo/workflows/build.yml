@@ -11,6 +11,11 @@ on:
 # `permissions:` field). See docs: Authorized Integrations.
 enable-openid-connect: true
 
+# Note: single Forgejo runner on the homeserver. Builds are memory-heavy
+# (smithay/winit graphics stack); the runner needs adequate RAM or the rustc
+# compile of large crates intermittently fails. Builds queue serially
+# (max-parallel: 1) and the release job runs only after all 4 pass.
+
 jobs:
   build:
     runs-on: docker

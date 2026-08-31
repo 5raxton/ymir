@@ -11,6 +11,10 @@ jobs:
     runs-on: docker
     strategy:
       fail-fast: false
+      # Build one distro at a time: the 4 heavy cargo jobs (thin-LTO links)
+      # share one runner and exceeded its RAM, causing OOM SIGKILLs on large
+      # crates like x11rb-protocol. Serializing caps peak memory usage.
+      max-parallel: 1
       matrix:
         include:
           - distro: arch

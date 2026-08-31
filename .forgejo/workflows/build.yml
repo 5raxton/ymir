@@ -6,6 +6,11 @@ on:
       - main
   workflow_dispatch:
 
+# Enable OIDC JWT generation so the release job can authenticate to Forgejo's
+# API via an "Authorized Integration" (Forgejo does not support GitHub's
+# `permissions:` field). See docs: Authorized Integrations.
+enable-openid-connect: true
+
 jobs:
   build:
     runs-on: docker
@@ -141,10 +146,6 @@ jobs:
   release:
     needs: build
     runs-on: docker
-    # The automatic per-run token has write access to the repo, so it can
-    # create the rolling release and upload assets without a manual token.
-    permissions:
-      contents: write
     container:
       image: alpine:latest
       entrypoint: []
@@ -152,6 +153,27 @@ jobs:
     steps:
       - name: Install tools
         run: apk add --no-cache curl jq git nodejs
+
+      # Generate an OIDC JWT and exchange it for a Forgejo API token scoped to
+      # this workflow via an "Authorized Integration". The AUD value below must
+      # match the "Audience" field of the Authorized Integration created in
+      # Settings -> Authorized Integrations (Forgejo Actions (Local), granted
+      # the release scope for this repo + workflow).
+      - name: Fetch API token (Authorized Integration)
+        id: token
+        env:
+          AUD: u:1:cd0d5a55-2cfa-49df-8d92-0c2c69aa7d2a
+        run: |
+          if [ -z "$AUD" ]; then
+            echo "::error::No Authorized Integration audience configured. Create one in Settings -> Authorized Integrations (Forgejo Actions, Local) with the release scope and paste its Audience into AUD." >&2
+            exit 1
+          fi
+          jwt=$(curl --fail -sS \
+            -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=$AUD" \
+            | jq -r '.value')
+          echo "::add-mask::$jwt"
+          echo "token=$jwt" >> $FORGEJO_OUTPUT
 
       - name: Checkout (for release notes)
         uses: https://data.forgejo.org/actions/checkout@v6
@@ -168,7 +190,7 @@ jobs:
 
       - name: Publish rolling release
         env:
-          FORGEJO_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          FORGEJO_TOKEN: ${{ steps.token.outputs.token }}
         run: |
           REPO_URL="${{ github.server_url }}/${{ github.repository }}"
           API_BASE="${REPO_URL}/api/v1"

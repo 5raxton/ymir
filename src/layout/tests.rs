@@ -2268,6 +2268,67 @@ fn dwindle_resize_grab_rejects_exterior_edges() {
 }
 
 #[test]
+fn depth_closing_window_does_not_underflow_goal_pose() {
+    // Regression for the window-close crash: closing a window in a depth column re-fans the deck
+    // with the tile list already trimmed, so the active tile index has to be corrected BEFORE the
+    // pose recomputation. With a stale index (apex sitting at the bottom of the queue and closing a
+    // window above it) the goal pose computed `len - active - 1` and underflow-panicked.
+    let mut layout = check_ops_with_options(
+        Options::default(),
+        [
+            Op::AddOutput(0),
+            Op::AddWindow {
+                params: TestWindowParams::new(0),
+            },
+            Op::AddWindow {
+                params: TestWindowParams::new(1),
+            },
+            Op::AddWindow {
+                params: TestWindowParams::new(2),
+            },
+            Op::AddWindow {
+                params: TestWindowParams::new(3),
+            },
+        ],
+    );
+    check_ops_on_layout(&mut layout, [Op::CompleteAnimations]);
+
+    // Merge the four single-window columns into one column [0, 1, 2, 3] (depth is a per-column
+    // mode), then switch it to depth.
+    layout.focus_column_first();
+    layout.consume_into_column();
+    layout.consume_into_column();
+    layout.consume_into_column();
+    check_ops_on_layout(&mut layout, [Op::CompleteAnimations]);
+    layout.set_column_display(ymir_ipc::ColumnDisplay::Depth);
+    check_ops_on_layout(&mut layout, [Op::CompleteAnimations]);
+
+    // Make the apex the bottom card of the queue.
+    Op::FocusWindow(3).apply(&mut layout);
+    check_ops_on_layout(&mut layout, [Op::CompleteAnimations]);
+
+    // Close a window sitting above the apex; the stale index pointed past the trimmed list.
+    Op::CloseWindow(1).apply(&mut layout);
+    check_ops_on_layout(&mut layout, [Op::CompleteAnimations]);
+    assert_eq!(
+        *layout.focus().unwrap().id(),
+        3,
+        "focus stays on the apex window"
+    );
+    layout.verify_invariants();
+
+    // Closing the apex itself must not underflow either (it falls back to the new last card).
+    Op::CloseWindow(3).apply(&mut layout);
+    check_ops_on_layout(&mut layout, [Op::CompleteAnimations]);
+    assert_eq!(
+        *layout.focus().unwrap().id(),
+        2,
+        "focus falls back to the new last card"
+    );
+    layout.verify_invariants();
+}
+
+#[test]
 fn normal_and_dwindle_resize_stay_separate() {
     // A column toggled to dwindle and back must not mutate the stored width: dwindle runs
     // full-width off the tree, and leaving it hands the width back untouched.

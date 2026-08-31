@@ -1277,7 +1277,28 @@ impl<W: LayoutElement> ScrollingSpace<W> {
 
         let tile = column.tiles.remove(tile_idx);
         column.data.remove(tile_idx);
+
+        // Correct the active tile index BEFORE the depth queue re-fans its deck: depth_on_remove()
+        // recomputes goal poses from the already-trimmed tile list, and a stale index pointing past
+        // the end (e.g. when the closed window sat above the apex, or was the apex itself) makes
+        // depth_goal_pose() underflow `len - active - 1` and panic.
+        #[allow(clippy::comparison_chain)] // What do you even want here?
+        if tile_idx < column.active_tile_idx {
+            // A tile above was removed; preserve the current position.
+            column.active_tile_idx -= 1;
+        } else if tile_idx == column.active_tile_idx && tile_idx == column.tiles.len() {
+            // The bottom tile was removed and it was active, update active idx to remain valid.
+            column.active_tile_idx = tile_idx - 1;
+            column.tiles[tile_idx - 1].ensure_alpha_animates_to_1();
+        }
+
         column.depth_on_remove(tile_idx);
+
+        // If the active tile was removed (and wasn't the bottom one), the tile that shifted into
+        // its slot is now active; ensure it animates to opaque.
+        if tile_idx == column.active_tile_idx {
+            column.tiles[tile_idx].ensure_alpha_animates_to_1();
+        }
 
         // If an active column became non-fullscreen after removing the tile, clear the stored
         // unfullscreen offset.
@@ -1305,21 +1326,6 @@ impl<W: LayoutElement> ScrollingSpace<W> {
             is_full_width: column.is_full_width,
             is_floating: false,
         };
-
-        #[allow(clippy::comparison_chain)] // What do you even want here?
-        if tile_idx < column.active_tile_idx {
-            // A tile above was removed; preserve the current position.
-            column.active_tile_idx -= 1;
-        } else if tile_idx == column.active_tile_idx {
-            // The active tile was removed, so the active tile index shifted to the next tile.
-            if tile_idx == column.tiles.len() {
-                // The bottom tile was removed and it was active, update active idx to remain valid.
-                column.activate_idx(tile_idx - 1);
-            } else {
-                // Ensure the newly active tile animates to opaque.
-                column.tiles[tile_idx].ensure_alpha_animates_to_1();
-            }
-        }
 
         column.update_tile_sizes_with_transaction(true, transaction);
         self.data[column_idx].update(column);

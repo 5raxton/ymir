@@ -34,7 +34,7 @@ pub fn guess_monitor_scale(size_mm: Size<i32, Raw>, resolution: Size<i32, Physic
 
     supported_scales(resolution)
         .map(|scale| (scale, (scale - perfect_scale).abs()))
-        .min_by(|a, b| a.1.partial_cmp(&b.1).unwrap())
+        .min_by(|a, b| a.1.total_cmp(&b.1))
         .map_or(1., |(scale, _)| scale)
 }
 

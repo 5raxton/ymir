@@ -514,25 +514,29 @@ impl RenderElement<GlesRenderer> for ShaderRenderElement {
                     gl.DrawArraysInstanced(ffi::TRIANGLE_STRIP, 0, 4, damage_len);
                 } else {
                     // When we have more than 10 rectangles, draw them in batches of 10.
-                    for i in 0..(damage_len - 1) / 10 {
-                        gl.DrawArrays(ffi::TRIANGLES, 0, 6);
+                    let mut remaining = damage_len;
+                    let mut drawn = 0i32;
+                    while remaining > 0 {
+                        let batch = remaining.min(10);
+                        gl.DrawArrays(ffi::TRIANGLES, 0, batch * 6);
 
-                        // Set damage pointer to the next 10 rectangles.
-                        let offset =
-                            (i + 1) as usize * 6 * 4 * std::mem::size_of::<ffi::types::GLfloat>();
-                        gl.VertexAttribPointer(
-                            program.attrib_vert_position as u32,
-                            4,
-                            ffi::FLOAT,
-                            ffi::FALSE,
-                            0,
-                            offset as *const _,
-                        );
+                        remaining -= batch;
+                        drawn += batch;
+
+                        if remaining > 0 {
+                            // Set damage pointer to the next batch of rectangles.
+                            let offset = drawn as usize * 6 * 4
+                                * std::mem::size_of::<ffi::types::GLfloat>();
+                            gl.VertexAttribPointer(
+                                program.attrib_vert_position as u32,
+                                4,
+                                ffi::FLOAT,
+                                ffi::FALSE,
+                                0,
+                                offset as *const _,
+                            );
+                        }
                     }
-
-                    // Draw the up to 10 remaining rectangles.
-                    let count = ((damage_len - 1) % 10 + 1) * 6;
-                    gl.DrawArrays(ffi::TRIANGLES, 0, count);
                 }
 
                 gl.BindBuffer(ffi::ARRAY_BUFFER, 0);

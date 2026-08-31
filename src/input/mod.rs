@@ -2834,7 +2834,11 @@ impl State {
                 is_mru_open = true;
                 if let Some(MouseButton::Left) = button {
                     let location = pointer.current_location();
-                    let (output, pos_within_output) = self.ymir.output_under(location).unwrap();
+                    let Some((output, pos_within_output)) = self.ymir.output_under(location) else {
+                        self.ymir.cancel_mru();
+                        self.ymir.suppressed_buttons.insert(button_code);
+                        return;
+                    };
                     if mru_output == output {
                         let id = self.ymir.window_mru_ui.pointer_motion(pos_within_output);
                         if id.is_some() {
@@ -2987,7 +2991,9 @@ impl State {
                 // Check if we need to start an interactive resize.
                 else if button == Some(MouseButton::Right) && !pointer.is_grabbed() && mod_down {
                     let location = pointer.current_location();
-                    let (output, pos_within_output) = self.ymir.output_under(location).unwrap();
+                    let Some((output, pos_within_output)) = self.ymir.output_under(location) else {
+                        return;
+                    };
                     let edges = self
                         .ymir
                         .layout

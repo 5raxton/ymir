@@ -170,11 +170,16 @@ impl CursorManager {
 
         let mut images = parse_xcursor(&buf).context("error parsing cursor icon file")?;
 
-        let (width, height) = images
+        let (width, height) = match images
             .iter()
             .min_by_key(|image| (size - image.size as i32).abs())
             .map(|image| (image.width, image.height))
-            .unwrap();
+        {
+            Some(x) => x,
+            None => {
+                anyhow::bail!("cursor icon file contained no images");
+            }
+        };
 
         images.retain(move |image| image.width == width && image.height == height);
 

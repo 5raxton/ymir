@@ -14,7 +14,7 @@ impl FrameClock {
     pub fn new(refresh_interval: Option<Duration>, vrr: bool) -> Self {
         let refresh_interval_ns = if let Some(interval) = &refresh_interval {
             assert_eq!(interval.as_secs(), 0);
-            Some(NonZeroU64::new(interval.subsec_nanos().into()).unwrap())
+            NonZeroU64::new(interval.subsec_nanos().into())
         } else {
             None
         };
@@ -78,7 +78,10 @@ impl FrameClock {
                     "got a 2+ early VBlank, {:?} until presentation",
                     last_presentation_time - now,
                 );
-                now = last_presentation_time + Duration::from_nanos(refresh_interval_ns);
+                // The last presentation is still ahead of us, so schedule for the next interval
+                // after it. Using `last_presentation_time` here (rather than adding an interval)
+                // avoids the later math scheduling one full interval too late.
+                now = last_presentation_time;
             }
         }
 

@@ -57,6 +57,10 @@ impl TransformedRegion {
         damage: &[Rectangle<i32, Physical>],
         filtered: &mut Vec<Rectangle<i32, Physical>>,
     ) {
+        if crop.size.w <= 0. || crop.size.h <= 0. || dst.size.w == 0 || dst.size.h == 0 {
+            // Degenerate crop/dst would produce a non-finite scale; nothing to filter.
+            return;
+        }
         let scale = dst.size.to_f64() / crop.size;
 
         let cs = crop.size.to_point();

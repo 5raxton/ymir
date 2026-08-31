@@ -788,15 +788,20 @@ impl XdgActivationHandler for State {
         }
 
         // Check the serial against both a keyboard and a pointer, since layer-shell surfaces
-        // with no keyboard interactivity won't have any keyboard focus.
-        let kb_last_enter = seat.get_keyboard().unwrap().last_enter();
-        if kb_last_enter.is_some_and(|last_enter| serial.is_no_older_than(&last_enter)) {
-            return true;
+        // with no keyboard interactivity won't have any keyboard focus. Either device may be
+        // absent (e.g. a virtual/headless session with no physical input), so tolerate that.
+        if let Some(kb) = seat.get_keyboard() {
+            let kb_last_enter = kb.last_enter();
+            if kb_last_enter.is_some_and(|last_enter| serial.is_no_older_than(&last_enter)) {
+                return true;
+            }
         }
 
-        let pointer_last_enter = seat.get_pointer().unwrap().last_enter();
-        if pointer_last_enter.is_some_and(|last_enter| serial.is_no_older_than(&last_enter)) {
-            return true;
+        if let Some(pointer) = seat.get_pointer() {
+            let pointer_last_enter = pointer.last_enter();
+            if pointer_last_enter.is_some_and(|last_enter| serial.is_no_older_than(&last_enter)) {
+                return true;
+            }
         }
 
         false

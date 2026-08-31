@@ -120,7 +120,9 @@ bitflags! {
 impl From<xdg_toplevel::ResizeEdge> for ResizeEdge {
     #[inline]
     fn from(x: xdg_toplevel::ResizeEdge) -> Self {
-        Self::from_bits(x as u32).unwrap()
+        // A malformed client could send unknown bits; fall back to an empty edge rather than
+        // panicking the compositor.
+        Self::from_bits(x as u32).unwrap_or_else(Self::empty)
     }
 }
 

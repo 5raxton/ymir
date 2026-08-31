@@ -414,7 +414,10 @@ impl PipeWire {
                     }
 
                     let mut format = VideoInfoRaw::new();
-                    format.parse(pod).unwrap();
+                    if let Err(err) = format.parse(pod) {
+                        warn!(%stream_id, "error parsing video format: {err:?}");
+                        return;
+                    }
                     debug!("got format = {format:?}");
 
                     let format_size = Size::from((format.size().width, format.size().height));
@@ -756,7 +759,12 @@ impl PipeWire {
                         }
 
                         let fd = (*(*spa_buffer).datas).fd;
-                        assert!(inner.dmabufs.insert(fd, dmabuf).is_none());
+                        if let Some(old) = inner.dmabufs.insert(fd, dmabuf) {
+                            // A duplicate fd (e.g. a race during stream renegotiation) would
+                            // otherwise panic on insertion. Replace it gracefully.
+                            warn!(%stream_id, "replacing already-registered dmabuf with fd {fd}");
+                            drop(old);
+                        }
                     }
 
                     // During size re-negotiation, the stream sometimes just keeps running, in
@@ -1153,7 +1161,12 @@ impl Cast {
             // Unfortunately, I think the OBS PipeWire code needs to be updated first to cleanly
             // allow for that codepath.
             let fd = (*(*spa_buffer).datas).fd;
-            let dmabuf = inner_.dmabufs[&fd].clone();
+            let Some(dmabuf) = inner_.dmabufs.get(&fd).cloned() else {
+                warn!("missing dmabuf for fd {fd}, skipping frame");
+                drop(inner);
+                return_unused_buffer(&self.stream, pw_buffer);
+                return false;
+            };
 
             let res = render_to_dmabuf(renderer, damage_tracker, dmabuf, elements, states);
             drop(inner);
@@ -1203,7 +1216,11 @@ impl Cast {
             }
 
             let fd = (*(*spa_buffer).datas).fd;
-            let dmabuf = self.inner.borrow().dmabufs[&fd].clone();
+            let Some(dmabuf) = self.inner.borrow().dmabufs.get(&fd).cloned() else {
+                warn!("missing dmabuf for fd {fd}, returning unused buffer");
+                return_unused_buffer(&self.stream, pw_buffer);
+                return false;
+            };
 
             match clear_dmabuf(renderer, dmabuf) {
                 Ok(sync_point) => {

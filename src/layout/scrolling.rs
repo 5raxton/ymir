@@ -387,15 +387,16 @@ impl<W: LayoutElement> ScrollingSpace<W> {
             //
             // This happens after any dnd_scroll_gesture_scroll() calls (in
             // Layout::advance_animations()), so it doesn't mess up the time delta there.
+            //
+            // Note: we intentionally do NOT clear dnd_nonzero_start_time here. Whether the pointer
+            // is inside or outside the DnD scrolling zone is only known when a motion event arrives
+            // (in dnd_scroll_gesture_scroll), which already handles clearing it when delta == 0.
+            // Clearing it on every frame would re-arm the start delay continuously while dragging
+            // across an edge, adding latency to every edge deflection.
             if let Some(last_time) = &mut gesture.dnd_last_event_time {
                 let now = self.clock.now_unadjusted();
                 if *last_time != now {
                     *last_time = now;
-
-                    // If last_time was already == now, then dnd_scroll_gesture_scroll() must've
-                    // updated the gesture already. Therefore, when this code runs, the pointer
-                    // must be outside the DnD scrolling zone.
-                    gesture.dnd_nonzero_start_time = None;
                 }
             }
 

@@ -706,29 +706,30 @@ impl WindowMru {
         }
         let rv = Some(self.scope);
 
-        if let Some(id) = self.current_id {
-            let (current_idx, _) = self
-                .thumbnails_with_idx()
-                .find(|(_, thumbnail)| thumbnail.id == id)
-                .unwrap();
+        // Determine the currently-selected index. If the selected window has since been removed
+        // (or there was no selection), fall back to the first thumbnail.
+        let current_idx = self
+            .current_id
+            .and_then(|id| {
+                self.thumbnails_with_idx()
+                    .find(|(_, thumbnail)| thumbnail.id == id)
+                    .map(|(idx, _)| idx)
+            })
+            .unwrap_or(0);
 
-            self.scope = scope;
+        self.scope = scope;
 
-            // Try to select the same, or the first thumbnail to the left. Failing that, select the
-            // first one to the right.
-            let mut id = self.first_id();
+        // Try to select the same, or the first thumbnail to the left. Failing that, select the
+        // first one to the right.
+        let mut id = self.first_id();
 
-            for (idx, thumbnail) in self.thumbnails_with_idx() {
-                if idx > current_idx {
-                    break;
-                }
-                id = Some(thumbnail.id);
+        for (idx, thumbnail) in self.thumbnails_with_idx() {
+            if idx > current_idx {
+                break;
             }
-            self.current_id = id;
-        } else {
-            self.scope = scope;
-            self.current_id = self.first_id();
+            id = Some(thumbnail.id);
         }
+        self.current_id = id;
 
         rv
     }
@@ -740,10 +741,18 @@ impl WindowMru {
         }
 
         if let Some(id) = self.current_id {
-            let (current_idx, current_thumbnail) = self
+            let Some((current_idx, current_thumbnail)) = self
                 .thumbnails_with_idx()
                 .find(|(_, thumbnail)| thumbnail.id == id)
-                .unwrap();
+            else {
+                // The currently selected window is no longer present (e.g. it just closed). Fall
+                // back to the first thumbnail and apply what we can.
+                self.current_id = self.first_id();
+                return match filter {
+                    MruFilter::All => Some(self.app_id_filter.take()),
+                    MruFilter::AppId => None,
+                };
+            };
 
             let old = match filter {
                 MruFilter::All => {

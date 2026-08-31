@@ -5460,3 +5460,73 @@ fn dwindle_move_up_tiles_with_window_directly_above() {
         "focus stays on the moved window"
     );
 }
+
+/// A dwindle workspace with either one or two windows ready to go.
+fn dwindle_layout(two: bool) -> Layout<TestWindow> {
+    let options = Options {
+        layout: ymir_config::Layout {
+            default_column_display: ymir_ipc::ColumnDisplay::Dwindle,
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+    let mut ops = vec![Op::AddOutput(0), Op::AddWindow { params: TestWindowParams::new(0) }];
+    if two {
+        ops.push(Op::AddWindow { params: TestWindowParams::new(1) });
+    }
+    let mut layout = check_ops_with_options(options, ops);
+    check_ops_on_layout(&mut layout, [Op::CompleteAnimations]);
+    layout
+}
+
+fn rect_of(layout: &Layout<TestWindow>, id: usize) -> (Point<f64, Logical>, Size<f64, Logical>) {
+    let (tile, pos, _) = layout
+        .active_workspace()
+        .unwrap()
+        .tiles_with_render_positions()
+        .find(|(tile, ..)| *tile.window().id() == id)
+        .unwrap();
+    (pos, tile.window().requested_size().unwrap().to_f64())
+}
+
+/// Regression: dwindle move-up from the bottom row must keep climbing the tree instead of
+/// stalling after a single move. The old focal-point search placed a probe one pixel beyond the
+/// leaf edge, which landed in the gap between windows and dead-ended through its nearest-center
+/// fallback, leaving the window stuck.
+#[test]
+fn dwindle_move_window_climbs_out_of_bottom_row() {
+    let mut layout = dwindle_layout(true);
+    for id in 2..8usize {
+        Op::AddWindow { params: TestWindowParams::new(id) }.apply(&mut layout);
+    }
+    check_ops_on_layout(&mut layout, [Op::CompleteAnimations]);
+
+    let initial_y = rect_of(&layout, 7).0.y;
+    let mut prev_y = initial_y;
+    let mut ascend_steps = 0;
+    for _ in 1..=20 {
+        let ws = layout.active_workspace_mut().unwrap();
+        let moved = ws.move_up();
+        drop(ws);
+        check_ops_on_layout(&mut layout, [Op::CompleteAnimations]);
+        let p = rect_of(&layout, 7).0;
+        if moved {
+            assert!(
+                p.y < prev_y,
+                "win7 must climb strictly upward on a successful move (y {prev_y}->{})",
+                p.y
+            );
+            ascend_steps += 1;
+        }
+        prev_y = p.y;
+    }
+
+    assert!(
+        ascend_steps >= 2,
+        "expected win7 to climb at least two positions, got {ascend_steps}"
+    );
+    assert!(
+        prev_y < initial_y - 1.,
+        "win7 must end strictly higher than it started (y {initial_y}->{prev_y})"
+    );
+}

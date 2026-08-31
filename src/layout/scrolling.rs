@@ -5807,35 +5807,27 @@ impl<W: LayoutElement> Column<W> {
         let prev_offsets: Vec<Point<f64, Logical>> =
             self.tile_offsets().take(self.tiles.len()).collect();
 
-        // Focal point just beyond the focused leaf's edge in `dir`, at the midpoint along the
-        // perpendicular axis (mirrors Hyprland's move focal point).
-        let active_rect = self
+        // Destination neighbor is the leaf sharing a real divider with the focused window in `dir`.
+        // This is gap-aware (the divider is exactly `gaps` away) and requires perpendicular
+        // overlap, so a move always follows the divider and never jumps diagonally, unlike a focal
+        // point one pixel beyond the edge, which lands in the seam between windows.
+        let Some(dest_neighbor) = self
+            .dwindle_tree
+            .spatial_neighbor(&active, dir, content, gaps)
+        else {
+            // No window occupies that direction; nothing to swap with.
+            return false;
+        };
+
+        // Re-insertion splits the leaf holding the destination neighbor's center. Focus the hole
+        // with that point rather than a point in the seam; after removal the leaf still covers it.
+        let focal: Point<f64, Logical> = self
             .dwindle_tree
             .leaf_rects(content, gaps)
             .into_iter()
-            .find(|(p, _)| *p == active)
-            .map(|(_, r)| r);
-        let Some(active_rect) = active_rect else {
-            return false;
-        };
-        let focal: Point<f64, Logical> = match dir {
-            SpatialDir::Up => Point::from((
-                active_rect.loc.x + active_rect.size.w / 2.,
-                active_rect.loc.y - 1.,
-            )),
-            SpatialDir::Down => Point::from((
-                active_rect.loc.x + active_rect.size.w / 2.,
-                active_rect.loc.y + active_rect.size.h + 1.,
-            )),
-            SpatialDir::Left => Point::from((
-                active_rect.loc.x - 1.,
-                active_rect.loc.y + active_rect.size.h / 2.,
-            )),
-            SpatialDir::Right => Point::from((
-                active_rect.loc.x + active_rect.size.w + 1.,
-                active_rect.loc.y + active_rect.size.h / 2.,
-            )),
-        };
+            .find(|(p, _)| p == &dest_neighbor)
+            .map(|(_, r)| Point::from((r.loc.x + r.size.w / 2., r.loc.y + r.size.h / 2.)))
+            .unwrap_or_default();
 
         // Remove the focused window from the tree and from the tile list, collapsing its slot.
         let _ = self.dwindle_tree.expel(&active);
@@ -5844,17 +5836,13 @@ impl<W: LayoutElement> Column<W> {
         // The remaining leaf values are stale after expel; restore the value == position invariant.
         self.dwindle_tree.reindex(|value, i| *value = i);
 
-        // After removal the focused slot is filled by its neighbor, so the focal point now lies
-        // inside (or nearest to) the leaf that should receive the re-insertion.
+        // The neighbor may have moved to a different path after the expel rebalanced the tree;
+        // locate it again by the point of its old center (any leaf sitting there is the one the
+        // moved window should split).
         let post_rects = self.dwindle_tree.leaf_rects(content, gaps);
         let dest: Option<LeafPath> = post_rects
             .iter()
-            .find(|(_, r)| {
-                focal.x >= r.loc.x - 1.
-                    && focal.x <= r.loc.x + r.size.w + 1.
-                    && focal.y >= r.loc.y - 1.
-                    && focal.y <= r.loc.y + r.size.h + 1.
-            })
+            .find(|(_, r)| r.contains(focal))
             .map(|(p, _)| p)
             .or_else(|| {
                 post_rects

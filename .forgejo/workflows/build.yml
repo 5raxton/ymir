@@ -66,11 +66,19 @@ jobs:
             opensuse)
               zypper --non-interactive install \
                 gcc make git curl tar nodejs-default clang libclang13 \
+                meson ninja \
                 systemd-devel dbus-1-devel libdisplay-info-devel libinput-devel \
-                libseat-devel libxkbcommon-devel libgbm-devel Mesa-libEGL-devel \
+                libxkbcommon-devel libgbm-devel Mesa-libEGL-devel \
                 pango-devel wayland-devel wayland-protocols-devel fontconfig-devel \
                 freetype2-devel harfbuzz-devel libxcb-devel pipewire-devel \
                 glib2-devel libdrm-devel
+              # openSUSE does not package libseat development files, so build
+              # libseat from upstream source to satisfy the pkg-config lookup.
+              git clone --depth 1 --branch 0.9.3 https://github.com/kennylevinsen/seatd.git /tmp/seatd
+              meson setup /tmp/seatd/build /tmp/seatd \
+                -Dserver=disabled -Dexamples=disabled -Dman-pages=disabled
+              ninja -C /tmp/seatd/build
+              meson install -C /tmp/seatd/build
               ;;
           esac
 
@@ -87,6 +95,9 @@ jobs:
       - name: Build
         run: |
           [ -f "$HOME/.cargo/env" ] && . "$HOME/.cargo/env"
+          if [ "${{ matrix.distro }}" = "opensuse" ]; then
+            export PKG_CONFIG_PATH="/usr/local/lib64/pkgconfig:/usr/local/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
+          fi
           cargo build --release --locked -p ymir --bin ymir
 
       - name: Smoke test

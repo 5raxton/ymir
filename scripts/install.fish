@@ -2,9 +2,10 @@
 # ymir installer (fish entry point).
 #
 # This is a thin wrapper around the bash installer, which handles distro
-# detection, dependency install, clean rebuild, and install of the session
-# .desktop + default config. Keeping the logic in one place avoids drift
-# between the bash and fish versions.
+# detection, runtime dependency install, download of the latest pre-built
+# binary, install of the session .desktop + default config, and updating.
+# Keeping the logic in one place avoids drift between the bash and fish
+# versions.
 
 set SCRIPT_DIR (dirname (status --current-filename))
 set BASH_INSTALLER "$SCRIPT_DIR/install.sh"

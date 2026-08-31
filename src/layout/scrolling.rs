@@ -7100,22 +7100,31 @@ impl<W: LayoutElement> Column<W> {
         // don't claim the whole screen as "edgy".
         let zone = f64::min(rect.size.w, rect.size.h) / 3.;
 
+        // Only real dividers can move: an edge flush with the outer boundary of the dwindle
+        // content area is pinned (the column spans the whole work area), and reporting it here
+        // would start a resize grab that silently does nothing. Identify dividers by whether the
+        // leaf's edge lines up with the partition's boundary.
+        let is_divider_left = rect.loc.x - content.loc.x > 0.5;
+        let is_divider_right = content.loc.x + content.size.w - (rect.loc.x + rect.size.w) > 0.5;
+        let is_divider_top = rect.loc.y - content.loc.y > 0.5;
+        let is_divider_bottom = content.loc.y + content.size.h - (rect.loc.y + rect.size.h) > 0.5;
+
         let dx_left = pos.x - rect.loc.x;
         let dx_right = rect.loc.x + rect.size.w - pos.x;
         let dy_top = pos.y - rect.loc.y;
         let dy_bottom = rect.loc.y + rect.size.h - pos.y;
 
         let mut edges = ResizeEdge::empty();
-        if dx_left <= zone && dx_left <= dx_right {
+        if dx_left <= zone && is_divider_left && dx_left <= dx_right {
             edges |= ResizeEdge::LEFT;
         }
-        if dx_right <= zone && dx_right < dx_left {
+        if dx_right <= zone && is_divider_right && dx_right < dx_left {
             edges |= ResizeEdge::RIGHT;
         }
-        if dy_top <= zone && dy_top <= dy_bottom {
+        if dy_top <= zone && is_divider_top && dy_top <= dy_bottom {
             edges |= ResizeEdge::TOP;
         }
-        if dy_bottom <= zone && dy_bottom < dy_top {
+        if dy_bottom <= zone && is_divider_bottom && dy_bottom < dy_top {
             edges |= ResizeEdge::BOTTOM;
         }
 

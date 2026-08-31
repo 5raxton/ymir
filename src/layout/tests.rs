@@ -2217,6 +2217,54 @@ fn dwindle_resize_grab_zones_follow_real_divider() {
         workspace.resize_edges_under(near_top),
         Some(ResizeEdge::TOP)
     );
+    // Window 3's bottom edge is flush with the work area: pinned, no grab zone.
+    let near_bottom = Point::from((
+        tile3_pos.x + tile3_size.w / 2.,
+        tile3_pos.y + tile3_size.h - 2.,
+    ));
+    assert_eq!(
+        workspace.resize_edges_under(near_bottom),
+        None,
+        "the exterior bottom edge must not grab"
+    );
+}
+
+#[test]
+fn dwindle_resize_grab_rejects_exterior_edges() {
+    // In a dwindle column every window edge that is flush with the outer work area is pinned:
+    // grabbing it must not start a dead resize. Only real shared dividers are reportable.
+    let mut layout = dwindle_layout(true);
+    let (p0, s0) = rect_of(&layout, 0);
+    let (p1, s1) = rect_of(&layout, 1);
+    let workspace = layout.active_workspace().unwrap();
+
+    // Left window's left edge and right window's right edge are exterior.
+    let near_left_win0 = Point::from((p0.x + 2., p0.y + s0.h / 2.));
+    assert_eq!(
+        workspace.resize_edges_under(near_left_win0),
+        None,
+        "the left window's exterior left edge must not grab"
+    );
+    let near_right_win1 = Point::from((p1.x + s1.w - 2., p1.y + s1.h / 2.));
+    assert_eq!(
+        workspace.resize_edges_under(near_right_win1),
+        None,
+        "the right window's exterior right edge must not grab"
+    );
+
+    // The same divider is grabbable from either side.
+    let near_right_win0 = Point::from((p0.x + s0.w - 2., p0.y + s0.h / 2.));
+    assert_eq!(
+        workspace.resize_edges_under(near_right_win0),
+        Some(ResizeEdge::RIGHT),
+        "the shared divider must be grabbable from the left window"
+    );
+    let near_left_win1 = Point::from((p1.x + 2., p1.y + s1.h / 2.));
+    assert_eq!(
+        workspace.resize_edges_under(near_left_win1),
+        Some(ResizeEdge::LEFT),
+        "the shared divider must be grabbable from the right window"
+    );
 }
 
 #[test]

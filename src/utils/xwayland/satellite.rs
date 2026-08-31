@@ -301,7 +301,12 @@ fn spawn_and_wait(
         match process.spawn() {
             Ok(child) => child,
             Err(err) => {
-                warn!("error spawning {path:?}: {err:?}");
+                // The most likely cause is that xwayland-satellite isn't installed or isn't on
+                // PATH, so spell that out: X11/XWayland windows won't work until it's present.
+                warn!(
+                    "error spawning {path:?}: {err:?}; xwayland-satellite must be installed for \
+                     XWayland/X11 support (e.g. `paru -S xwayland-satellite-bin`)"
+                );
                 return;
             }
         }

@@ -54,6 +54,7 @@ optdepends=(
     'xdg-desktop-portal: system portals (required for screenshots and screencasting)'
     'xdg-desktop-portal-gnome: screencast/screenshot portals'
     'xdg-desktop-portal-gtk: file chooser portal'
+    'xwayland-satellite: XWayland support (required for X11 windows)'
     'ydotool: synthetic input for night manipulation scripts'
 )
 source=("$pkgname::git+https://lab.braxton.onl/braxton/ymir.git#branch=main")

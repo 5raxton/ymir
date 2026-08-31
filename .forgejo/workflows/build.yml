@@ -9,18 +9,31 @@ on:
 enable-openid-connect: true
 
 jobs:
-  setup:
+  build:
     runs-on: docker
     container:
       image: alpine:latest
       entrypoint: []
       tty: true
+    strategy:
+      fail-fast: false
+      matrix:
+        distro: [arch, debian, fedora, opensuse]
     steps:
-      - name: trivial
-        run: echo "setup done"
+      - name: Install tools
+        run: apk add --no-cache curl jq git nodejs
+      - name: make artifact
+        run: |
+          mkdir -p out
+          echo "hi-${{ matrix.distro }}" > out/ymir-${{ matrix.distro }}-x86_64.tar.gz
+      - name: Upload artifact
+        uses: https://code.forgejo.org/forgejo/upload-artifact@v4
+        with:
+          name: ymir-${{ matrix.distro }}-x86_64
+          path: out/ymir-${{ matrix.distro }}-x86_64.tar.gz
 
   release:
-    needs: setup
+    needs: build
     runs-on: docker
     container:
       image: alpine:latest
@@ -37,15 +50,10 @@ jobs:
         run: |
           echo "REQ_URL=${ACTIONS_ID_TOKEN_REQUEST_URL:-<EMPTY>}"
           echo "REQ_TOKEN_LEN=${#ACTIONS_ID_TOKEN_REQUEST_TOKEN}"
-          if [ -z "$AUD" ]; then
-            echo "::error::No Audience configured" >&2
-            exit 1
-          fi
           http_code=$(curl -sS -o /tmp/oidc_body -w '%{http_code}' \
             -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
             "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=$AUD")
           echo "OIDC_HTTP=$http_code"
-          cat /tmp/oidc_body; echo
           jwt=$(jq -r '.value // empty' /tmp/oidc_body)
           echo "JWT_LEN=${#jwt}"
           if [ -z "$jwt" ]; then
@@ -54,41 +62,9 @@ jobs:
           fi
           echo "::add-mask::$jwt"
           echo "token=$jwt" >> $FORGEJO_OUTPUT
-          echo "JWT_LEN_END=${#jwt}"
 
-      - name: Verify token step output
+      - name: Check output propagation
         run: |
           T="${{ steps.token.outputs.token }}"
           echo "EXPR_TOKEN_LEN=${#T}"
           if [ -z "$T" ]; then echo "EXPR_TOKEN_EMPTY=yes"; else echo "EXPR_TOKEN_EMPTY=no"; fi
-
-      - name: Reproduce real publish (delete+create latest) with debug
-        env:
-          FORGEJO_TOKEN: ${{ steps.token.outputs.token }}
-        run: |
-          TOK="$FORGEJO_TOKEN"
-          REPO="braxton/ymir"
-          API="https://lab.braxton.onl/api/v1/repos/$REPO"
-          echo "FORGEJO_TOKEN_LEN=${#TOK}"
-          echo "=== delete existing latest release ==="
-          curl -s -o /tmp/g1 -w "GET_latest HTTP=%{http_code}\n" \
-            -H "Authorization: Bearer $TOK" "$API/releases/tags/latest"
-          cat /tmp/g1; echo
-          RID=$(jq -r '.id // empty' /tmp/g1)
-          echo "RID=$RID"
-          if [ -n "$RID" ]; then
-            curl -s -o /tmp/g2 -w "DEL_release HTTP=%{http_code}\n" \
-              -X DELETE -H "Authorization: Bearer $TOK" "$API/releases/$RID"
-            cat /tmp/g2; echo
-          fi
-          echo "=== create release on latest with target_commitish ==="
-          SHA="${{ github.sha }}"
-          echo "SHA=$SHA"
-          BODY=$(jq -n --arg tag "latest" --arg name "Latest Build" \
-            --arg bn "body-probe" --arg sha "$SHA" \
-            '{tag_name: $tag, name: $name, body: $bn, target_commitish: $sha, prerelease: true}')
-          echo "BODY=$BODY"
-          curl -s -o /tmp/g3 -w "POST_release HTTP=%{http_code}\n" \
-            -H "Authorization: Bearer $TOK" -H "Content-Type: application/json" \
-            -d "$BODY" "$API/releases"
-          cat /tmp/g3; echo

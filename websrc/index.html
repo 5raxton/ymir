@@ -1,236 +1,223 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Ymir — a scrollable-tiling Wayland compositor</title>
-    <meta name="description" content="Ymir is a scrollable-tiling Wayland compositor with a dwindle-style binary-split layout. Windows live in columns on an infinite strip; inside a column each new window halves only the focused one. Configured live with Lua." />
-    <link rel="stylesheet" href="styles.css" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="ymir — a scrollable-tiling Wayland compositor written in Rust on top of Smithay." />
+  <title>ymir — a scrollable-tiling Wayland compositor</title>
+  <link rel="icon" type="image/png" href="./logo.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="./styles.css" />
 </head>
 <body>
-    <header class="nav">
-        <div class="container nav__inner">
-            <a class="brand" href="#top">
-                <span class="brand__mark" aria-hidden="true">Y</span>
-                <span class="brand__name">ymir</span>
-            </a>
-            <nav class="nav__links" aria-label="Primary">
-                <a href="#about">About</a>
-                <a href="#layouts">Layouts</a>
-                <a href="#features">Features</a>
-                <a href="#start">Get started</a>
-                <a href="#keys">Key bindings</a>
-            </nav>
-            <a class="btn btn--ghost nav__cta" href="https://lab.braxton.onl/braxton/ymir" target="_blank" rel="noopener">Source</a>
+  <header class="nav" id="nav">
+    <div class="nav-inner">
+      <a class="brand" href="#top">
+        <img src="./logo.png" alt="ymir logo" class="brand-logo" />
+        <span class="brand-name">ymir</span>
+      </a>
+      <nav class="nav-links">
+        <a href="#features">Features</a>
+        <a href="#layouts">Layouts</a>
+        <a href="#architecture">Architecture</a>
+        <a href="#get-started">Get Started</a>
+        <a href="#status">Status</a>
+      </nav>
+      <a class="btn btn-primary nav-cta" href="https://lab.braxton.onl/braxton/ymir" target="_blank" rel="noopener">Source</a>
+    </div>
+  </header>
+
+  <main id="top">
+    <section class="hero">
+      <div class="hero-inner">
+        <div class="hero-copy reveal">
+          <h1 class="hero-title">Windows that <em>scroll</em>,<br />tiling that <em>breathes</em>.</h1>
+          <p class="hero-sub">
+            <strong>ymir</strong> is a scrollable-tiling Wayland compositor written in
+            Rust on top of Smithay. Your windows live in columns across an infinite
+            strip — opening a new window <b>never</b> resizes the ones you already have.
+          </p>
+          <div class="hero-actions">
+            <a class="btn btn-primary" href="#get-started">Get started</a>
+            <a class="btn btn-ghost" href="https://lab.braxton.onl/braxton/ymir" target="_blank" rel="noopener">View source</a>
+          </div>
         </div>
-    </header>
-
-    <main id="top">
-        <section class="hero">
-            <div class="container">
-                <p class="hero__eyebrow">A scrollable-tiling Wayland compositor, dwindle by default</p>
-                <h1 class="hero__title">Arrange windows without the <span class="accent">resize chaos</span>.</h1>
-                <p class="hero__sub">
-                    Ymir tiles your windows into a resizable dwindle tree on an infinite
-                    strip. Each new window halves only the focused one — everything else
-                    in your layout <strong>stays put</strong>.
-                </p>
-                <div class="hero__actions">
-                    <a class="btn btn--primary" href="#start">Get started</a>
-                    <a class="btn btn--ghost" href="#layouts">See the layouts</a>
-                </div>
-
-                <div class="hero__mock" aria-hidden="true">
-                    <div class="mock">
-                        <div class="mock__col mock__col-left">
-                            <div class="win">
-                                <div class="win__bar"><span></span><span></span><span></span></div>
-                                <div class="win__body win__body--wide"></div>
-                            </div>
-                            <div class="win">
-                                <div class="win__bar"><span></span><span></span><span></span></div>
-                                <div class="win__body win__body--wide"></div>
-                            </div>
-                        </div>
-                        <div class="mock__col mock__col-right">
-                            <div class="win">
-                                <div class="win__bar win__bar--active"><span></span><span></span><span></span></div>
-                                <div class="win__body"></div>
-                            </div>
-                            <div class="win">
-                                <div class="win__bar"><span></span><span></span><span></span></div>
-                                <div class="win__body"></div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+        <div class="hero-visual reveal">
+          <div class="window mock" aria-hidden="true">
+            <div class="mock-monitor">
+              <div class="mock-column col-a">
+                <div class="mock-window win-1"><span class="dot"></span></div>
+                <div class="mock-window win-2"><span class="dot"></span></div>
+              </div>
+              <div class="mock-column col-b">
+                <div class="mock-window win-3 active"><span class="term">$ </span>ymir</div>
+              </div>
+              <div class="mock-column col-c">
+                <div class="mock-window win-4"><span class="dot"></span></div>
+                <div class="mock-window win-5"><span class="dot"></span></div>
+                <div class="mock-window win-6"><span class="dot"></span></div>
+              </div>
+              <div class="mock-shadow"></div>
             </div>
-        </section>
-
-        <section class="masonry">
-            <div class="container">
-                <div class="masonry__grid">
-                    <div class="masonry__item">
-                        <h3>Infinite strip</h3>
-                        <p>Columns flow to the right. Nothing ever overflows onto the next monitor.</p>
-                    </div>
-                    <div class="masonry__item">
-                        <h3>Predictable splits</h3>
-                        <p>Dwindle splits only the focused window, and dividers are clamped to every window's minimum size.</p>
-                    </div>
-                    <div class="masonry__item">
-                        <h3>Dynamic workspaces</h3>
-                        <p>Vertical, GNOME-style workspaces with one empty one always waiting below.</p>
-                    </div>
-                    <div class="masonry__item">
-                        <h3>Lua config</h3>
-                        <p>One live-reloading init.lua controls everything, with an imperative ymir.* API on top.</p>
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <section id="about" class="section">
-            <div class="container section__grid">
-                <div class="section__copy">
-                    <p class="eyebrow">About</p>
-                    <h2>Windows are a quiet, ordered place.</h2>
-                    <p>
-                        Ymir arranges windows in columns on an infinite strip going to the
-                        right. It is built for scrollable tiling and tiling layouts alike, with
-                        dynamic workspaces, an overview, gestures, gradient borders, background
-                        blur, and live-reloading Lua configuration.
-                    </p>
-                    <p>
-                        Its <strong>Dwindle</strong> column mode layers a resizable binary tiling
-                        tree on top of that scrollable foundation — and it is on by default.
-                    </p>
-                </div>
-                <ul class="section__list">
-                    <li>Dynamic workspaces like in GNOME</li>
-                    <li>An overview that zooms out workspaces and windows</li>
-                    <li>Built-in screenshot UI and screencasting</li>
-                    <li>Touchpad and mouse gestures</li>
-                    <li>Gradient borders with Oklab and Oklch</li>
-                    <li>Per-workspace layout config, including numeric workspace tags</li>
-                    <li>Works with screen readers</li>
-                </ul>
-            </div>
-        </section>
-
-        <section id="layouts" class="section section--tint">
-            <div class="container">
-                <div class="section__head">
-                    <p class="eyebrow">Column display modes</p>
-                    <h2>Tiling, or scrollable — switch anytime.</h2>
-                    <p>
-                        Every column can switch between two display modes at runtime: dwindle
-                        (binary-split tree) and scrollable. Windows split off the
-                        focused window into a resizable binary tree; swap the focused window with
-                        its spatial neighbor, or flip the split orientation at any time.
-                    </p>
-                </div>
-                <div class="dwindle__cards">
-                    <article class="card">
-                        <h3>Split to fill</h3>
-                        <p>
-                            New windows split the focused node, so it keeps half its size and
-                            shrinks into its corner while the new window takes the freed half.
-                        </p>
-                    </article>
-                    <article class="card">
-                        <h3>Move spatially</h3>
-                        <p>
-                            <code>Mod+Shift+Left/Right</code> swap the focused window with its
-                            spatial neighbor in the tree — no fullscreen surprises.
-                        </p>
-                    </article>
-                    <article class="card">
-                        <h3>Switch anytime</h3>
-                        <p>
-                            Toggle the focused column between dwindle and scrollable live with
-                            <code>Mod+Shift+D</code>.
-                        </p>
-                    </article>
-                </div>
-            </div>
-        </section>
-
-        <section id="features" class="section">
-            <div class="container">
-                <div class="section__head section__head--center">
-                    <p class="eyebrow">Features</p>
-                    <h2>Everything you expect from a modern compositor.</h2>
-                </div>
-                <div class="features__grid">
-                    <div class="feature"><h4>Lua config</h4><p>Live-reloading, includes, imperative API.</p></div>
-                    <div class="feature"><h4>Gradient borders</h4><p>Oklab and Oklch support.</p></div>
-                    <div class="feature"><h4>Dwindle</h4><p>Binary-split tree tiling, on by default.</p></div>
-                    <div class="feature"><h4>Overview</h4><p>Zoom out workspaces and windows.</p></div>
-                    <div class="feature"><h4>Screenshot UI</h4><p>Built in, no tools needed.</p></div>
-                    <div class="feature"><h4>Gestures</h4><p>Overview, workspaces, columns, resize.</p></div>
-                    <div class="feature"><h4>Recent windows</h4><p>Alt+Tab-style switcher with live previews.</p></div>
-                    <div class="feature"><h4>Background blur</h4><p>For windows and layer-shell surfaces.</p></div>
-                    <div class="feature"><h4>Screen readers</h4><p>Accessibility via accesskit/dbus.</p></div>
-                    <div class="feature"><h4>Vertical workspaces</h4><p>One empty workspace always at the bottom.</p></div>
-                </div>
-            </div>
-        </section>
-
-        <section id="keys" class="section section--dark">
-            <div class="container">
-                <div class="section__head section__head--center">
-                    <p class="eyebrow">Key bindings</p>
-                    <h2>Small, memorable defaults.</h2>
-                </div>
-                <div class="keys">
-                    <div class="key"><kbd>Mod</kbd><kbd>Shift</kbd><kbd>Left</kbd><span>move window left in the dwindle tree</span></div>
-                    <div class="key"><kbd>Mod</kbd><kbd>Shift</kbd><kbd>Right</kbd><span>move window right in the dwindle tree</span></div>
-                    <div class="key"><kbd>Mod</kbd><kbd>Ctrl</kbd><kbd>Up</kbd><span>move window up in a column</span></div>
-                    <div class="key"><kbd>Mod</kbd><kbd>Ctrl</kbd><kbd>Down</kbd><span>move window down in a column</span></div>
-                    <div class="key"><kbd>Mod</kbd><kbd>Space</kbd><span>flip the split orientation</span></div>
-                    <div class="key"><kbd>Mod</kbd><kbd>Ctrl</kbd><kbd>Space</kbd><span>preselect the next split's direction</span></div>
-                    <div class="key"><kbd>Mod</kbd><kbd>Shift</kbd><kbd>Home</kbd><span>promote the focused window to the head of the tree</span></div>
-                    <div class="key"><kbd>Mod</kbd><kbd>Shift</kbd><kbd>D</kbd><span>toggle dwindle and scrollable</span></div>
-                </div>
-            </div>
-        </section>
-
-        <section id="start" class="section">
-            <div class="container section__cta">
-                <div class="section__copy">
-                    <p class="eyebrow">Get started</p>
-                    <h2>Ymir is ready to tile.</h2>
-                    <p>
-                        On Arch, Ymir builds with <code>makepkg</code> from the bundled PKGBUILD.
-                        On any distro, the installer detects it, installs dependencies, builds and
-                        installs into <code>/usr/local</code>. It seeds your config with the dwindle
-                        default and sets up a login-manager session entry for you.
-                    </p>
-                </div>
-                <pre class="code"><code><span class="c"># Arch, at the repo root</span>
-makepkg -si
-
-<span class="c"># or on any distro</span>
-curl -sL https://lab.braxton.onl/braxton/ymir/raw/branch/main/scripts/install.sh | bash</code></pre>
-            </div>
-        </section>
-    </main>
-
-    <footer class="footer">
-        <div class="container footer__inner">
-            <p>© <span id="year"></span> Ymir contributors.</p>
-            <nav class="footer__links" aria-label="Footer">
-                <a href="https://lab.braxton.onl/braxton/ymir" target="_blank" rel="noopener">Repository</a>
-                <a href="https://lab.braxton.onl/braxton/ymir/src/branch/main/docs/wiki/README.md" target="_blank" rel="noopener">Wiki</a>
-                <a href="https://lab.braxton.onl/braxton/ymir/src/branch/main/LICENSE" target="_blank" rel="noopener">License</a>
-            </nav>
+          </div>
         </div>
-    </footer>
+      </div>
+    </section>
 
-    <script src="script.js"></script>
+    <section class="layouts" id="layouts">
+      <div class="container">
+        <h2 class="section-title reveal">Two layouts, one strip</h2>
+        <p class="section-lede reveal">
+          Every column is scrollable tiling at heart. Flip any column into
+          <strong>Dwindle</strong> at runtime and watch new windows binary-split the
+          focused window, taking exactly half its space.
+        </p>
+        <div class="layout-grid">
+          <article class="card reveal">
+            <div class="card-art scrollable-art" aria-hidden="true">
+              <div class="cols">
+                <div class="ss s1"></div><div class="ss s2"></div><div class="ss s3"></div><div class="ss s4"></div>
+              </div>
+            </div>
+            <h3>Scrollable tiling</h3>
+            <p>Stack windows up and down in each column. The strip scrolls right to reach more columns — nothing ever resizes to make room.</p>
+          </article>
+          <article class="card reveal">
+            <div class="card-art dwindle-art" aria-hidden="true">
+              <div class="tree">
+                <div class="a"></div><div class="b"></div><div class="c"></div>
+              </div>
+            </div>
+            <h3>Dwindle</h3>
+            <p>Each new window splits the focused one into a resizable binary tree. Gradient borders make the tree visible at a glance.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="features" id="features">
+      <div class="container">
+        <h2 class="section-title reveal">Everything a modern desktop needs</h2>
+        <p class="section-lede reveal">Not just a window manager — a full Wayland compositor with the protocols, polish, and integrations you'd expect.</p>
+        <div class="feature-grid">
+          <article class="feature reveal">
+            <h3><span class="ico">◧</span> Dynamic workspaces</h3>
+            <p>GNOME-style vertical workspaces that remember their output and migrate back when a monitor reconnects.</p>
+          </article>
+          <article class="feature reveal">
+            <h3><span class="ico">▦</span> Modern rendering</h3>
+            <p>OpenGL ES with VBlank-synced damage redraws, blur, gradient borders, drop shadows, and rounded corners.</p>
+          </article>
+          <article class="feature reveal">
+            <h3><span class="ico">☾</span> Lua configuration</h3>
+            <p>Everything lives in <code>~/.config/ymir/init.lua</code> — includes, live-reloading, and an imperative <code>ymir.*</code> prelude.</p>
+          </article>
+          <article class="feature reveal">
+            <h3><span class="ico">⬚</span> Floating &amp; fullscreen</h3>
+            <p>Floating windows, maximize, fullscreen, an overview zoom, and an MRU switcher with live previews.</p>
+          </article>
+          <article class="feature reveal">
+            <h3><span class="ico">⌨</span> Input, all of it</h3>
+            <p>libinput for keyboard, mouse, touchpad, touchscreen, tablets, and trackpoints — plus grabs and gesture trackers.</p>
+          </article>
+          <article class="feature reveal">
+            <h3><span class="ico">♾</span> Multi-GPU</h3>
+            <p>Primary render-device detection, dmabuf feedback, and texture copy between GPUs.</p>
+          </article>
+          <article class="feature reveal">
+            <h3><span class="ico">⎋</span> Screencasting &amp; screenshots</h3>
+            <p>Output and window casts through xdg-desktop-portal-gnome and PipeWire, plus built-in area screenshots.</p>
+          </article>
+          <article class="feature reveal">
+            <h3><span class="ico">◒</span> Accessibility</h3>
+            <p>Full screen-reader support via accesskit and AT-SPI over D-Bus.</p>
+          </article>
+          <article class="feature reveal">
+            <h3><span class="ico">⇄</span> Desktop integration</h3>
+            <p>Systemd and dinit units, D-Bus (freedesktop + GNOME/Mutter interfaces), portals, and Xwayland via Xwayland-satellite.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="architecture" id="architecture">
+      <div class="container">
+        <h2 class="section-title reveal">Built on Smithay, in Rust</h2>
+        <div class="arch-block reveal">
+          <div class="arch-text">
+            <p>ymir is written in <strong>Rust</strong> on top of the <a href="https://github.com/Smithay/smithay" target="_blank" rel="noopener">Smithay</a> library, and drives output through an <strong>IPC</strong> server with a <code>ymir msg</code> CLI for full remote control. Three backends let you run it anywhere:</p>
+            <ul class="arch-list">
+              <li><code>TTY</code> — KMS/DRM on real hardware (udev + libseat + GBM)</li>
+              <li><code>Winit</code> — windowed development mode inside a desktop</li>
+              <li><code>Headless</code> — for the test suite</li>
+            </ul>
+          </div>
+          <div class="arch-stats">
+            <div class="stat"><span class="stat-num" data-target="85">0</span><span class="stat-label">k+ lines of Rust</span></div>
+            <div class="stat"><span class="stat-num">50</span><span class="stat-label">Wayland protocols</span></div>
+            <div class="stat"><span class="stat-num" data-target="18">0</span><span class="stat-label">custom shaders</span></div>
+            <div class="stat"><span class="stat-num">4</span><span class="stat-label">workspace crates</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="status" id="status">
+      <div class="container">
+        <h2 class="section-title reveal">Daily-driver ready</h2>
+        <p class="section-lede reveal">
+          At <strong>1.0.0</strong> and under active development, ymir is stable enough to
+          be your daily desktop — backed by a thorough suite of unit, integration,
+          snapshot, and property-based tests. Licensed under
+          <a href="https://www.gnu.org/licenses/gpl-3.0.html" target="_blank" rel="noopener">GPL-3.0-or-later</a>.
+        </p>
+        <div class="status-badges reveal">
+          <a class="badge" href="https://repology.org/project/ymir/versions" target="_blank" rel="noopener">Packaging status</a>
+          <a class="badge" href="https://lab.braxton.onl/braxton/ymir/src/branch/main/flake.nix" target="_blank" rel="noopener">Nix flake</a>
+          <a class="badge" href="https://lab.braxton.onl/braxton/ymir/src/branch/main/PKGBUILD" target="_blank" rel="noopener">Arch PKGBUILD</a>
+        </div>
+      </div>
+    </section>
+
+    <section class="get-started" id="get-started">
+      <div class="container narrow">
+        <h2 class="section-title reveal">Try it in one line</h2>
+        <p class="section-lede reveal">The installer detects your distro, installs dependencies, and builds &amp; installs ymir:</p>
+        <div class="code-block reveal">
+          <div class="code-head"><span class="code-dot r"></span><span class="code-dot y"></span><span class="code-dot g"></span><span class="code-lang">bash</span></div>
+          <pre><code>curl -sL https://lab.braxton.onl/braxton/ymir/raw/branch/main/scripts/install.sh | bash</code></pre>
+        </div>
+        <p class="section-lede reveal">Or build it yourself:</p>
+        <div class="code-block reveal">
+          <div class="code-head"><span class="code-dot r"></span><span class="code-dot y"></span><span class="code-dot g"></span><span class="code-lang">sh</span></div>
+          <pre><code>cargo build --release</code></pre>
+        </div>
+        <div class="hero-actions reveal">
+          <a class="btn btn-primary" href="https://lab.braxton.onl/braxton/ymir/wiki/Getting-Started" target="_blank" rel="noopener">Read the wiki</a>
+          <a class="btn btn-ghost" href="https://lab.braxton.onl/braxton/ymir" target="_blank" rel="noopener">Source &amp; issues</a>
+        </div>
+        <p class="hero-note reveal">Once inside: <kbd>Super</kbd>+<kbd>T</kbd> opens a terminal · <kbd>Super</kbd>+<kbd>D</kbd> a launcher · <kbd>Super</kbd>+<kbd>Shift</kbd>+<kbd>E</kbd> exits.</p>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+      <div class="footer-brand">
+        <img src="./logo.png" alt="ymir logo" class="footer-logo" />
+        <span>ymir</span>
+      </div>
+      <p>A scrollable-tiling Wayland compositor · GPL-3.0-or-later · Logo CC BY-SA 4.0</p>
+      <nav class="footer-links">
+        <a href="https://lab.braxton.onl/braxton/ymir" target="_blank" rel="noopener">Source</a>
+        <a href="https://lab.braxton.onl/braxton/ymir/wiki" target="_blank" rel="noopener">Wiki</a>
+        <a href="https://lab.braxton.onl/braxton/ymir/wiki/Getting-Started" target="_blank" rel="noopener">Getting started</a>
+      </nav>
+    </div>
+  </footer>
+
+  <script src="./script.js"></script>
 </body>
 </html>

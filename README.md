@@ -1,99 +1,43 @@
-<h1 align="center">ymir</h1>
-<p align="center">A scrollable-tiling Wayland compositor with a dwindle-style binary-split layout.</p>
-<p align="center">
-    <a href="https://lab.braxton.onl/braxton/ymir/src/branch/main/LICENSE"><img alt="License" src="https://img.shields.io/badge/license-GPL--3.0--or--later-blue"></a>
-    <a href="https://lab.braxton.onl/braxton/ymir/releases"><img alt="Release" src="https://img.shields.io/badge/release-1.0.0-blue"></a>
-    <img alt="Platform" src="https://img.shields.io/badge/platform-Linux-lightgrey">
-</p>
+<div align="center">
 
-## What is ymir?
+<img src="./websrc/logo.png" alt="ymir" width="220" />
 
-ymir is a Wayland compositor built around **scrollable tiling**: windows are arranged in
-columns on an infinite strip that scrolls to the right, and opening a window never disturbs the
-windows you already have open. It is written in Rust on top of [Smithay], and its full
-configuration system is expressed in **Lua**.
+# ymir
 
-Its signature feature is **Dwindle**, a binary-split tiling layout that is **on by default**:
-inside a column, each new window splits the focused window in two and takes half of its space.
-The result is a resizable binary tree that partitions the whole work area — living inside a
-scrollable column strip.
+**A scrollable-tiling Wayland compositor**
 
-Two column display modes are available — `dwindle` and `normal` (classic
-scrollable columns) — and you can switch a column between them at any time.
+</div>
 
-## How tiling works
+ymir is a Wayland compositor written in Rust on top of [Smithay]. It arranges windows in *columns* across an infinitely-scrolling strip, and ships with **Dwindle**, a binary-split tiling layout that is on by default. Opening a new window never resizes the ones you already have.
 
-- **Columns scroll, nothing resizes.** Windows live in vertical columns on an infinite
-  horizontal strip. Every monitor has its own strip, and windows never overflow onto an
-  adjacent monitor. Opening a new scrollable-column window never resizes the existing ones.
-- **Dwindle splits the focused window.** In a dwindle column, a new window halves the focused
-  window and takes the freed-up space. By default wide regions split side-by-side (the new
-  window lands to the right) and tall or square regions stack (the new window lands at the
-  bottom); you can preselect a fixed direction beforehand. Splits start at 50/50.
-- **Divider drags are clamped.** Every split is a draggable divider that respects each window's
-  minimum size, so a resize can never crush a window.
-- **Workspaces are dynamic.** Workspaces are arranged vertically, GNOME-style: every monitor
-  has an independent set, and one empty workspace is always present at the bottom. The
-  arrangement survives monitor hotplugging — disconnect a monitor and its workspaces move
-  along, reconnect and they come back.
+- Distributed under the [GPL-3.0-or-later](#license) license.
 
 ## Highlights
 
-- **Dwindle-first.** The shipped default config boots straight into dwindle. Classic scrollable
-  tiling is one `Mod+Shift+D` away, per column, at runtime.
-- **Lua configuration.** Everything is configured from `~/.config/ymir/init.lua`, a live-reloading
-  Lua file with an ergonomic table syntax, an imperative `ymir.*` API, and support for splitting
-  your config across files with `include_config`.
-- **Per-workspace layout config.** Name a workspace `"1"` (numeric) and give it a `layout {}`
-  block, and ymir applies it to the Nth default workspace of every monitor *without creating a
-  named workspace*. Non-numeric names (`"browser"`) still create real named workspaces. See
-  [Configuration: Named Workspaces](docs/wiki/Configuration:-Named-Workspaces.md).
-- **Everything modern.** An Overview zoom, built-in screenshot UI, screencasting through
-  xdg-desktop-portal, touchpad and mouse gestures plus hot corners, gradient borders (Oklab and
-  Oklch), background blur, spring animations with custom shaders, and live
-  reloading config.
+- **Scrollable tiling with Dwindle.** Windows live in columns on a strip that scrolls to the right. In Dwindle mode every new window splits the focused window in two and takes half of its space, forming a resizable binary-split tree. Switch any column back to classic scrollable tiling at any time with <kbd>Mod</kbd><kbd>Shift</kbd><kbd>D</kbd>.
+- **Dynamic workspaces.** GNOME-style workspaces stacked vertically, with one empty workspace always kept at the bottom. Workspaces survive monitor hot-plugging: they remember their original output and migrate back when it reconnects.
+- **Modern rendering.** OpenGL ES rendering with damage-based redraws synchronized to VBlank. Includes background and window blur, gradient borders, drop shadows, rounded corners, and fine-grained per-window control of each effect.
+- **Lua configuration.** Everything is configured from `~/.config/ymir/init.lua`, with includes, live-reloading via a file watcher, and an imperative `ymir.*` prelude API.
+- **Full Wayland feature set.** Layer-shell, decorations, screencasting, screenshots, foreign toplevel and workspace extensions, output management, gamma control, fractional scaling, input methods, session lock, and more.
+- **Runs everywhere.** Ships three backends: KMS/DRM on a real TTY, a windowed development mode, and a headless test mode.
 
 ## Features
 
-- Scrollable tiling built from the ground up
-- [Dwindle column mode](docs/wiki/Configuration:-Dwindle.md): resizable binary-split tree,
-  draggable dividers, split preselection, spatial window moves
-- Normal (scrollable) column display with dwindle, switchable at runtime
-- [Dynamic workspaces](docs/wiki/Workspaces.md) like in GNOME, one empty workspace always at the
-  bottom, preserved across hotplugs
-- [Overview](docs/wiki/Overview.md) that zooms out workspaces and windows; recent-windows
-  (Alt+Tab-style) switcher with live previews
-- Built-in screenshot UI, screenshot of screen and of focused window
-- Monitor and window [screencasting](docs/wiki/Screencasting.md) through xdg-desktop-portal,
-  with [block-out rules](docs/wiki/Configuration:-Window-Rules.md)
-- Touchpad and mouse [gestures](docs/wiki/Gestures.md) and [hot corners](docs/wiki/Configuration:-Outputs.md):
-  overview, workspace switch, column moves, resize and column swipe
-- Configurable layout: gaps, focus ring, borders and shadows, struts, preset column widths and
-  window heights
-- [Gradient borders](docs/wiki/Configuration:-Layout.md) with Oklab and Oklch support, plus
-  insert hints
-- [Background blur](docs/wiki/Window-Effects.md) for windows and layer-shell surfaces
-- [Animations](docs/wiki/Configuration:-Animations.md) with configurable springs and curves and
-  support for custom shaders
-- Per-workspace and per-output layout overrides, plus named-workspace sticky focus
-- Fullscreen (with standalone toggle), maximize, floating windows
-- Lives on the [wlr layer-shell](docs/wiki/Layer‐Shell-Components.md), plus gamma-control,
-  screencopy, output-management, foreign-toplevel and ext-workspace protocols
-- Xwayland through xwayland-satellite, screen-reader support (accesskit/dbus), systemd and
-  D-Bus integration, keyboard-shortcuts-inhibit
-- Live-reloading config and full IPC control via `ymir msg`
+| Area | What ymir does |
+| --- | --- |
+| Layout | Scrollable tiling, Dwindle binary-split tiling, floating windows, dwindle pages/window-per-column caps, dwindle column widths |
+| Windows | Fullscreen, maximize, overview zoom, MRU/Alt-Tab switcher with previews, window rules, focus ring, borders, insert hints, gaps, struts |
+| Effects | Window & layer blur, gradient borders, drop shadows, rounded corners, opacity popups |
+| Input | Keyboard, mouse, touchpad, touchscreen, tablet, trackpoint & switches via libinput; grabs (click/move/resize/pick); gesture trackers; hot corners; shortcut inhibition; power-off monitors |
+| Desktop | Systemd & dinit integration, D-Bus (freedesktop + GNOME/Mutter interfaces), xdg-desktop-portal, system tray/layer-shell bars |
+| Accessibility | Full screen-reader support through accesskit + AT-SPI over D-Bus |
+| Multi-GPU | Primary render device detection, dmabuf feedback, texture copy between GPUs |
+| IPC | Unix-socket JSON API plus the `ymir msg` CLI for full remote control |
+| Xwayland | Via Xwayland-satellite, started on demand |
 
-## Getting Started
+## Getting started
 
-The full instructions are on the [Getting Started](docs/wiki/Getting-Started.md) wiki page.
-ymir is not a complete desktop environment: grab a status bar like [waybar], and adjust the
-config to spawn your own terminal and launcher — the default config expects [alacritty] and
-[fuzzel].
-
-### Linux (installer)
-
-A multi-distro installer detects your distro (Arch, Fedora, Debian/Ubuntu, openSUSE), installs
-the build/runtime dependencies, clones the latest `main`, builds and installs:
+The quickest way to get running is the multi-distro installer (detects Arch, Fedora, Debian/Ubuntu, openSUSE):
 
 ```sh
 # bash/zsh
@@ -103,75 +47,144 @@ curl -sL https://lab.braxton.onl/braxton/ymir/raw/branch/main/scripts/install.sh
 curl -sL https://lab.braxton.onl/braxton/ymir/raw/branch/main/scripts/install.fish | fish
 ```
 
-On Arch it builds with `makepkg` from the bundled PKGBUILD; elsewhere it builds with `cargo`
-and installs into `/usr/local`. It seeds `~/.config/ymir/init.lua` with the dwindle example
-config if absent, and installs the `ymir.desktop` session entry so "Ymir" appears in your login
-manager (GDM, SDDM, ...). From a bare TTY you can start it with `ymir-session`. Re-running the
-installer pulls the latest `main` and rebuilds, so it doubles as an updater.
+The installer seeds `~/.config/ymir/init.lua` with the default Dwindle config if it's absent and installs the `ymir.desktop` session entry so **Ymir** appears in your login manager (GDM, SDDM, …). From a bare TTY, start it with `ymir-session`. Re-running the installer pulls the latest `main` and rebuilds, doubling as a bleeding-edge update.
 
-### From source
+Once inside:
+
+- <kbd>Super</kbd><kbd>T</kbd> runs a terminal ([Alacritty])
+- <kbd>Super</kbd><kbd>D</kbd> runs an app launcher ([fuzzel])
+- <kbd>Super</kbd><kbd>Shift</kbd><kbd>E</kbd> exits ymir
+
+The default config assumes Waybar for a status bar and portal/screencast components; see the [wiki] for the full list of [important software] and how to [configure][config-intro] ymir.
+
+> **Note on running inside an existing session:** `ymir` can be opened as a window from inside a desktop environment for a quick try. This windowed mode is mainly for development and can be a little buggy (especially hotkeys).
+
+### Main default hotkeys
+
+When running on a TTY the mod key is <kbd>Super</kbd>; in the windowed development mode it's <kbd>Alt</kbd>. As a rule of thumb, adding <kbd>Ctrl</kbd> to a *switch* hotkey *moves* the focused window or column instead.
+
+| Hotkey | Description |
+| --- | --- |
+| <kbd>Mod</kbd><kbd>Shift</kbd><kbd>/</kbd> | Show a list of important ymir hotkeys |
+| <kbd>Mod</kbd><kbd>T</kbd> / <kbd>Mod</kbd><kbd>D</kbd> | Spawn `alacritty` / `fuzzel` |
+| <kbd>Mod</kbd><kbd>Q</kbd> | Close the focused window |
+| <kbd>Mod</kbd><kbd>H</kbd><kbd>L</kbd> or <kbd>←</kbd><kbd>→</kbd> | Focus the column to the left / right |
+| <kbd>Mod</kbd><kbd>J</kbd><kbd>K</kbd> or <kbd>↓</kbd><kbd>↑</kbd> | Focus the window below / above in a column |
+| <kbd>Mod</kbd><kbd>U</kbd> / <kbd>Mod</kbd><kbd>I</kbd> | Switch to the workspace below / above |
+| <kbd>Mod</kbd><kbd>Shift</kbd><kbd>D</kbd> | Switch the focused column between Dwindle and scrollable tiling |
+| <kbd>Mod</kbd><kbd>Space</kbd> | Toggle split orientation of the container (Dwindle) |
+| <kbd>Mod</kbd><kbd>M</kbd> | Maximize window |
+| <kbd>Mod</kbd><kbd>V</kbd> / <kbd>Mod</kbd><kbd>Shift</kbd><kbd>V</kbd> | Move / switch focus between floating and tiling |
+| <kbd>Mod</kbd><kbd>Shift</kbd><kbd>F</kbd> | Toggle fullscreen |
+| <kbd>PrtSc</kbd> / <kbd>Alt</kbd><kbd>PrtSc</kbd> / <kbd>Ctrl</kbd><kbd>PrtSc</kbd> | Screenshot: area / focused window / focused monitor |
+| <kbd>Mod</kbd><kbd>Shift</kbd><kbd>E</kbd> | Exit ymir |
+
+See the [key-bindings][binds] wiki page for the complete list, including workspace, monitor, and column management.
+
+## Building
+
+First install the dependencies for your distribution:
+
+**Ubuntu 24.04**
+
+```sh
+sudo apt-get install -y gcc clang libudev-dev libgbm-dev libxkbcommon-dev libegl1-mesa-dev libwayland-dev libinput-dev libdbus-1-dev libsystemd-dev libseat-dev libpipewire-0.3-dev libpango1.0-dev libdisplay-info-dev
+```
+
+**Fedora**
+
+```sh
+sudo dnf install gcc libudev-devel libgbm-devel libxkbcommon-devel wayland-devel libinput-devel dbus-devel systemd-devel libseat-devel pipewire-devel pango-devel cairo-gobject-devel clang libdisplay-info-devel
+```
+
+Then install [Rust](https://rustup.rs/), and build:
 
 ```sh
 cargo build --release
 ```
 
-On first start, ymir creates a config at `~/.config/ymir/init.lua` based on the embedded
-default config (which enables dwindle). Start it with `target/release/ymir --session` from an
-unlocked TTY. Development shells are also provided via `nix develop`.
+Check `Cargo.toml` for the available build features. For example, to replace systemd integration with dinit integration:
 
-## Dwindle column mode
+```sh
+cargo build --release --no-default-features --features dinit,dbus,xdp-gnome-screencast
+```
 
-Dwindle is ymir's default layout mode. When a window opens in a dwindle column, the focused
-window's region is split in two: the focused window keeps its corner and shrinks, while the new
-window takes the freed-up half. Dividers are draggable and clamped to each window's minimum
-size.
+> [!WARNING]
+> Do **not** build with `--all-features`! Some features are only meant for development — for instance, one enables collecting profiling data into a memory buffer that grows without bound.
 
-| Key combo | Action |
-| --- | --- |
-| `Mod+Shift+D` | switch-column-display: toggle the focused column between dwindle and normal (scrollable) |
-| `Mod+Space` | toggle-split: flip the split orientation of the focused window's container |
-| `Mod+Ctrl+Space` | preselect `"bottom"`: split direction for the next window opened in the column |
-| `Mod+Shift+Home` | promote-window: move the focused window to the head of the dwindle tree |
-| `Mod+Shift+Left` / `Mod+Shift+Right` (also `H`/`L`) | move-window-left/right: swap the focused window with its spatial neighbor |
-| `Mod+Comma` / `Mod+Period` | consume-window-into-column / expel-window-from-column |
+### Nix / NixOS
 
-See the [default config](resources/default-config.lua) for the full list of bindings.
+A community-maintained [flake][flake] provides a devshell with all required dependencies. Use `nix build`, then run `./result/bin/ymir`. On a non-NixOS system you may need [NixGL](https://github.com/nix-community/nixGL):
+
+```sh
+nix run --impure github:guibou/nixGL -- ./result/bin/ymir
+```
+
+### Manual installation
+
+For a direct install without a package manager, see the [install] guide for the recommended file destinations (including the systemd and dinit unit files). The path to `ymir` in `resources/ymir.service` defaults to `/usr/bin/ymir`.
+
+### Packaging
+
+Community packages are available for several distributions; see [repology](https://repology.org/project/ymir/versions). The repository itself ships an [Arch PKGBUILD][PKGBUILD], a [RPM spec][rpkg], a [deb] configuration, and the [flake.nix][flake]. See [packaging][packaging] if you'd like to package ymir yourself.
 
 ## Documentation
 
-The wiki has detailed docs on configuration, key bindings, window effects, IPC and
-development:
+The full documentation lives in the [wiki]. Highlights include:
 
-- [Configuration introduction](docs/wiki/Configuration:-Introduction.md)
-- [Key bindings](docs/wiki/Configuration:-Key-Bindings.md)
-- [Layout configuration](docs/wiki/Configuration:-Layout.md)
-- [Dwindle layout](docs/wiki/Configuration:-Dwindle.md)
-- [Named workspaces](docs/wiki/Configuration:-Named-Workspaces.md)
-- [Window rules](docs/wiki/Configuration:-Window-Rules.md)
-- [Recent windows](docs/wiki/Configuration:-Recent-Windows.md)
-- [IPC: `ymir msg`](docs/wiki/IPC.md)
-- [FAQ](docs/wiki/FAQ.md)
+- [Getting started][getting-started]
+- [Configuration introduction][config-intro]
+- [The Dwindle layout][dwindle]
+- [Workspaces]
+- [IPC]
+- [Screencasting]
+- [Xwayland]
+- [NVIDIA][nvidia] notes
+- [Security model][security]
+
+Development documentation covers the [redraw loop][redraw], [fractional layout][fractional], [animation timing][animation], and [design principles][design].
 
 ## Status
 
-ymir is stable for day-to-day use and does most things you'd expect of a Wayland compositor.
+ymir is under active development (currently `1.0.0`). It's stable enough to be a daily driver, and has a thorough test suite of unit, integration, snapshot, and property-based tests.
 
-- **Multi-monitor**: yes, a core part of the design from the start. Mixed DPI works.
-- **Fractional scaling**: yes, and ymir UI stays pixel-perfect.
-- **NVIDIA**: seems to work fine — see [Nvidia.md](docs/wiki/Nvidia.md).
-- **Floating windows**: yes, with a dedicated focus-movement path.
-- **Input devices**: tablets, touchpads and touchscreens are supported; tablets can be mapped
-  to a monitor or the focused window, and work with [OpenTabletDriver]. Touchpad gestures are
-  available, but no touchscreen gestures yet.
-- **Wlr protocols**: layer-shell, gamma-control, screencopy, output-management and more.
-- **Performance**: development stays conscious of runtime and compile budgets.
+## Contributing
+
+See [CONTRIBUTING.md] for guidelines. We welcome contributions — bug reports, feature requests, and pull requests alike.
 
 ## License
 
-ymir is distributed under the GPL-3.0-or-later license. See [LICENSE](LICENSE).
+ymir is licensed under the [GPL-3.0-or-later][gpl] (see [LICENSE]). It is **not** intended to be a protocol-compatible Wayland implementation used by other libraries, so it uses the system wayland libraries. The [logo](#logo) is licensed under [CC BY-SA 4.0][ccbysa]; the full logo is based on the [Cherry Bomb One] font (SIL OFL 1.1).
+
+---
 
 [Smithay]: https://github.com/Smithay/smithay
-[waybar]: https://github.com/Alexays/Waybar
-[alacritty]: https://github.com/alacritty/alacritty
+[Alacritty]: https://github.com/alacritty/alacritty
 [fuzzel]: https://codeberg.org/dnkl/fuzzel
-[OpenTabletDriver]: https://opentabletdriver.net/
+[wiki]: https://lab.braxton.onl/braxton/ymir/wiki
+[getting-started]: https://lab.braxton.onl/braxton/ymir/wiki/Getting-Started
+[important software]: https://lab.braxton.onl/braxton/ymir/wiki/Important-Software
+[config-intro]: https://lab.braxton.onl/braxton/ymir/wiki/Configuration:-Introduction
+[binds]: https://lab.braxton.onl/braxton/ymir/wiki/Configuration:-Key-Bindings
+[dwindle]: https://lab.braxton.onl/braxton/ymir/wiki/Configuration:-Dwindle
+[Workspaces]: https://lab.braxton.onl/braxton/ymir/wiki/Workspaces
+[IPC]: https://lab.braxton.onl/braxton/ymir/wiki/IPC
+[Screencasting]: https://lab.braxton.onl/braxton/ymir/wiki/Screencasting
+[Xwayland]: https://lab.braxton.onl/braxton/ymir/wiki/Xwayland
+[nvidia]: https://lab.braxton.onl/braxton/ymir/wiki/Nvidia
+[security]: https://lab.braxton.onl/braxton/ymir/wiki/Security-Model
+[redraw]: https://lab.braxton.onl/braxton/ymir/wiki/Development:-Redraw-Loop
+[fractional]: https://lab.braxton.onl/braxton/ymir/wiki/Development:-Fractional-Layout
+[animation]: https://lab.braxton.onl/braxton/ymir/wiki/Development:-Animation-Timing
+[design]: https://lab.braxton.onl/braxton/ymir/wiki/Development:-Design-Principles
+[flake]: https://lab.braxton.onl/braxton/ymir/src/branch/main/flake.nix
+[PKGBUILD]: https://lab.braxton.onl/braxton/ymir/src/branch/main/PKGBUILD
+[rpkg]: https://lab.braxton.onl/braxton/ymir/src/branch/main/ymir.spec.rpkg
+[deb]: https://lab.braxton.onl/braxton/ymir/src/branch/main/Cargo.toml
+[packaging]: https://lab.braxton.onl/braxton/ymir/wiki/Packaging-ymir
+[install]: https://lab.braxton.onl/braxton/ymir/wiki/Getting-Started#manual-installation
+[CONTRIBUTING.md]: CONTRIBUTING.md
+[gpl]: https://www.gnu.org/licenses/gpl-3.0.html
+[LICENSE]: LICENSE
+[ccbysa]: https://creativecommons.org/licenses/by-sa/4.0/
+[Cherry Bomb One]: https://github.com/satsuyako/CherryBomb

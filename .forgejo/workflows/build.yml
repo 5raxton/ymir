@@ -18,7 +18,7 @@ jobs:
           - distro: fedora
             container: fedora:latest
           - distro: debian
-            container: debian:bookworm
+            container: debian:trixie
           - distro: opensuse
             container: opensuse/tumbleweed:latest
     name: build (${{ matrix.distro }})
@@ -33,14 +33,14 @@ jobs:
             arch)
               pacman -Syu --noconfirm
               pacman -S --noconfirm --needed \
-                base-devel git pkgconf rust \
+                base-devel git pkgconf rust nodejs \
                 cairo fontconfig freetype2 harfbuzz libdrm \
                 libdisplay-info libglvnd libinput libxcb libxkbcommon \
                 mesa pango pipewire seatd wayland wayland-protocols
               ;;
             fedora)
               dnf install -y \
-                gcc make git pkgconf rust cargo \
+                gcc make git pkgconf rust cargo nodejs \
                 cairo-devel systemd-devel dbus-devel libdisplay-info-devel \
                 libinput-devel libseat-devel libxkbcommon-devel \
                 mesa-libgbm-devel mesa-libGL-devel mesa-libEGL-devel \
@@ -51,7 +51,7 @@ jobs:
             debian)
               apt-get update
               apt-get install -y \
-                build-essential gcc make git pkgconf cargo rustc \
+                build-essential gcc make git pkgconf cargo rustc nodejs \
                 libcairo2-dev libsystemd-dev libdbus-1-dev libdisplay-info-dev \
                 libinput-dev libseat-dev libxkbcommon-dev libgbm-dev \
                 libegl1-mesa-dev mesa-common-dev libgl-dev libegl-dev \
@@ -64,7 +64,7 @@ jobs:
               ;;
             opensuse)
               zypper --non-interactive install \
-                gcc make git curl tar \
+                gcc make git curl tar nodejs-default \
                 systemd-devel dbus-1-devel libdisplay-info-devel libinput-devel \
                 libseat-devel libxkbcommon-devel libgbm-devel Mesa-libEGL-devel \
                 pango-devel wayland-devel wayland-protocols-devel fontconfig-devel \

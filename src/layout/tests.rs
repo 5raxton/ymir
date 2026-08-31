@@ -2238,6 +2238,11 @@ fn normal_and_dwindle_resize_stay_separate() {
     );
     check_ops_on_layout(&mut layout, [Op::CompleteAnimations]);
 
+    // Dwindle is an exclusive, full-screen tree, so the second column must be merged into the
+    // focused one before toggling (otherwise entering dwindle would consume it automatically).
+    layout.consume_into_column();
+    check_ops_on_layout(&mut layout, [Op::CompleteAnimations]);
+
     let width_of = |layout: &Layout<TestWindow>, id: usize| -> f64 {
         layout
             .windows()
@@ -2410,6 +2415,215 @@ fn depth_queue_push_pull_and_cycle() {
     check_ops_on_layout(&mut layout, [Op::CompleteAnimations]);
     assert_eq!(order_of(&layout), expected);
     assert_eq!(active_of(&layout), target);
+}
+
+/// True when two axis-aligned rectangles share any positive area.
+fn rects_overlap(a: Rectangle<f64, Logical>, b: Rectangle<f64, Logical>) -> bool {
+    a.loc.x < b.loc.x + b.size.w
+        && b.loc.x < a.loc.x + a.size.w
+        && a.loc.y < b.loc.y + b.size.h
+        && b.loc.y < a.loc.y + a.size.h
+}
+
+/// Returns the on-screen rectangles (render position + tile size) of every window in the active
+/// workspace's scrolling (tiled) space, grouped by column. Windows in the same column share a
+/// stack in tabbed/depth mode, so only rectangles from *different* columns must stay disjoint.
+fn active_tiled_rects_by_column(layout: &Layout<TestWindow>) -> Vec<Vec<Rectangle<f64, Logical>>> {
+    layout
+        .active_workspace()
+        .unwrap()
+        .scrolling()
+        .columns_with_render_positions()
+        .map(|(col, col_pos)| {
+            col.tiles_in_render_order()
+                .map(|(tile, tile_off, _)| {
+                    let pos = col_pos + tile_off + tile.render_offset();
+                    Rectangle::new(pos, tile.tile_expected_or_current_size())
+                })
+                .collect()
+        })
+        .collect()
+}
+
+/// Asserts that no window from one column clips on top of a window from a different column on the
+/// active workspace. Tabs/stacked cards within a single column are allowed to share a rectangle.
+fn assert_no_cross_column_overlap(layout: &Layout<TestWindow>, ctx: &str) {
+    let columns = active_tiled_rects_by_column(layout);
+    for (ci, a) in columns.iter().enumerate() {
+        for (dj, b) in columns.iter().enumerate() {
+            if ci == dj {
+                continue;
+            }
+            for ra in a {
+                for rb in b {
+                    if rects_overlap(*ra, *rb) {
+                        panic!(
+                            "column {ci} window {ra:?} clips on top of column {dj} window {rb:?} ({ctx}); columns = {columns:?}"
+                        );
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// Spawning windows and switching the active column's layout mode must never make two tiled
+/// windows clip on top of one another on the same workspace.
+#[test]
+fn layout_mode_switches_never_overlap_tiled_windows() {
+    let mut layout = check_ops_with_options(
+        Options::default(),
+        [
+            Op::AddOutput(0),
+            Op::AddWindow {
+                params: TestWindowParams::new(0),
+            },
+            Op::AddWindow {
+                params: TestWindowParams::new(1),
+            },
+            Op::AddWindow {
+                params: TestWindowParams::new(2),
+            },
+            Op::CompleteAnimations,
+        ],
+    );
+
+    for display in [
+        ColumnDisplay::Normal,
+        ColumnDisplay::Tabbed,
+        ColumnDisplay::Dwindle,
+        ColumnDisplay::Normal,
+        ColumnDisplay::Depth,
+        ColumnDisplay::Normal,
+        ColumnDisplay::Tabbed,
+    ] {
+        layout.set_column_display(display);
+        check_ops_on_layout(&mut layout, [Op::CompleteAnimations]);
+        assert_no_cross_column_overlap(&layout, "after switching to {display:?}");
+    }
+}
+
+/// Spawning windows after a workspace has been toggled into a specific layout (which applies that
+/// layout to each freshly created column) must never make tiled windows overlap.
+#[test]
+fn spawning_after_layout_override_never_overlaps() {
+    for display in [
+        ColumnDisplay::Normal,
+        ColumnDisplay::Tabbed,
+        ColumnDisplay::Depth,
+        ColumnDisplay::Dwindle,
+    ] {
+        let mut layout = check_ops_with_options(
+            Options::default(),
+            [
+                Op::AddOutput(0),
+                Op::AddWindow {
+                    params: TestWindowParams::new(0),
+                },
+                Op::CompleteAnimations,
+            ],
+        );
+
+        // Toggle the workspace into `display`; the action also sets the workspace's runtime layout
+        // override, which is applied to every column created afterwards.
+        layout.set_column_display(display);
+        check_ops_on_layout(&mut layout, [Op::CompleteAnimations]);
+
+        for id in 1..5 {
+            Op::AddWindow {
+                params: TestWindowParams::new(id),
+            }
+            .apply(&mut layout);
+            layout.verify_invariants();
+            check_ops_on_layout(&mut layout, [Op::CompleteAnimations]);
+            assert_no_cross_column_overlap(&layout, &format!("{display:?} after spawning {id}"));
+        }
+    }
+}
+
+/// A single workspace can hold columns in different display modes at once (a normal column, a
+/// tabbed column with several tabs, a depth column, a dwindle column). None of the tiled windows
+/// in this mixed-layout workspace may clip on top of one another.
+#[test]
+fn coexisting_different_layouts_never_overlap() {
+    let mut layout = check_ops_with_options(
+        Options::default(),
+        [
+            Op::AddOutput(0),
+            Op::AddWindow {
+                params: TestWindowParams::new(0),
+            },
+            Op::CompleteAnimations,
+        ],
+    );
+
+    // Give column 0 two more tabs (merge windows 1 and 2 into column 0).
+    Op::AddWindow {
+        params: TestWindowParams::new(1),
+    }
+    .apply(&mut layout);
+    Op::AddWindow {
+        params: TestWindowParams::new(2),
+    }
+    .apply(&mut layout);
+    layout.focus_column_first();
+    layout.consume_into_column();
+    layout.consume_into_column();
+    check_ops_on_layout(&mut layout, [Op::CompleteAnimations]);
+
+    // Column 0: tabbed with three tabs.
+    layout.set_column_display(ymir_ipc::ColumnDisplay::Tabbed);
+    check_ops_on_layout(&mut layout, [Op::CompleteAnimations]);
+    assert_no_cross_column_overlap(&layout, "three-tab tabbed column");
+
+    // Spawn additional windows into separate columns, cycling the focused column's layout.
+    for (id, display) in [
+        (3, ymir_ipc::ColumnDisplay::Depth),
+        (4, ymir_ipc::ColumnDisplay::Normal),
+    ] {
+        Op::AddWindow {
+            params: TestWindowParams::new(id),
+        }
+        .apply(&mut layout);
+        layout.focus_column_first();
+        layout.set_column_display(display);
+        check_ops_on_layout(&mut layout, [Op::CompleteAnimations]);
+        assert_no_cross_column_overlap(&layout, &format!("after spawning {id} as {display:?}"));
+    }
+
+    // Entering dwindle must consolidate every visible column into the single dwindle tree so no
+    // window can clip on top of another; nothing may be lost in the move.
+    Op::AddWindow {
+        params: TestWindowParams::new(5),
+    }
+    .apply(&mut layout);
+    layout.focus_column_first();
+    layout.set_column_display(ymir_ipc::ColumnDisplay::Dwindle);
+    check_ops_on_layout(&mut layout, [Op::CompleteAnimations]);
+    let columns = active_tiled_rects_by_column(&layout);
+    assert_eq!(
+        columns.len(),
+        1,
+        "dwindle must be the sole column after consolidation: got {columns:?}"
+    );
+    assert_eq!(
+        layout.windows().count(),
+        6,
+        "consolidation must keep every window: got {}",
+        layout.windows().count()
+    );
+    assert_no_cross_column_overlap(&layout, "single dwindle column");
+
+    // A new window spawned after entering dwindle joins the existing dwindle column (no overlap).
+    Op::AddWindow {
+        params: TestWindowParams::new(6),
+    }
+    .apply(&mut layout);
+    check_ops_on_layout(&mut layout, [Op::CompleteAnimations]);
+    let columns = active_tiled_rects_by_column(&layout);
+    assert_eq!(columns.len(), 1, "new spawn joins the dwindle column: got {columns:?}");
+    assert_eq!(layout.windows().count(), 7);
+    assert_no_cross_column_overlap(&layout, "dwindle column after a new spawn");
 }
 
 #[test]

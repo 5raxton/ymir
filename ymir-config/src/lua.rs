@@ -1,6 +1,6 @@
 //! Lua config engine.
 //!
-//! Replaces the old KDL parsing layer. Each evaluation gets a fresh `mlua` VM with a
+//! Each evaluation gets a fresh `mlua` VM with a
 //! sandboxed prelude (`ymir.*` API table, tracked `include_config`/`dofile`/`require`), runs the
 //! config chunk, and folds the resulting data-table (or the imperative `ymir.*` calls) into the
 //! shared `Config` accumulator through the runtime `*Part` types and their `MergeWith` impls.
@@ -1672,8 +1672,7 @@ fn read_color(value: &Value, key: &str, errors: &mut Vec<String>) -> Option<Colo
 
 /// Read a gradient table `{ from, to, angle?, relative_to?, in? }`.
 ///
-/// Defaults: `angle` 180, `relative_to` window, `in` `GradientInterpolation::default()` (the
-/// same defaults as the KDL-era decoder).
+/// Defaults: `angle` 180, `relative_to` window, `in` `GradientInterpolation::default()`.
 fn read_gradient(value: &Value, key: &str, errors: &mut Vec<String>) -> Option<Gradient> {
     let t = match value {
         Value::Table(t) => t,

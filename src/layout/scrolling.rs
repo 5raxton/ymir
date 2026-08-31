@@ -2601,16 +2601,33 @@ impl<W: LayoutElement> ScrollingSpace<W> {
             return;
         }
 
-        let col = &mut self.columns[col_idx];
-        if col.display_mode == display {
-            return;
+        {
+            let col = &mut self.columns[col_idx];
+            if col.display_mode == display {
+                return;
+            }
+            cancel_resize_for_column(&mut self.interactive_resize, col);
+            col.set_column_display(display);
         }
 
-        cancel_resize_for_column(&mut self.interactive_resize, col);
-        col.set_column_display(display);
+        // Dwindle is an exclusive, full-screen tree: it partitions the whole work area, so it
+        // cannot coexist side-by-side with other columns without clipping on top of them. Pull
+        // every other column's windows into the dwindle column; it then becomes the sole column.
+        if display == ColumnDisplay::Dwindle {
+            self.make_column_dwindle_exclusive(col_idx);
+        }
+
+        // Index the target column at after a possible dwindle consolidation (which leaves the
+        // dwindle column as the only one, at index 0).
+        let idx = if display == ColumnDisplay::Dwindle {
+            0
+        } else {
+            col_idx
+        };
 
         // With place_within_column, the tab indicator changes the column size immediately.
-        self.data[col_idx].update(col);
+        let col = &mut self.columns[idx];
+        self.data[idx].update(col);
         col.update_tile_sizes(true);
 
         // Disable fullscreen if needed.
@@ -2622,6 +2639,51 @@ impl<W: LayoutElement> ScrollingSpace<W> {
             let window = col.tiles[col.active_tile_idx].window().id().clone();
             self.set_fullscreen(&window, false);
             self.set_maximized(&window, false);
+        }
+    }
+
+    /// Dwindle display mode partitions the entire work area, so a dwindle column cannot sit
+    /// side-by-side with other columns without clipping on top of them. This pulls every window
+    /// from the other columns into the dwindle column (making it the sole column), so that no
+    /// window ever clips on top of another.
+    fn make_column_dwindle_exclusive(&mut self, dwindle_idx: usize) {
+        if self.columns.len() <= 1 {
+            return;
+        }
+
+        // Remember the window focused inside the dwindle column so it stays focused across the
+        // move (in dwindle the new leaves are otherwise made active by the tree).
+        let prev_active_id = {
+            let col = &self.columns[dwindle_idx];
+            col.tiles
+                .get(col.active_tile_idx)
+                .map(|tile| tile.window().id().clone())
+        };
+
+        // Remove every other column, from right to left so `dwindle_idx` stays valid while
+        // draining. Removing a column to the left is handled by remove_column_by_idx() adjusting
+        // the active column index; the dwindle column (which is the active one) is never removed.
+        let mut incoming: Vec<Tile<W>> = Vec::new();
+        for idx in (0..self.columns.len()).rev() {
+            if idx == dwindle_idx {
+                continue;
+            }
+            let column = self.remove_column_by_idx(idx, None);
+            incoming.extend(column.tiles);
+        }
+
+        // The removal loop collected right-side windows first; reverse to get the original
+        // left-to-right, top-to-bottom visual order for the dwindle tree.
+        incoming.reverse();
+
+        for tile in incoming {
+            self.add_tile_to_column(0, None, tile, false);
+        }
+
+        if let Some(id) = prev_active_id {
+            if let Some(tile_idx) = self.columns[0].position(&id) {
+                self.columns[0].activate_idx(tile_idx);
+            }
         }
     }
 
@@ -7196,7 +7258,7 @@ impl<W: LayoutElement> Column<W> {
         zip(&mut self.tiles, offsets)
     }
 
-    fn tiles_in_render_order(
+    pub(crate) fn tiles_in_render_order(
         &self,
     ) -> impl Iterator<Item = (&Tile<W>, Point<f64, Logical>, bool)> + '_ {
         let offsets = self.tile_offsets_in_render_order(self.data.iter().copied());

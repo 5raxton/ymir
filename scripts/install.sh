@@ -182,16 +182,22 @@ fi
 
 if [[ "$DISTRO" == "arch" ]]; then
     log "Building and installing ymir (makepkg, release)"
-    pushd "$REPO_DIR" >/dev/null
-
-    # Auto-clean stale build/download artifacts so each run is a fresh,
-    # bleeding-edge build: extracted srcdir, staging dir, and built packages.
-    log "Cleaning stale makepkg artifacts"
-    rm -rf "$REPO_DIR/src" "$REPO_DIR/pkg"
-    rm -f "$REPO_DIR"/*.pkg.tar.zst "$REPO_DIR"/*.src.tar.gz 2>/dev/null || true
+    # Run makepkg from a dedicated build dir, not the checkout. makepkg keeps
+    # its download cache (a bare clone of the git source) and srcdir/pkgdir in
+    # the directory it is invoked from; building inside the checkout made those
+    # collide with tracked files (e.g. the compositor crate in src/) and a
+    # stale cache pointing at the old GitHub host tripped makepkg's
+    # "not a clone of <url>" origin check. A fresh build dir avoids both.
+    BUILD_DIR="${YMIR_BUILD_DIR:-$HOME/.cache/ymir}"
+    log "Cleaning stale makepkg artifacts in $BUILD_DIR"
+    rm -rf "$BUILD_DIR"
+    mkdir -p "$BUILD_DIR"
+    ln -s "$REPO_DIR/PKGBUILD" "$BUILD_DIR/PKGBUILD"
+    pushd "$BUILD_DIR" >/dev/null
 
     # -C = cleanbuild (removes $srcdir), -c = clean pkgdir, -i = install,
-    # --needed = skip already-installed deps.
+    # --needed = skip already-installed deps. The PKGBUILD symlinked above
+    # resolves against the freshly-fetched checkout.
     makepkg -Cci --noconfirm --needed
     popd >/dev/null
 else

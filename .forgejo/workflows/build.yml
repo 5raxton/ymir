@@ -26,6 +26,9 @@ jobs:
         run: |
           mkdir -p out
           echo "hi-${{ matrix.distro }}" > out/ymir-${{ matrix.distro }}-x86_64.tar.gz
+      - name: simulate long build
+        if: matrix.distro == 'arch'
+        run: sleep 600
       - name: Upload artifact
         uses: https://code.forgejo.org/forgejo/upload-artifact@v4
         with:

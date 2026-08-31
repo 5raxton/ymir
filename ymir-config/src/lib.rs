@@ -526,6 +526,8 @@ mod tests {
 
                     default_column_display = "normal",
 
+                    dwindle_windows_per_column = 4,
+
                     insert_hint = {
                         color = "rgb(255, 200, 127)",
                         gradient = {
@@ -1182,6 +1184,7 @@ mod tests {
                 always_center_single_column: false,
                 empty_workspace_above_first: false,
                 default_column_display: Normal,
+                dwindle_windows_per_column: 4,
                 gaps: 8.0,
                 struts: Struts {
                     left: FloatOrInt(

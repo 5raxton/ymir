@@ -2002,6 +2002,61 @@ fn dwindle_interactive_resize_left_child_edge() {
     );
 }
 
+/// New windows must stop entering the active dwindle column once `dwindle_windows_per_column`
+/// is hit: the overflow window starts a fresh full-width dwindle column to the right, not a
+/// deeper split. Columns must never clip on top of one another.
+#[test]
+fn dwindle_cap_spawns_new_column() {
+    let options = Options {
+        layout: ymir_config::Layout {
+            default_column_display: ymir_ipc::ColumnDisplay::Dwindle,
+            dwindle_windows_per_column: 3,
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+
+    let mut layout = check_ops_with_options(
+        options,
+        [
+            Op::AddOutput(0),
+            Op::AddWindow {
+                params: TestWindowParams::new(0),
+            },
+            Op::AddWindow {
+                params: TestWindowParams::new(1),
+            },
+            Op::AddWindow {
+                params: TestWindowParams::new(2),
+            },
+            Op::AddWindow {
+                params: TestWindowParams::new(3),
+            },
+            Op::AddWindow {
+                params: TestWindowParams::new(4),
+            },
+            Op::AddWindow {
+                params: TestWindowParams::new(5),
+            },
+            Op::AddWindow {
+                params: TestWindowParams::new(6),
+            },
+        ],
+    );
+
+    // Column 0 holds the first 3 windows; columns 1 and 2 hold the rest.
+    let ws = layout.active_workspace().unwrap();
+    let scrolling = ws.scrolling();
+    assert_eq!(scrolling.column_tile_count(0), 3);
+    assert_eq!(scrolling.column_tile_count(1), 3);
+    assert_eq!(scrolling.column_tile_count(2), 1);
+
+    // Complete the new-column animations so render positions reflect the final layout,
+    // then confirm no two tiled windows clip on top of one another.
+    check_ops_on_layout(&mut layout, [Op::CompleteAnimations]);
+    assert_no_cross_column_overlap(&layout, "dwindle cap spawn");
+}
+
 #[test]
 fn dwindle_resize_moves_outer_divider_seen_from_deep_leaf() {
     let options = Options {

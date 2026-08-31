@@ -651,8 +651,22 @@ impl<W: LayoutElement> Workspace<W> {
                 } else if let Some(col_idx) = self.scrolling.active_dwindle_column_idx() {
                     // In dwindle display mode, new windows split off the focused window in the
                     // active column instead of opening as a new column to the right.
-                    self.scrolling
-                        .add_tile_to_column(col_idx, None, tile, activate);
+                    if self.scrolling.column_tile_count(col_idx)
+                        >= self.options.layout.dwindle_windows_per_column
+                    {
+                        // The dwindle column is full (its split tree is as deep as we want it);
+                        // start a fresh full-width dwindle column to its right instead.
+                        self.scrolling.open_dwindle_column_at_active_plus_one(
+                            tile,
+                            activate,
+                            width,
+                            is_full_width,
+                            anim,
+                        );
+                    } else {
+                        self.scrolling
+                            .add_tile_to_column(col_idx, None, tile, activate);
+                    }
 
                     if activate {
                         self.floating_is_active = FloatingActive::No;

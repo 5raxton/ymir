@@ -17,6 +17,10 @@ pub struct Layout {
     pub always_center_single_column: bool,
     pub empty_workspace_above_first: bool,
     pub default_column_display: ColumnDisplay,
+    /// How many windows a dwindle column may hold before a fresh full-width dwindle column
+    /// starts next to it on the strip (an additional dwindle "page"). A larger value grows a
+    /// deeper split tree; a smaller one scrolls sideways sooner.
+    pub dwindle_windows_per_column: usize,
     pub gaps: f64,
     pub struts: Struts,
     pub background_color: Color,
@@ -39,6 +43,7 @@ impl Default for Layout {
             always_center_single_column: false,
             empty_workspace_above_first: false,
             default_column_display: ColumnDisplay::Normal,
+            dwindle_windows_per_column: 8,
             gaps: 16.,
             struts: Struts::default(),
             preset_window_heights: vec![
@@ -74,6 +79,10 @@ impl MergeWith<LayoutPart> for Layout {
             background_color,
         );
 
+        if let Some(x) = part.dwindle_windows_per_column {
+            self.dwindle_windows_per_column = x;
+        }
+
         if let Some(x) = part.default_column_width {
             self.default_column_width = x.0;
         }
@@ -101,6 +110,7 @@ pub struct LayoutPart {
     pub always_center_single_column: Option<Flag>,
     pub empty_workspace_above_first: Option<Flag>,
     pub default_column_display: Option<ColumnDisplay>,
+    pub dwindle_windows_per_column: Option<usize>,
     pub gaps: Option<FloatOrInt<0, 65535>>,
     pub struts: Option<Struts>,
     pub background_color: Option<Color>,

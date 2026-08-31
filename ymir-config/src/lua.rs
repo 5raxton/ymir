@@ -1563,6 +1563,21 @@ fn read_i32(value: &Value, key: &str, errors: &mut Vec<String>) -> Option<i32> {
     }
 }
 
+/// A positive integer (>= 1) field.
+fn read_positive_usize(value: &Value, key: &str, errors: &mut Vec<String>) -> Option<usize> {
+    match value {
+        Value::Integer(i) if *i >= 1 => Some(*i as usize),
+        Value::Integer(_) => {
+            errors.push(format!("`{key}` must be a positive number"));
+            None
+        }
+        _ => {
+            errors.push(format!("`{key}` must be a number, got {}", type_name(value)));
+            None
+        }
+    }
+}
+
 /// An enum field parsed via `FromStr`.
 fn read_enum<T>(value: &Value, key: &str, errors: &mut Vec<String>) -> Option<T>
 where
@@ -3123,6 +3138,7 @@ fn read_layout_part(value: &Value, key: &str, errors: &mut Vec<String>) -> Optio
             "always_center_single_column" => part.always_center_single_column = read_flag_value(&value),
             "empty_workspace_above_first" => part.empty_workspace_above_first = read_flag_value(&value),
             "default_column_display" => part.default_column_display = read_enum(&value, &format!("{key}.default_column_display"), errors),
+            "dwindle_windows_per_column" => part.dwindle_windows_per_column = read_positive_usize(&value, &format!("{key}.dwindle_windows_per_column"), errors),
             "gaps" => part.gaps = read_float_or_int(&value, &format!("{key}.gaps"), errors),
             "struts" => part.struts = read_struts(&value, &format!("{key}.struts"), errors),
             "background_color" => part.background_color = read_color(&value, &format!("{key}.background_color"), errors),

@@ -29,6 +29,22 @@ return {
 
 The mode you pick with `switch_column_display` is remembered **per workspace for the rest of the session**: new windows and any new columns opened in that workspace keep following your last toggle until you cycle it again (or a per-workspace `layout` config is applied).
 
+### Capping a dwindle column (`dwindle_windows_per_column`)
+
+A single dwindle tree can grow arbitrarily deep as more windows open. To keep a column's split tree shallow, the focused dwindle column stops accepting *new* windows once it holds `dwindle_windows_per_column` windows (default `8`); the next window instead starts a **fresh full-width dwindle column** (a new "page") to the right on the scrollable strip. This is what the shipped config relies on: your first page fills up to the cap, then each subsequent page starts out as another full-width dwindle column, rather than the focused tree splitting ever deeper.
+
+```lua
+layout = {
+    default_column_display = "dwindle",
+    -- Open a new full-width dwindle column once the focused one has this many
+    -- windows. Lower values keep each tree shallow; higher values let one
+    -- column grow deeper before a new page is started.
+    dwindle_windows_per_column = 8,
+}
+```
+
+Because each dwindle column spans the full work area width, these pages are laid out one screen at a time on the strip: the workspace scrolls between them exactly like scrolling between ordinary full-width columns. Focus keys (`focus_column_left`/`focus_column_right`) move between pages as usual.
+
 To change the *default* mode for all new columns, use [`default_column_display`](./Configuration:-Layout.md#default-column-display). You can also set it per-window with a [window rule](./Configuration:-Window-Rules.md#default-column-display), or per [output](./Configuration:-Outputs.md#layout-config-overrides) / [named workspace](./Configuration:-Named-Workspaces.md#layout-config-overrides) via layout config overrides.
 
 To make a *default* workspace dwindle without creating a named workspace, use a numeric [layout tag](./Configuration:-Named-Workspaces.md#non-creating-layout-tags-for-default-workspaces):

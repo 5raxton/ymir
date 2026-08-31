@@ -123,6 +123,13 @@ return {
     -- runtime with Mod+Shift+D (switch-column-display, bound below).
     default_column_display = "dwindle",
 
+    -- In the dwindle mode, the focused column stops accepting new windows once
+    -- it holds this many windows; the next window instead starts a fresh
+    -- full-width dwindle column (a new page) to the right on the scrollable
+    -- strip. Lower values keep each dwindle tree shallow, higher values let one
+    -- column grow deeper before a new page is opened.
+    dwindle_windows_per_column = 8,
+
     -- When to center a column when changing focus, options are:
     -- - "never", default behavior, focusing an off-screen column will keep at the left
     --   or right edge of the screen.

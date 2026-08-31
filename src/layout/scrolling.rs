@@ -893,7 +893,40 @@ impl<W: LayoutElement> ScrollingSpace<W> {
         self.add_column(col_idx, column, activate, anim);
     }
 
-    /// Adds a tile to the given column, returning the index of the added tile.
+    /// Number of tiles currently stored in the given column.
+    pub fn column_tile_count(&self, col_idx: usize) -> usize {
+        self.columns[col_idx].tiles.len()
+    }
+
+    /// Opens a brand-new dwindle column immediately to the right of the active column, without
+    /// pulling the other columns into it. Used when the active dwindle column has reached
+    /// `dwindle_windows_per_column`: the new window starts an extra full-width dwindle "page" on
+    /// the infinite strip instead of splitting a too-deep tree. Unlike `set_column_display_at`,
+    /// this does not consolidate the strip down to a single dwindle column — dwindle pages are
+    /// allowed to sit side-by-side, each capping out at `dwindle_windows_per_column` windows.
+    pub fn open_dwindle_column_at_active_plus_one(
+        &mut self,
+        tile: Tile<W>,
+        activate: bool,
+        width: ColumnWidth,
+        is_full_width: bool,
+        anim: Option<ymir_config::Animation>,
+    ) {
+        let idx = self.active_column_idx + 1;
+        let mut column = Column::new_with_tile(
+            tile,
+            self.view_size,
+            self.working_area,
+            self.parent_area,
+            self.scale,
+            width,
+            is_full_width,
+        );
+        if column.display_mode != ColumnDisplay::Dwindle {
+            column.set_column_display(ColumnDisplay::Dwindle);
+        }
+        self.add_column(Some(idx), column, activate, anim);
+    }
     pub fn add_tile_to_column(
         &mut self,
         col_idx: usize,
@@ -5179,6 +5212,14 @@ impl<W: LayoutElement> Column<W> {
     }
 
     fn width(&self) -> f64 {
+        // A dwindle column always partitions the full work area, so it's laid out on the tape as a
+        // full-width page (one screen per column) rather than by its (stale, pre-growth) tile
+        // widths. This keeps side-by-side dwindle pages from clipping on top of each other.
+        if self.is_dwindle() {
+            let gaps = self.options.layout.gaps;
+            return f64::max(0., self.working_area.size.w - gaps * 2.);
+        }
+
         self.data
             .iter()
             .map(|data| NotNan::new(data.size.w).unwrap())

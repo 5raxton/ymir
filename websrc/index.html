@@ -3,12 +3,15 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="ymir — a scrollable-tiling Wayland compositor written in Rust on top of Smithay." />
+  <meta name="description" content="ymir — a scrollable-tiling Wayland compositor with Dwindle binary-split columns, fullscreen-as-a-tile, gestures everywhere, and a polished custom renderer. Written in Rust on Smithay." />
+  <meta property="og:title" content="ymir — a scrollable-tiling Wayland compositor" />
+  <meta property="og:description" content="Dwindle binary-split columns on an infinite strip. Fullscreen is just a tile. Gestures everywhere. Built in Rust on Smithay." />
+  <meta property="og:image" content="./logo.png" />
   <title>ymir — a scrollable-tiling Wayland compositor</title>
   <link rel="icon" type="image/png" href="./logo.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="./styles.css" />
 </head>
 <body>
@@ -19,11 +22,11 @@
         <span class="brand-name">ymir</span>
       </a>
       <nav class="nav-links">
+        <a href="#dwindle">Dwindle</a>
         <a href="#features">Features</a>
-        <a href="#layouts">Layouts</a>
-        <a href="#architecture">Architecture</a>
+        <a href="#gestures">Gestures</a>
+        <a href="#philosophy">Design</a>
         <a href="#get-started">Get Started</a>
-        <a href="#status">Status</a>
       </nav>
       <a class="btn btn-primary nav-cta" href="https://lab.braxton.onl/braxton/ymir" target="_blank" rel="noopener">Source</a>
     </div>
@@ -33,31 +36,31 @@
     <section class="hero">
       <div class="hero-inner">
         <div class="hero-copy reveal">
-          <h1 class="hero-title">Windows that <em>scroll</em>,<br />tiling that <em>breathes</em>.</h1>
+          <p class="hero-kicker">scrollable tiling · dwindle · gestures</p>
+          <h1 class="hero-title">A tiling tree that <em>scrolls</em>.</h1>
           <p class="hero-sub">
-            <strong>ymir</strong> is a scrollable-tiling Wayland compositor written in
-            Rust on top of Smithay. Your windows live in columns across an infinite
-            strip — opening a new window <b>never</b> resizes the ones you already have.
+            <strong>ymir</strong> tiles your windows in columns across an infinitely-scrolling
+            strip — and every new window <b>binary-splits</b> the focused one, Dwindle-style.
+            Open a window and nothing you already have ever resizes. In Rust, on Smithay.
           </p>
           <div class="hero-actions">
             <a class="btn btn-primary" href="#get-started">Get started</a>
-            <a class="btn btn-ghost" href="https://lab.braxton.onl/braxton/ymir" target="_blank" rel="noopener">View source</a>
+            <a class="btn btn-ghost" href="#dwindle">See Dwindle</a>
           </div>
+          <p class="hero-note">Fullscreen? That's just a tile. <kbd>Super</kbd>+<kbd>T</kbd> opens a terminal — <kbd>Super</kbd>+<kbd>D</kbd> a launcher.</p>
         </div>
         <div class="hero-visual reveal">
           <div class="window mock" aria-hidden="true">
             <div class="mock-monitor">
               <div class="mock-column col-a">
                 <div class="mock-window win-1"><span class="dot"></span></div>
-                <div class="mock-window win-2"><span class="dot"></span></div>
+                <div class="mock-window win-2 active"><span class="label">dwindle</span></div>
               </div>
               <div class="mock-column col-b">
-                <div class="mock-window win-3 active"><span class="term">$ </span>ymir</div>
+                <div class="mock-window win-3"><span class="term">$ </span>ymir</div>
               </div>
               <div class="mock-column col-c">
-                <div class="mock-window win-4"><span class="dot"></span></div>
-                <div class="mock-window win-5"><span class="dot"></span></div>
-                <div class="mock-window win-6"><span class="dot"></span></div>
+                <div class="mock-window win-4 fullscreen-flag"><span class="ico">⬚</span><span class="label">fullscreen tile</span></div>
               </div>
               <div class="mock-shadow"></div>
             </div>
@@ -66,32 +69,42 @@
       </div>
     </section>
 
-    <section class="layouts" id="layouts">
+    <section class="dwindle" id="dwindle">
       <div class="container">
-        <h2 class="section-title reveal">Two layouts, one strip</h2>
+        <h2 class="section-title reveal">Dwindle: tiling, on the tape</h2>
         <p class="section-lede reveal">
-          Every column is scrollable tiling at heart. Flip any column into
-          <strong>Dwindle</strong> at runtime and watch new windows binary-split the
-          focused window, taking exactly half its space.
+          Other scrollable compositors stack flat windows per column. ymir gives each column a
+          <strong>recursive binary-split tree</strong> — two-dimensional tiling that lives on
+          a one-dimensional scrollable strip.
         </p>
-        <div class="layout-grid">
-          <article class="card reveal">
-            <div class="card-art scrollable-art" aria-hidden="true">
-              <div class="cols">
-                <div class="ss s1"></div><div class="ss s2"></div><div class="ss s3"></div><div class="ss s4"></div>
-              </div>
-            </div>
-            <h3>Scrollable tiling</h3>
-            <p>Stack windows up and down in each column. The strip scrolls right to reach more columns — nothing ever resizes to make room.</p>
-          </article>
+        <div class="dwindle-grid">
           <article class="card reveal">
             <div class="card-art dwindle-art" aria-hidden="true">
-              <div class="tree">
-                <div class="a"></div><div class="b"></div><div class="c"></div>
+              <div class="tree tree-big">
+                <span class="leaf l1"></span>
+                <span class="leaf l2"></span>
+                <span class="leaf l3"></span>
+                <span class="leaf l4 hot"></span>
+                <span class="leaf l5"></span>
+                <span class="leaf l6"></span>
               </div>
             </div>
-            <h3>Dwindle</h3>
-            <p>Each new window splits the focused one into a resizable binary tree. Gradient borders make the tree visible at a glance.</p>
+            <h3>A tree in every column</h3>
+            <p>New windows split the focused one in two and take half its space. Toggle split orientation, preselect which side the next window takes, and consume, expel, or promote windows through the tree.</p>
+          </article>
+          <article class="card reveal">
+            <div class="card-art dwindle-pages-art" aria-hidden="true">
+              <div class="pages"><div class="p a"></div><div class="p b"></div><div class="p c scroll-arrow">→</div></div>
+            </div>
+            <h3>Dwindle pages</h3>
+            <p>Past a configured windows-per-column cap, a new window starts a fresh full-width Dwindle "page" further along the strip — the tree never sprawls out of control.</p>
+          </article>
+          <article class="card reveal">
+            <div class="card-art fullscreen-art" aria-hidden="true">
+              <div class="fs-window">fullscreen → still a tile</div>
+            </div>
+            <h3>Fullscreen is just a tile</h3>
+            <p>Fullscreen windows are normal tiles on the strip, not a layer that swallows the desktop. Focus one and it covers the monitor; tab away and it stays fullscreen, ready to return.</p>
           </article>
         </div>
       </div>
@@ -99,97 +112,132 @@
 
     <section class="features" id="features">
       <div class="container">
-        <h2 class="section-title reveal">Everything a modern desktop needs</h2>
-        <p class="section-lede reveal">Not just a window manager — a full Wayland compositor with the protocols, polish, and integrations you'd expect.</p>
+        <h2 class="section-title reveal">Polished in, not bolted on</h2>
+        <p class="section-lede reveal">A custom GL renderer, gestures on every device, and desktop features that generally get shipped as afterthoughts — here they're first-class.</p>
         <div class="feature-grid">
           <article class="feature reveal">
-            <h3><span class="ico">◧</span> Dynamic workspaces</h3>
-            <p>GNOME-style vertical workspaces that remember their output and migrate back when a monitor reconnects.</p>
+            <h3><span class="ico">▦</span> Eye-candy with restraint</h3>
+            <p>Gradient borders in CSS-equivalent color spaces (<code>oklch longer hue</code>, <code>oklab</code>), drop shadows like <code>box-shadow</code>, per-window blur and rounded corners — all VBlank-synced, and stripped from the render tree when disabled.</p>
           </article>
           <article class="feature reveal">
-            <h3><span class="ico">▦</span> Modern rendering</h3>
-            <p>OpenGL ES with VBlank-synced damage redraws, blur, gradient borders, drop shadows, and rounded corners.</p>
+            <h3><span class="ico">◨</span> Live insert hint</h3>
+            <p>Drag a window and a colored focus-ring style hint shows exactly where it'll land — between columns or between tiles.</p>
           </article>
           <article class="feature reveal">
             <h3><span class="ico">☾</span> Lua configuration</h3>
-            <p>Everything lives in <code>~/.config/ymir/init.lua</code> — includes, live-reloading, and an imperative <code>ymir.*</code> prelude.</p>
+            <p>Everything lives in <code>~/.config/ymir/init.lua</code> — includes, live reload, and an imperative <code>ymir.*</code> prelude.</p>
           </article>
           <article class="feature reveal">
-            <h3><span class="ico">⬚</span> Floating &amp; fullscreen</h3>
-            <p>Floating windows, maximize, fullscreen, an overview zoom, and an MRU switcher with live previews.</p>
+            <h3><span class="ico">↻</span> Workspaces that migrate</h3>
+            <p>Dynamic workspaces remember their original output and move straight back when a monitor reconnects — without hijacking your setup.</p>
           </article>
           <article class="feature reveal">
-            <h3><span class="ico">⌨</span> Input, all of it</h3>
-            <p>libinput for keyboard, mouse, touchpad, touchscreen, tablets, and trackpoints — plus grabs and gesture trackers.</p>
+            <h3><span class="ico">⌘</span> Built-in switcher</h3>
+            <p>A recent-windows (Alt-Tab) switcher with live previews, scope filtering, and binds that adapt to your keymap.</p>
           </article>
           <article class="feature reveal">
-            <h3><span class="ico">♾</span> Multi-GPU</h3>
-            <p>Primary render-device detection, dmabuf feedback, and texture copy between GPUs.</p>
+            <h3><span class="ico">◉</span> Screenshots, native</h3>
+            <p>An area picker with a save-to-disk UI built straight into the compositor — no separate tool required.</p>
           </article>
           <article class="feature reveal">
-            <h3><span class="ico">⎋</span> Screencasting &amp; screenshots</h3>
-            <p>Output and window casts through xdg-desktop-portal-gnome and PipeWire, plus built-in area screenshots.</p>
-          </article>
-          <article class="feature reveal">
-            <h3><span class="ico">◒</span> Accessibility</h3>
-            <p>Full screen-reader support via accesskit and AT-SPI over D-Bus.</p>
+            <h3><span class="ico">▣</span> Screencasting that thinks</h3>
+            <p>Block out sensitive windows in casts, a dynamic cast target that follows your focus, windowed fullscreen for presentations, and a red border on everything being cast.</p>
           </article>
           <article class="feature reveal">
             <h3><span class="ico">⇄</span> Desktop integration</h3>
-            <p>Systemd and dinit units, D-Bus (freedesktop + GNOME/Mutter interfaces), portals, and Xwayland via Xwayland-satellite.</p>
+            <p>Systemd and dinit, D-Bus (freedesktop + GNOME/Mutter interfaces), portals, screen lock, and on-demand Xwayland via Xwayland-satellite.</p>
+          </article>
+          <article class="feature reveal">
+            <h3><span class="ico">♾</span> Multi-GPU &amp; a11y</h3>
+            <p>Render-device detection, dmabuf feedback and texture copy between GPUs, plus full screen-reader support via accesskit + AT-SPI.</p>
+          </article>
+          <article class="feature reveal">
+            <h3><span class="ico">⚙</span> IPC for everything</h3>
+            <p>A Unix-socket JSON API with an event stream and a <code>ymir msg</code> CLI to inspect and drive the compositor from anywhere.</p>
+          </article>
+          <article class="feature reveal">
+            <h3><span class="ico">⌨</span> Window &amp; layer rules</h3>
+            <p>Regex-match windows and layer surfaces by app id, title, or namespace to set layout, blur, corner radius, and more.</p>
+          </article>
+          <article class="feature reveal">
+            <h3><span class="ico">◔</span> Final touches</h3>
+            <p>Hot corners, on-screen hotkey overlay, exit-confirm dialog, config-error notifications, and a crossfade screen transition.</p>
           </article>
         </div>
       </div>
     </section>
 
-    <section class="architecture" id="architecture">
+    <section class="gestures" id="gestures">
       <div class="container">
-        <h2 class="section-title reveal">Built on Smithay, in Rust</h2>
-        <div class="arch-block reveal">
-          <div class="arch-text">
-            <p>ymir is written in <strong>Rust</strong> on top of the <a href="https://github.com/Smithay/smithay" target="_blank" rel="noopener">Smithay</a> library, and drives output through an <strong>IPC</strong> server with a <code>ymir msg</code> CLI for full remote control. Three backends let you run it anywhere:</p>
-            <ul class="arch-list">
-              <li><code>TTY</code> — KMS/DRM on real hardware (udev + libseat + GBM)</li>
-              <li><code>Winit</code> — windowed development mode inside a desktop</li>
-              <li><code>Headless</code> — for the test suite</li>
-            </ul>
-          </div>
-          <div class="arch-stats">
-            <div class="stat"><span class="stat-num" data-target="85">0</span><span class="stat-label">k+ lines of Rust</span></div>
-            <div class="stat"><span class="stat-num">50</span><span class="stat-label">Wayland protocols</span></div>
-            <div class="stat"><span class="stat-num" data-target="18">0</span><span class="stat-label">custom shaders</span></div>
-            <div class="stat"><span class="stat-num">4</span><span class="stat-label">workspace crates</span></div>
-          </div>
+        <h2 class="section-title reveal">Gestures on every device</h2>
+        <p class="section-lede reveal">Not just the touchpad — the mouse, touchscreen, and tablet all get the same fluid, direct-manipulation control.</p>
+        <div class="gesture-grid">
+          <article class="gesture reveal">
+            <span class="g-key"><kbd>Mod</kbd>+drag</span>
+            <p>Move a window · right-drag to resize · middle-drag to scroll the strip or switch workspaces.</p>
+          </article>
+          <article class="gesture reveal">
+            <span class="g-key">3 fingers</span>
+            <p>Vertical swipes switch workspaces; horizontal swipes scroll the tiling view.</p>
+          </article>
+          <article class="gesture reveal">
+            <span class="g-key">4 fingers</span>
+            <p>Swipe up to open the Overview — a zoomed-out look at every workspace.</p>
+          </article>
+          <article class="gesture reveal">
+            <span class="g-key">Drag &amp; drop</span>
+            <p>Hold over a window to activate it, push an edge to scroll, and drop onto another workspace in the Overview.</p>
+          </article>
+          <article class="gesture reveal">
+            <span class="g-key">Hot corner</span>
+            <p>Flick the pointer to the top-left corner to flip the Overview on and off.</p>
+          </article>
+          <article class="gesture reveal">
+            <span class="g-key">Overview</span>
+            <p>Point, click, and drag to move windows between workspaces — a fully mouse-driven workflow.</p>
+          </article>
         </div>
       </div>
     </section>
 
-    <section class="status" id="status">
+    <section class="philosophy" id="philosophy">
       <div class="container">
-        <h2 class="section-title reveal">Daily-driver ready</h2>
-        <p class="section-lede reveal">
-          At <strong>1.0.0</strong> and under active development, ymir is stable enough to
-          be your daily desktop — backed by a thorough suite of unit, integration,
-          snapshot, and property-based tests. Licensed under
-          <a href="https://www.gnu.org/licenses/gpl-3.0.html" target="_blank" rel="noopener">GPL-3.0-or-later</a>.
-        </p>
-        <div class="status-badges reveal">
-          <a class="badge" href="https://repology.org/project/ymir/versions" target="_blank" rel="noopener">Packaging status</a>
-          <a class="badge" href="https://lab.braxton.onl/braxton/ymir/src/branch/main/flake.nix" target="_blank" rel="noopener">Nix flake</a>
-          <a class="badge" href="https://lab.braxton.onl/braxton/ymir/src/branch/main/PKGBUILD" target="_blank" rel="noopener">Arch PKGBUILD</a>
+        <h2 class="section-title reveal">A philosophy, made concrete</h2>
+        <p class="section-lede reveal">ymir is steered by a handful of explicit principles that are easy to feel when you use it.</p>
+        <div class="principle-list">
+          <div class="principle reveal">
+            <span class="p-num">01</span>
+            <p><strong>Opening a window never resizes the ones you already have.</strong> The core annoyance of traditional tiling, gone.</p>
+          </div>
+          <div class="principle reveal">
+            <span class="p-num">02</span>
+            <p><strong>The focused window never moves on its own.</strong> Things happening off the view can't yank what you're working in.</p>
+          </div>
+          <div class="principle reveal">
+            <span class="p-num">03</span>
+            <p><strong>Actions apply immediately.</strong> Resize and switch instantaneously, even while an animation plays.</p>
+          </div>
+          <div class="principle reveal">
+            <span class="p-num">04</span>
+            <p><strong>Eye-candy stays honest.</strong> Disabled effects cost nothing; enabled effects don't force needless rendering.</p>
+          </div>
+          <div class="principle reveal">
+            <span class="p-num">05</span>
+            <p><strong>Mindful of invisible state.</strong> Workspaces remember their original output — but forget it once you work there, so nothing surprising jumps back.</p>
+          </div>
         </div>
       </div>
     </section>
 
     <section class="get-started" id="get-started">
       <div class="container narrow">
-        <h2 class="section-title reveal">Try it in one line</h2>
+        <h2 class="section-title reveal">Run it in one line</h2>
         <p class="section-lede reveal">The installer detects your distro, installs dependencies, and builds &amp; installs ymir:</p>
         <div class="code-block reveal">
           <div class="code-head"><span class="code-dot r"></span><span class="code-dot y"></span><span class="code-dot g"></span><span class="code-lang">bash</span></div>
           <pre><code>curl -sL https://lab.braxton.onl/braxton/ymir/raw/branch/main/scripts/install.sh | bash</code></pre>
         </div>
-        <p class="section-lede reveal">Or build it yourself:</p>
+        <p class="section-lede reveal">Or compile it yourself (deps in the <a href="https://lab.braxton.onl/braxton/ymir/wiki/Getting-Started" target="_blank" rel="noopener">wiki</a>):</p>
         <div class="code-block reveal">
           <div class="code-head"><span class="code-dot r"></span><span class="code-dot y"></span><span class="code-dot g"></span><span class="code-lang">sh</span></div>
           <pre><code>cargo build --release</code></pre>
@@ -198,7 +246,7 @@
           <a class="btn btn-primary" href="https://lab.braxton.onl/braxton/ymir/wiki/Getting-Started" target="_blank" rel="noopener">Read the wiki</a>
           <a class="btn btn-ghost" href="https://lab.braxton.onl/braxton/ymir" target="_blank" rel="noopener">Source &amp; issues</a>
         </div>
-        <p class="hero-note reveal">Once inside: <kbd>Super</kbd>+<kbd>T</kbd> opens a terminal · <kbd>Super</kbd>+<kbd>D</kbd> a launcher · <kbd>Super</kbd>+<kbd>Shift</kbd>+<kbd>E</kbd> exits.</p>
+        <p class="hero-note reveal">1.0.0 · GPL-3.0-or-later · Daily-driver ready, backed by unit, integration, snapshot, and property-based tests.</p>
       </div>
     </section>
   </main>
@@ -209,7 +257,7 @@
         <img src="./logo.png" alt="ymir logo" class="footer-logo" />
         <span>ymir</span>
       </div>
-      <p>A scrollable-tiling Wayland compositor · GPL-3.0-or-later · Logo CC BY-SA 4.0</p>
+      <p>A scrollable-tiling Wayland compositor with Dwindle · GPL-3.0-or-later · Logo CC BY-SA 4.0</p>
       <nav class="footer-links">
         <a href="https://lab.braxton.onl/braxton/ymir" target="_blank" rel="noopener">Source</a>
         <a href="https://lab.braxton.onl/braxton/ymir/wiki" target="_blank" rel="noopener">Wiki</a>

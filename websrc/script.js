@@ -20,56 +20,45 @@ document.addEventListener("DOMContentLoaded", () => {
     revealEls.forEach((el) => io.observe(el));
   }
 
-  // Animated counters
-  const counters = document.querySelectorAll(".stat-num[data-target]");
-  const animate = (el) => {
-    const target = parseInt(el.dataset.target, 10);
-    const dur = reduced ? 0 : 1200;
-    const start = performance.now();
-    const step = (now) => {
-      const p = Math.min((now - start) / dur, 1);
-      const eased = 1 - Math.pow(1 - p, 3);
-      el.textContent = Math.round(target * eased);
-      if (p < 1) requestAnimationFrame(step);
-    };
-    requestAnimationFrame(step);
-  };
-
-  if ("IntersectionObserver" in window && !reduced) {
-    const cio = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            animate(entry.target);
-            cio.unobserve(entry.target);
-          }
-        });
-      },
-      { threshold: 0.4 }
-    );
-    counters.forEach((el) => cio.observe(el));
-  } else {
-    counters.forEach((el) => (el.textContent = el.dataset.target));
-  }
-
-  // Active nav link highlighting
+  // Active nav-link highlighting
   const sections = [...document.querySelectorAll("main section[id]")];
   const navLinks = [...document.querySelectorAll(".nav-links a")];
-  const navObserver = new IntersectionObserver(
-    (entries) => {
-      entries.forEach((entry) => {
-        if (entry.isIntersecting) {
-          const id = entry.target.id;
-          navLinks.forEach((link) => {
-            link.style.color =
-              link.getAttribute("href") === `#${id}`
-                ? getComputedStyle(document.body).getPropertyValue("--text").trim()
-                : "";
-          });
-        }
-      });
-    },
-    { threshold: 0.6 }
-  );
-  sections.forEach((s) => navObserver.observe(s));
+  const textColor = getComputedStyle(document.body)
+    .getPropertyValue("--text")
+    .trim();
+  const dimColor = getComputedStyle(document.body)
+    .getPropertyValue("--text-dim")
+    .trim();
+
+  const setActive = (id) => {
+    navLinks.forEach((link) => {
+      link.style.color =
+        link.getAttribute("href") === `#${id}` ? textColor : dimColor;
+    });
+  };
+
+  if ("IntersectionObserver" in window && sections.length) {
+    const navObserver = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) setActive(entry.target.id);
+        });
+      },
+      { rootMargin: "-45% 0px -50% 0px", threshold: 0 }
+    );
+    sections.forEach((s) => navObserver.observe(s));
+  }
+
+  // Elevate the sticky nav once you scroll past the hero
+  const nav = document.querySelector("#nav");
+  if (nav) {
+    const onScroll = () => {
+      nav.style.borderBottomColor =
+        window.scrollY > 24
+          ? "var(--border-strong)"
+          : "var(--border)";
+    };
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+  }
 });

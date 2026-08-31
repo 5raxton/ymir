@@ -144,7 +144,6 @@ jobs:
           path: ymir-${{ matrix.distro }}-x86_64.tar.gz
 
   release:
-    needs: build
     runs-on: docker
     container:
       image: alpine:latest
@@ -152,95 +151,45 @@ jobs:
       tty: true
     steps:
       - name: Install tools
-        run: apk add --no-cache curl jq git nodejs
-
-      # Generate an OIDC JWT and exchange it for a Forgejo API token scoped to
-      # this workflow via an "Authorized Integration". The AUD value below must
-      # match the "Audience" field of the Authorized Integration created in
-      # Settings -> Authorized Integrations (Forgejo Actions (Local), granted
-      # the release scope for this repo + workflow).
-      - name: Fetch API token (Authorized Integration)
+        run: apk add --no-cache curl jq git
+      - name: DIAG - fetch JWT
         id: token
         env:
           AUD: u:1:cd0d5a55-2cfa-49df-8d92-0c2c69aa7d2a
         run: |
-          if [ -z "$AUD" ]; then
-            echo "::error::No Authorized Integration audience configured. Create one in Settings -> Authorized Integrations (Forgejo Actions, Local) with the release scope and paste its Audience into AUD." >&2
-            exit 1
+          echo "::group::DIAG fetch jwt"
+          echo "AUD=$AUD"
+          echo "HAS_ACTIONS_ID_TOKEN_REQUEST_URL=${ACTIONS_ID_TOKEN_REQUEST_URL+x}"
+          echo "HAS_ACTIONS_ID_TOKEN_REQUEST_TOKEN=${ACTIONS_ID_TOKEN_REQUEST_TOKEN+x}"
+          echo "IDTOKEN_URL=$ACTIONS_ID_TOKEN_REQUEST_URL"
+          if [ -z "$ACTIONS_ID_TOKEN_REQUEST_URL" ] || [ -z "$ACTIONS_ID_TOKEN_REQUEST_TOKEN" ]; then
+            echo "::error::OIDC env vars NOT present"
+            exit 2
           fi
-          jwt=$(curl --fail -sS \
-            -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
-            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=$AUD" \
-            | jq -r '.value')
+          resp=$(curl -sS -w "\nHTTP_CODE:%{http_code}"             -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN"             "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=$AUD")
+          echo "RAW RESP:BEGIN"
+          echo "$resp"
+          echo "RAW RESP:END"
+          jwt=$(echo "$resp" | sed -n '1,1p' | jq -r '.value // empty' 2>/dev/null)
+          if [ -z "$jwt" ]; then
+            echo "::error::No jwt value in response"
+            exit 3
+          fi
+          echo "JWT_LENGTH=${#jwt}"
+          echo "JWT_PREFIX=${jwt:0:20}"
           echo "::add-mask::$jwt"
           echo "token=$jwt" >> $FORGEJO_OUTPUT
-
-      - name: Checkout (for release notes)
-        uses: https://data.forgejo.org/actions/checkout@v6
-        with:
-          fetch-depth: 1
-
-      - name: Download all artifacts
-        uses: https://code.forgejo.org/forgejo/download-artifact@v4
-        with:
-          path: artifacts
-
-      - name: List artifacts
-        run: find artifacts -type f | sort
-
-      - name: Publish rolling release
+          echo "::endgroup::"
+      - name: DIAG - probe API with JWT
         env:
-          FORGEJO_TOKEN: ${{ steps.token.outputs.token }}
+          JWT: ${{ steps.token.outputs.token }}
         run: |
-          REPO_URL="${{ github.server_url }}/${{ github.repository }}"
-          API_BASE="${REPO_URL}/api/v1"
-
-          echo "Deleting existing 'latest' release (if any)..."
-          RELEASE_ID=$(curl -sf -H "Authorization: token $FORGEJO_TOKEN" \
-            "$API_BASE/repos/${{ github.repository }}/releases/tags/latest" \
-            | jq -r '.id // empty')
-          if [ -n "$RELEASE_ID" ]; then
-            curl -sf -X DELETE \
-              -H "Authorization: token $FORGEJO_TOKEN" \
-              "$API_BASE/repos/${{ github.repository }}/releases/$RELEASE_ID"
-            echo "Deleted release id=$RELEASE_ID"
-          fi
-
-          echo "Deleting existing 'latest' tag (if any)..."
-          TAG_SHA=$(curl -sf -H "Authorization: token $FORGEJO_TOKEN" \
-            "$API_BASE/repos/${{ github.repository }}/git/ref/tags/latest" \
-            | jq -r '.object.sha // empty')
-          if [ -n "$TAG_SHA" ]; then
-            curl -sf -X DELETE \
-              -H "Authorization: token $FORGEJO_TOKEN" \
-              "$API_BASE/repos/${{ github.repository }}/git/ref/tags/latest"
-            echo "Deleted tag latest"
-          fi
-
-          COMMIT_SHA="${{ github.sha }}"
-
-          echo "Creating new 'latest' release..."
-          RELEASE_JSON=$(curl -sf -X POST \
-            -H "Authorization: token $FORGEJO_TOKEN" \
-            -H "Content-Type: application/json" \
-            -d "$(jq -n \
-              --arg tag "latest" \
-              --arg name "Latest Build" \
-              --arg body "Rolling release — built from $(echo $COMMIT_SHA | cut -c1-8) on $(date -u +%Y-%m-%dT%H:%M:%SZ). Contains pre-built binaries for Arch, Fedora, Debian, and openSUSE." \
-              --arg sha "$COMMIT_SHA" \
-              '{tag: $tag, name: $name, body: $body, target_commitish: $sha, prerelease: true}')" \
-            "$API_BASE/repos/${{ github.repository }}/releases")
-          RELEASE_ID=$(echo "$RELEASE_JSON" | jq -r '.id')
-          echo "Created release id=$RELEASE_ID"
-
-          echo "Uploading assets..."
-          find artifacts -type f -name '*.tar.gz' | while read -r f; do
-            FILENAME=$(basename "$f")
-            echo "  Uploading $FILENAME..."
-            curl -sf -X POST \
-              -H "Authorization: token $FORGEJO_TOKEN" \
-              -F "attachment=@$f;filename=$FILENAME;type=application/gzip" \
-              "$API_BASE/repos/${{ github.repository }}/releases/$RELEASE_ID/assets?name=$FILENAME"
-          done
-
-          echo "Rolling release published successfully."
+          echo "::group::DIAG probe"
+          echo "JWT length from output=${#JWT}"
+          echo "---- GET /user ----"
+          curl -sS -w "\nHTTP_CODE:%{http_code}\n" -H "Authorization: Bearer $JWT" "${{ github.server_url }}/api/v1/user"
+          echo "---- GET /user Token format ----"
+          curl -sS -w "\nHTTP_CODE:%{http_code}\n" -H "Authorization: Token $JWT" "${{ github.server_url }}/api/v1/user"
+          echo "---- GET /repos/braxton/ymir ----"
+          curl -sS -w "\nHTTP_CODE:%{http_code}\n" -H "Authorization: Bearer $JWT" "${{ github.server_url }}/api/v1/repos/${{ github.repository }}"
+          echo "::endgroup::"

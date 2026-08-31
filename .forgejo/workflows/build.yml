@@ -40,7 +40,7 @@ jobs:
               ;;
             fedora)
               dnf install -y \
-                gcc make git pkgconf rust cargo nodejs clang libclang \
+                gcc make git pkgconf rust cargo nodejs clang clang-libs \
                 cairo-devel systemd-devel dbus-devel libdisplay-info-devel \
                 libinput-devel libseat-devel libxkbcommon-devel \
                 mesa-libgbm-devel mesa-libGL-devel mesa-libEGL-devel \
@@ -122,7 +122,7 @@ jobs:
           echo "YMIR_TARBALL=$TARBALL" >> $FORGEJO_OUTPUT
 
       - name: Upload artifact
-        uses: https://data.forgejo.org/actions/upload-artifact@v4
+        uses: https://code.forgejo.org/forgejo/upload-artifact@v4
         with:
           name: ymir-${{ matrix.distro }}-x86_64
           path: ymir-${{ matrix.distro }}-x86_64.tar.gz
@@ -144,7 +144,7 @@ jobs:
           fetch-depth: 1
 
       - name: Download all artifacts
-        uses: https://data.forgejo.org/actions/download-artifact@v4
+        uses: https://code.forgejo.org/forgejo/download-artifact@v4
         with:
           path: artifacts
 

@@ -33,14 +33,14 @@ jobs:
             arch)
               pacman -Syu --noconfirm
               pacman -S --noconfirm --needed \
-                base-devel git pkgconf rust nodejs clang \
+                base-devel git pkgconf nodejs clang \
                 cairo fontconfig freetype2 harfbuzz libdrm \
                 libdisplay-info libglvnd libinput libxcb libxkbcommon \
                 mesa pango pipewire seatd wayland wayland-protocols
               ;;
             fedora)
               dnf install -y \
-                gcc make git pkgconf rust cargo nodejs clang clang-libs \
+                gcc make git pkgconf nodejs clang clang-libs \
                 cairo-devel systemd-devel dbus-devel libdisplay-info-devel \
                 libinput-devel libseat-devel libxkbcommon-devel \
                 mesa-libgbm-devel mesa-libGL-devel mesa-libEGL-devel \
@@ -51,7 +51,7 @@ jobs:
             debian)
               apt-get update
               apt-get install -y \
-                build-essential gcc make git pkgconf cargo rustc nodejs \
+                build-essential gcc make git pkgconf nodejs \
                 libclang-dev clang \
                 libcairo2-dev libsystemd-dev libdbus-1-dev libdisplay-info-dev \
                 libinput-dev libseat-dev libxkbcommon-dev libgbm-dev \
@@ -76,12 +76,8 @@ jobs:
 
       - name: Install Rust toolchain
         run: |
-          if ! command -v rustc &>/dev/null || ! command -v cargo &>/dev/null; then
-            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
-          elif [ "${{ matrix.distro }}" = "opensuse" ]; then
-            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
-          fi
-          [ -f "$HOME/.cargo/env" ] && . "$HOME/.cargo/env"
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
+          . "$HOME/.cargo/env"
           rustc --version
           cargo --version
 

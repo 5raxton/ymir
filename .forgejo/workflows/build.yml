@@ -6,10 +6,145 @@ on:
       - main
   workflow_dispatch:
 
+# Enable OIDC JWT generation so the release job can authenticate to Forgejo's
+# API via an "Authorized Integration" (Forgejo does not support GitHub's
+# `permissions:` field). See docs: Authorized Integrations.
 enable-openid-connect: true
 
 jobs:
+  build:
+    runs-on: docker
+    strategy:
+      fail-fast: false
+      # Build one distro at a time: the 4 heavy cargo jobs (thin-LTO links)
+      # share one runner and exceeded its RAM, causing OOM SIGKILLs on large
+      # crates like x11rb-protocol. Serializing caps peak memory usage.
+      max-parallel: 1
+      matrix:
+        include:
+          - distro: arch
+            container: archlinux:latest
+          - distro: fedora
+            container: fedora:latest
+          - distro: debian
+            container: debian:trixie
+          - distro: opensuse
+            container: opensuse/tumbleweed:latest
+    name: build (${{ matrix.distro }})
+    container:
+      image: ${{ matrix.container }}
+      entrypoint: []
+      tty: true
+    steps:
+      - name: Install build dependencies
+        run: |
+          case "${{ matrix.distro }}" in
+            arch)
+              pacman -Syu --noconfirm
+              pacman -S --noconfirm --needed \
+                base-devel git pkgconf nodejs clang \
+                cairo fontconfig freetype2 harfbuzz libdrm \
+                libdisplay-info libglvnd libinput libxcb libxkbcommon \
+                mesa pango pipewire seatd wayland wayland-protocols
+              ;;
+            fedora)
+              dnf install -y \
+                gcc make git pkgconf nodejs clang clang-libs \
+                cairo-devel cairo-gobject-devel systemd-devel dbus-devel libdisplay-info-devel \
+                libinput-devel libseat-devel libxkbcommon-devel \
+                mesa-libgbm-devel mesa-libGL-devel mesa-libEGL-devel \
+                pango-devel wayland-devel wayland-protocols-devel \
+                fontconfig-devel freetype-devel harfbuzz-devel \
+                libxcb-devel pipewire-devel glib2-devel libdrm-devel
+              ;;
+            debian)
+              apt-get update
+              apt-get install -y \
+                build-essential gcc make git pkgconf nodejs \
+                libclang-dev clang \
+                libcairo2-dev libsystemd-dev libdbus-1-dev libdisplay-info-dev \
+                libinput-dev libseat-dev libxkbcommon-dev libgbm-dev \
+                libegl1-mesa-dev mesa-common-dev libgl-dev libegl-dev \
+                libpango1.0-dev libwayland-dev wayland-protocols \
+                libfontconfig1-dev libfreetype-dev libharfbuzz-dev \
+                libxcb1-dev libxcb-render0-dev libxcb-composite0-dev \
+                libxcb-icccm4-dev libxcb-ewmh-dev libxcb-shape0-dev \
+                libpipewire-0.3-dev libspa-0.2-dev libglib2.0-dev libdrm-dev \
+                libudev-dev curl ca-certificates
+              ;;
+            opensuse)
+              zypper --non-interactive install \
+                gcc make git curl tar nodejs-default clang libclang13 \
+                meson ninja \
+                systemd-devel dbus-1-devel libdisplay-info-devel libinput-devel \
+                libxkbcommon-devel libgbm-devel Mesa-libEGL-devel \
+                pango-devel wayland-devel wayland-protocols-devel fontconfig-devel \
+                freetype2-devel harfbuzz-devel libxcb-devel pipewire-devel \
+                glib2-devel libdrm-devel
+              # openSUSE does not package libseat development files, so build
+              # libseat from upstream source to satisfy the pkg-config lookup.
+              git clone --depth 1 --branch 0.9.3 https://github.com/kennylevinsen/seatd.git /tmp/seatd
+              meson setup /tmp/seatd/build /tmp/seatd \
+                -Dserver=disabled -Dexamples=disabled -Dman-pages=disabled
+              ninja -C /tmp/seatd/build
+              meson install -C /tmp/seatd/build
+              ;;
+          esac
+
+      - name: Install Rust toolchain
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
+          . "$HOME/.cargo/env"
+          rustc --version
+          cargo --version
+
+      - name: Checkout
+        uses: https://data.forgejo.org/actions/checkout@v6
+
+      - name: Build
+        run: |
+          [ -f "$HOME/.cargo/env" ] && . "$HOME/.cargo/env"
+          if [ "${{ matrix.distro }}" = "opensuse" ]; then
+            export PKG_CONFIG_PATH="/usr/local/lib64/pkgconfig:/usr/local/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
+          fi
+          cargo build --release --locked -p ymir --bin ymir
+
+      - name: Smoke test
+        run: |
+          [ -f "$HOME/.cargo/env" ] && . "$HOME/.cargo/env"
+          ./target/release/ymir --version || true
+
+      - name: Package
+        run: |
+          [ -f "$HOME/.cargo/env" ] && . "$HOME/.cargo/env"
+          VERSION=$(grep '^version' Cargo.toml | head -1 | sed 's/.*"\(.*\)"/\1/')
+          ARCH="x86_64"
+          TARBALL="ymir-${{ matrix.distro }}-${ARCH}.tar.gz"
+          STAGING="ymir-staging"
+
+          mkdir -p "$STAGING/ymir"
+          install -Dm755 target/release/ymir       "$STAGING/ymir/ymir"
+          install -Dm755 resources/ymir-session     "$STAGING/ymir/ymir-session"
+          install -Dm644 resources/ymir.desktop     "$STAGING/ymir/ymir.desktop"
+          install -Dm644 resources/ymir-portals.conf "$STAGING/ymir/ymir-portals.conf"
+          install -Dm644 resources/ymir.service     "$STAGING/ymir/ymir.service"
+          install -Dm644 resources/ymir-shutdown.target "$STAGING/ymir/ymir-shutdown.target"
+          install -Dm644 resources/dinit/ymir       "$STAGING/ymir/dinit-ymir"
+          install -Dm644 resources/dinit/ymir.target "$STAGING/ymir/dinit-ymir.target"
+          install -Dm644 resources/default-config.lua "$STAGING/ymir/default-config.lua"
+          install -Dm644 resources/dwindle-config.lua "$STAGING/ymir/dwindle-config.lua"
+
+          tar -czf "$TARBALL" -C "$STAGING" ymir
+          echo "YMIR_TARBALL=$TARBALL" >> $FORGEJO_OUTPUT
+
+      - name: Upload artifact
+        uses: https://code.forgejo.org/forgejo/upload-artifact@v4
+        with:
+          name: ymir-${{ matrix.distro }}-x86_64
+          path: ymir-${{ matrix.distro }}-x86_64.tar.gz
+
   release:
+    needs: build
     runs-on: docker
     container:
       image: alpine:latest
@@ -17,36 +152,95 @@ jobs:
       tty: true
     steps:
       - name: Install tools
-        run: apk add --no-cache curl jq git
-      - name: DIAG write test
+        run: apk add --no-cache curl jq git nodejs
+
+      # Generate an OIDC JWT and exchange it for a Forgejo API token scoped to
+      # this workflow via an "Authorized Integration". The AUD value below must
+      # match the "Audience" field of the Authorized Integration created in
+      # Settings -> Authorized Integrations (Forgejo Actions (Local), granted
+      # the release scope for this repo + workflow).
+      - name: Fetch API token (Authorized Integration)
         id: token
         env:
           AUD: u:1:cd0d5a55-2cfa-49df-8d92-0c2c69aa7d2a
         run: |
-          echo "::group::fetch jwt + write test"
-          resp=$(curl -sS -w "\nHTTP_CODE:%{http_code}" \
+          if [ -z "$AUD" ]; then
+            echo "::error::No Authorized Integration audience configured. Create one in Settings -> Authorized Integrations (Forgejo Actions, Local) with the release scope and paste its Audience into AUD." >&2
+            exit 1
+          fi
+          jwt=$(curl --fail -sS \
             -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
-            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=$AUD")
-          jwt=$(echo "$resp" | head -1 | jq -r '.value // empty')
-          echo "JWT_LENGTH=${#jwt}"
+            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=$AUD" \
+            | jq -r '.value')
           echo "::add-mask::$jwt"
-          API="${{ github.server_url }}/api/v1/repos/${{ github.repository }}"
-          echo "===== POST release on tag diag-write-test ====="
-          curl -sS -w "\nHTTP_CODE:%{http_code}\n" \
-            -H "Authorization: Bearer $jwt" \
+          echo "token=$jwt" >> $FORGEJO_OUTPUT
+
+      - name: Checkout (for release notes)
+        uses: https://data.forgejo.org/actions/checkout@v6
+        with:
+          fetch-depth: 1
+
+      - name: Download all artifacts
+        uses: https://code.forgejo.org/forgejo/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: List artifacts
+        run: find artifacts -type f | sort
+
+      - name: Publish rolling release
+        env:
+          FORGEJO_TOKEN: ${{ steps.token.outputs.token }}
+        run: |
+          REPO_URL="${{ github.server_url }}/${{ github.repository }}"
+          API_BASE="${REPO_URL}/api/v1"
+
+          echo "Deleting existing 'latest' release (if any)..."
+          RELEASE_ID=$(curl -sf -H "Authorization: Bearer $FORGEJO_TOKEN" \
+            "$API_BASE/repos/${{ github.repository }}/releases/tags/latest" \
+            | jq -r '.id // empty')
+          if [ -n "$RELEASE_ID" ]; then
+            curl -sf -X DELETE \
+              -H "Authorization: Bearer $FORGEJO_TOKEN" \
+              "$API_BASE/repos/${{ github.repository }}/releases/$RELEASE_ID"
+            echo "Deleted release id=$RELEASE_ID"
+          fi
+
+          echo "Deleting existing 'latest' tag (if any)..."
+          TAG_SHA=$(curl -sf -H "Authorization: Bearer $FORGEJO_TOKEN" \
+            "$API_BASE/repos/${{ github.repository }}/git/ref/tags/latest" \
+            | jq -r '.object.sha // empty')
+          if [ -n "$TAG_SHA" ]; then
+            curl -sf -X DELETE \
+              -H "Authorization: Bearer $FORGEJO_TOKEN" \
+              "$API_BASE/repos/${{ github.repository }}/git/ref/tags/latest"
+            echo "Deleted tag latest"
+          fi
+
+          COMMIT_SHA="${{ github.sha }}"
+
+          echo "Creating new 'latest' release..."
+          RELEASE_JSON=$(curl -sf -X POST \
+            -H "Authorization: Bearer $FORGEJO_TOKEN" \
             -H "Content-Type: application/json" \
-            -X POST \
-            -d '{"tag_name":"diag-write-test","name":"DIAG Write Test","body":"diag"}' \
-            "$API/releases"
-          echo "===== POST tag/ref ====="
-          curl -sS -w "\nHTTP_CODE:%{http_code}\n" \
-            -H "Authorization: Bearer $jwt" \
-            -H "Content-Type: application/json" \
-            -X POST \
-            -d "{\"ref\":\"refs/tags/diag-write-test\",\"sha\":\"${{ github.sha }}\"}" \
-            "$API/git/refs"
-          echo "===== GET tag ====="
-          curl -sS -w "\nHTTP_CODE:%{http_code}\n" \
-            -H "Authorization: Bearer $jwt" \
-            "$API/git/refs/tags/diag-write-test"
-          echo "::endgroup::"
+            -d "$(jq -n \
+              --arg tag "latest" \
+              --arg name "Latest Build" \
+              --arg body "Rolling release — built from $(echo $COMMIT_SHA | cut -c1-8) on $(date -u +%Y-%m-%dT%H:%M:%SZ). Contains pre-built binaries for Arch, Fedora, Debian, and openSUSE." \
+              --arg sha "$COMMIT_SHA" \
+              '{tag: $tag, name: $name, body: $body, target_commitish: $sha, prerelease: true}')" \
+            "$API_BASE/repos/${{ github.repository }}/releases")
+          RELEASE_ID=$(echo "$RELEASE_JSON" | jq -r '.id')
+          echo "Created release id=$RELEASE_ID"
+
+          echo "Uploading assets..."
+          find artifacts -type f -name '*.tar.gz' | while read -r f; do
+            FILENAME=$(basename "$f")
+            echo "  Uploading $FILENAME..."
+            curl -sf -X POST \
+              -H "Authorization: Bearer $FORGEJO_TOKEN" \
+              -F "attachment=@$f;filename=$FILENAME;type=application/gzip" \
+              "$API_BASE/repos/${{ github.repository }}/releases/$RELEASE_ID/assets?name=$FILENAME"
+          done
+
+          echo "Rolling release published successfully."

@@ -150,7 +150,7 @@ return {
 
 ### `ignore-drm-device`
 
-<sup>Since: 25.11</sup>
+<sup>Since: 1.0.0</sup>
 
 List DRM devices that ymir will ignore.
 Useful for GPU passthrough when you don't want ymir to open a certain device.
@@ -165,7 +165,7 @@ return {
 
 ### `force-pipewire-invalid-modifier`
 
-<sup>Since: 25.01</sup>
+<sup>Since: 1.0.0</sup>
 
 Forces PipeWire screencasting to use the invalid modifier, even when DRM offers more modifiers.
 
@@ -225,7 +225,7 @@ return {
 
 ### `disable-resize-throttling`
 
-<sup>Since: 0.1.9</sup>
+<sup>Since: 1.0.0</sup>
 
 Disable throttling resize events sent to windows.
 
@@ -244,7 +244,7 @@ return {
 
 ### `disable-transactions`
 
-<sup>Since: 0.1.9</sup>
+<sup>Since: 1.0.0</sup>
 
 Disable transactions (resize and close).
 
@@ -264,7 +264,7 @@ return {
 
 ### `keep-laptop-panel-on-when-lid-is-closed`
 
-<sup>Since: 0.1.10</sup>
+<sup>Since: 1.0.0</sup>
 
 By default, ymir will disable the internal laptop monitor when the laptop lid is closed.
 This flag turns off this behavior and will leave the internal laptop monitor on.
@@ -279,11 +279,11 @@ return {
 
 ### `disable-monitor-names`
 
-<sup>Since: 0.1.10</sup>
+<sup>Since: 1.0.0</sup>
 
 Disables the make/model/serial monitor names, as if ymir fails to read them from the EDID.
 
-Use this flag to work around a crash present in 0.1.9 and 0.1.10 when connecting two monitors with matching make/model/serial.
+Use this flag to work around a crash when connecting two monitors with matching make/model/serial.
 
 ```lua
 return {
@@ -295,7 +295,7 @@ return {
 
 ### `strict-new-window-focus-policy`
 
-<sup>Since: 25.01</sup>
+<sup>Since: 1.0.0</sup>
 
 Disables heuristic automatic focusing for new windows.
 Only windows that activate themselves with a valid xdg-activation token will be focused.
@@ -310,7 +310,7 @@ return {
 
 ### `honor-xdg-activation-with-invalid-serial`
 
-<sup>Since: 25.05</sup>
+<sup>Since: 1.0.0</sup>
 
 Widely-used clients such as Discord and Telegram make fresh xdg-activation tokens upon clicking on their tray icon or on their notification.
 Most of the time, these fresh tokens will have invalid serials, because the app needs to be focused to get a valid serial, and if the user clicks on a tray icon or a notification, it is usually because the app *isn't* focused, and the user wants to focus it.
@@ -333,7 +333,7 @@ return {
 
 ### `skip-cursor-only-updates-during-vrr`
 
-<sup>Since: 25.08</sup>
+<sup>Since: 1.0.0</sup>
 
 Skips redrawing the screen from cursor input while variable refresh rate is active.
 
@@ -351,7 +351,7 @@ return {
 
 ### `deactivate-unfocused-windows`
 
-<sup>Since: 25.08</sup>
+<sup>Since: 1.0.0</sup>
 
 Some clients (notably, Chromium- and Electron-based, like Teams or Slack) erroneously use the Activated xdg window state instead of keyboard focus for things like deciding whether to send notifications for new messages, or for picking where to show an IME popup.
 Ymir keeps the Activated state on unfocused workspaces and invisible tabbed windows (to reduce unwanted animations), surfacing bugs in these applications.
@@ -369,7 +369,7 @@ return {
 
 ### `disable-10bit-output`
 
-<sup>Since: next release</sup>
+<sup>Since: 1.0.0</sup>
 
 By default, ymir will try to output a 10-bit color format to the monitor (before falling back to 8-bit).
 However, this can currently cause problems on some Intel + NVIDIA mixed-GPU setups: the screen doesn't light up, or displays only white, etc.
@@ -404,7 +404,7 @@ return {
 
 #### `debug-toggle-opaque-regions`
 
-<sup>Since: 0.1.6</sup>
+<sup>Since: 1.0.0</sup>
 
 Tints regions marked as opaque with blue and the rest of the render elements with red.
 
@@ -420,7 +420,7 @@ return {
 
 #### `debug-toggle-damage`
 
-<sup>Since: 0.1.6</sup>
+<sup>Since: 1.0.0</sup>
 
 Tints damaged regions with red.
 

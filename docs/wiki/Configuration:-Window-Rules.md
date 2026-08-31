@@ -289,7 +289,7 @@ return {
 
 #### `is-active-in-column`
 
-<sup>Since: 0.1.6</sup>
+<sup>Since: 1.0.0</sup>
 
 Can be `true` or `false`.
 Matches the window that is the "active" window in its column.
@@ -297,7 +297,7 @@ Matches the window that is the "active" window in its column.
 Contrary to `is-active`, there is always one `is-active-in-column` window in each column.
 It is the window that was last focused in the column, i.e. the one that will gain focus if this column is focused.
 
-<sup>Since: 25.01</sup> This rule will match `true` during the initial window opening.
+<sup>Since: 1.0.0</sup> This rule will match `true` during the initial window opening.
 
 ```lua
 return {
@@ -313,7 +313,7 @@ return {
 
 #### `is-floating`
 
-<sup>Since: 25.01</sup>
+<sup>Since: 1.0.0</sup>
 
 Can be `true` or `false`.
 Matches floating windows.
@@ -336,7 +336,7 @@ return {
 
 #### `is-window-cast-target`
 
-<sup>Since: 25.02</sup>
+<sup>Since: 1.0.0</sup>
 
 Can be `true` or `false`.
 Matches `true` for windows that are target of an ongoing window screencast.
@@ -382,7 +382,7 @@ Example:
 
 #### `is-urgent`
 
-<sup>Since: 25.05</sup>
+<sup>Since: 1.0.0</sup>
 
 Can be `true` or `false`.
 Matches windows that request the user's attention.
@@ -401,7 +401,7 @@ return {
 
 #### `at-startup`
 
-<sup>Since: 0.1.6</sup>
+<sup>Since: 1.0.0</sup>
 
 Can be `true` or `false`.
 Matches during the first 60 seconds after starting ymir.
@@ -455,7 +455,7 @@ return {
 
 #### `default-window-height`
 
-<sup>Since: 25.01</sup>
+<sup>Since: 1.0.0</sup>
 
 Set the default height for the new window.
 
@@ -506,12 +506,12 @@ return {
 }
 ```
 
-<sup>Since: 0.1.9</sup> `open-on-output` can now use monitor manufacturer, model, and serial.
+<sup>Since: 1.0.0</sup> `open-on-output` can now use monitor manufacturer, model, and serial.
 Before, it could only use the connector name.
 
 #### `open-on-workspace`
 
-<sup>Since: 0.1.6</sup>
+<sup>Since: 1.0.0</sup>
 
 Make the window open on a specific [named workspace](./Configuration:-Named-Workspaces.md).
 
@@ -555,7 +555,7 @@ return {
 
 #### `open-maximized-to-edges`
 
-<sup>Since: 25.11</sup>
+<sup>Since: 1.0.0</sup>
 
 Make the window open [maximized to edges](./Fullscreen-and-Maximize.md).
 
@@ -614,7 +614,7 @@ return {
 
 #### `open-floating`
 
-<sup>Since: 25.01</sup>
+<sup>Since: 1.0.0</sup>
 
 Make the window open in the floating layout.
 
@@ -648,7 +648,7 @@ return {
 
 #### `open-focused`
 
-<sup>Since: 25.01</sup>
+<sup>Since: 1.0.0</sup>
 
 Set this to `false` to prevent this window from being automatically focused upon opening.
 
@@ -769,7 +769,7 @@ return {
 
 #### `on-xdg-activate`
 
-<sup>Since: next release</sup>
+<sup>Since: 1.0.0</sup>
 
 Set what ymir does when a window requests activation through [xdg-activation](https://wayland.app/protocols/xdg-activation-v1).
 
@@ -833,7 +833,7 @@ return {
 
 #### `variable-refresh-rate`
 
-<sup>Since: 0.1.9</sup>
+<sup>Since: 1.0.0</sup>
 
 If set to true, whenever this window displays on an output with on-demand VRR, it will enable VRR on that output.
 
@@ -862,7 +862,7 @@ return {
 
 #### `default-column-display`
 
-<sup>Since: 25.02</sup>
+<sup>Since: 1.0.0</sup>
 
 Set the default display mode for columns created from this window.
 Can be `normal`, `tabbed` or `dwindle` (see the [Dwindle](./Configuration:-Dwindle.md) page for dwindle mode).
@@ -890,7 +890,7 @@ return {
 
 #### `default-floating-position`
 
-<sup>Since: 25.01</sup>
+<sup>Since: 1.0.0</sup>
 
 Set the initial position for this window when it opens on, or moves to the floating layout.
 
@@ -954,7 +954,7 @@ return {
 
 #### `scroll-factor`
 
-<sup>Since: 25.02</sup>
+<sup>Since: 1.0.0</sup>
 
 Set a scroll factor for all scroll events sent to a window.
 
@@ -1000,7 +1000,7 @@ return {
 
 #### `focus-ring` and `border`
 
-<sup>Since: 0.1.6</sup>
+<sup>Since: 1.0.0</sup>
 
 Override the focus ring and border options for the window.
 
@@ -1031,7 +1031,7 @@ return {
 
 #### `shadow`
 
-<sup>Since: 25.02</sup>
+<sup>Since: 1.0.0</sup>
 
 Override the shadow options for the window.
 
@@ -1059,7 +1059,7 @@ return {
 
 #### `tab-indicator`
 
-<sup>Since: 25.02</sup>
+<sup>Since: 1.0.0</sup>
 
 Override the tab indicator options for the window.
 
@@ -1084,7 +1084,7 @@ return {
 
 #### `geometry-corner-radius`
 
-<sup>Since: 0.1.6</sup>
+<sup>Since: 1.0.0</sup>
 
 Set the corner radius of the window.
 
@@ -1129,7 +1129,7 @@ This way, you can match GTK 3 applications which have square bottom corners:
 
 #### `clip-to-geometry`
 
-<sup>Since: 0.1.6</sup>
+<sup>Since: 1.0.0</sup>
 
 Clips the window to its visual geometry.
 
@@ -1176,7 +1176,7 @@ return {
 
 #### `tiled-state`
 
-<sup>Since: 25.05</sup>
+<sup>Since: 1.0.0</sup>
 
 Informs the window that it is tiled.
 Usually, windows will react by becoming rectangular and hiding their client-side shadows.
@@ -1202,7 +1202,7 @@ return {
 
 #### `baba-is-float`
 
-<sup>Since: 25.02</sup>
+<sup>Since: 1.0.0</sup>
 
 Make your windows FLOAT up and down.
 

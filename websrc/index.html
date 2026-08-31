@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Ymir — a scrollable-tiling Wayland compositor</title>
-    <meta name="description" content="Ymir is a scrollable-tiling Wayland compositor with dwindle-style binary tiling. Windows live in columns on an infinite strip; inside a column each new window halves only the focused one." />
+    <meta name="description" content="Ymir is a scrollable-tiling Wayland compositor with a dwindle-style binary-split layout. Windows live in columns on an infinite strip; inside a column each new window halves only the focused one. Configured live with Lua." />
     <link rel="stylesheet" href="styles.css" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -19,12 +19,12 @@
             </a>
             <nav class="nav__links" aria-label="Primary">
                 <a href="#about">About</a>
-                <a href="#dwindle">Dwindle</a>
+                <a href="#layouts">Layouts</a>
                 <a href="#features">Features</a>
                 <a href="#start">Get started</a>
                 <a href="#keys">Key bindings</a>
             </nav>
-            <a class="btn btn--ghost nav__cta" href="https://lab.braxton.onl/braxton/ymir" target="_blank" rel="noopener">GitHub</a>
+            <a class="btn btn--ghost nav__cta" href="https://lab.braxton.onl/braxton/ymir" target="_blank" rel="noopener">Source</a>
         </div>
     </header>
 
@@ -40,7 +40,7 @@
                 </p>
                 <div class="hero__actions">
                     <a class="btn btn--primary" href="#start">Get started</a>
-                    <a class="btn btn--ghost" href="#dwindle">See the dwindle layout</a>
+                    <a class="btn btn--ghost" href="#layouts">See the layouts</a>
                 </div>
 
                 <div class="hero__mock" aria-hidden="true">
@@ -86,8 +86,8 @@
                         <p>Vertical, GNOME-style workspaces with one empty one always waiting below.</p>
                     </div>
                     <div class="masonry__item">
-                        <h3>Per-monitor strips</h3>
-                        <p>Every monitor keeps its own independent set of windows and workspaces.</p>
+                        <h3>Lua config</h3>
+                        <p>One live-reloading init.lua controls everything, with an imperative ymir.* API on top.</p>
                     </div>
                 </div>
             </div>
@@ -102,11 +102,13 @@
                         Ymir arranges windows in columns on an infinite strip going to the
                         right. It is built for scrollable tiling and tiling layouts alike, with
                         dynamic workspaces, an overview, gestures, gradient borders, background
-                        blur, and live-reloading configuration.
+                        blur, and live-reloading Lua configuration.
                     </p>
                     <p>
                         Its <strong>Dwindle</strong> column mode layers a resizable binary tiling
-                        tree on top of that scrollable foundation — and it is on by default.
+                        tree on top of that scrollable foundation — and it is on by default. A
+                        <strong>Depth</strong> mode turns a column into a deck of perspective-tilted
+                        cards with a full-size apex window.
                     </p>
                 </div>
                 <ul class="section__list">
@@ -116,20 +118,23 @@
                     <li>Touchpad and mouse gestures</li>
                     <li>Group windows into tabs</li>
                     <li>Gradient borders with Oklab and Oklch</li>
+                    <li>Depth: a deck-style queue with a full-size apex card</li>
                     <li>Per-workspace layout config, including numeric workspace tags</li>
                     <li>Works with screen readers</li>
                 </ul>
             </div>
         </section>
 
-        <section id="dwindle" class="section section--tint">
+        <section id="layouts" class="section section--tint">
             <div class="container">
                 <div class="section__head">
-                    <p class="eyebrow">Dwindle column mode</p>
-                    <h2>Binary tiling that behaves.</h2>
+                    <p class="eyebrow">Column display modes</p>
+                    <h2>Tiling, scrollable, tabbed — or a depth queue.</h2>
                     <p>
-                        Windows split off the focused window into a resizable binary tree, Hyprland-style.
-                        Swap the focused window with its spatial neighbor, or flip the split orientation at any time.
+                        Every column can switch between four display modes at runtime: dwindle
+                        (binary-split tree), scrollable, tabbed, and depth. Windows split off the
+                        focused window into a resizable binary tree; swap the focused window with
+                        its spatial neighbor, or flip the split orientation at any time.
                     </p>
                 </div>
                 <div class="dwindle__cards">
@@ -165,14 +170,16 @@
                     <h2>Everything you expect from a modern compositor.</h2>
                 </div>
                 <div class="features__grid">
+                    <div class="feature"><h4>Lua config</h4><p>Live-reloading, includes, imperative API.</p></div>
                     <div class="feature"><h4>Gradient borders</h4><p>Oklab and Oklch support.</p></div>
+                    <div class="feature"><h4>Depth mode</h4><p>A deck-style queue with an apex card.</p></div>
                     <div class="feature"><h4>Overview</h4><p>Zoom out workspaces and windows.</p></div>
                     <div class="feature"><h4>Screenshot UI</h4><p>Built in, no tools needed.</p></div>
                     <div class="feature"><h4>Gestures</h4><p>Overview, workspaces, columns, resize.</p></div>
                     <div class="feature"><h4>Recent windows</h4><p>Alt+Tab-style switcher with live previews.</p></div>
                     <div class="feature"><h4>Background blur</h4><p>For windows and layer-shell surfaces.</p></div>
-                    <div class="feature"><h4>Live config</h4><p>Reloads on the fly.</p></div>
                     <div class="feature"><h4>Screen readers</h4><p>Accessibility via accesskit/dbus.</p></div>
+                    <div class="feature"><h4>Vertical workspaces</h4><p>One empty workspace always at the bottom.</p></div>
                 </div>
             </div>
         </section>
@@ -221,7 +228,7 @@ curl -sL https://lab.braxton.onl/braxton/ymir/raw/branch/main/scripts/install.sh
         <div class="container footer__inner">
             <p>© <span id="year"></span> Ymir contributors.</p>
             <nav class="footer__links" aria-label="Footer">
-                <a href="https://lab.braxton.onl/braxton/ymir" target="_blank" rel="noopener">GitHub</a>
+                <a href="https://lab.braxton.onl/braxton/ymir" target="_blank" rel="noopener">Repository</a>
                 <a href="https://lab.braxton.onl/braxton/ymir/src/branch/main/docs/wiki/README.md" target="_blank" rel="noopener">Wiki</a>
                 <a href="https://lab.braxton.onl/braxton/ymir/src/branch/main/LICENSE" target="_blank" rel="noopener">License</a>
             </nav>

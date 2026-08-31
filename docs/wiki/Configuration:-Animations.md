@@ -91,11 +91,11 @@ return {
 Currently, ymir only supports five curves.
 You can get a feel for them on pages like [easings.net](https://easings.net/).
 
-- `ease-out-quad` <sup>Since: 0.1.5</sup>
+- `ease-out-quad` <sup>Since: 1.0.0</sup>
 - `ease-out-cubic`
 - `ease-out-expo`
-- `linear` <sup>Since: 0.1.6</sup>
-- `cubic-bezier` <sup>Since: 25.08</sup>
+- `linear` <sup>Since: 1.0.0</sup>
+- `cubic-bezier` <sup>Since: 1.0.0</sup>
     A custom [cubic Bézier curve](https://www.w3.org/TR/css-easing-1/#cubic-bezier-easing-functions). You need to write the 4 numbers defining the control points of the curve as a CSS-style string, for example:
     ```lua
     return {
@@ -188,7 +188,7 @@ return {
 
 ##### `custom-shader`
 
-<sup>Since: 0.1.6</sup>
+<sup>Since: 1.0.0</sup>
 
 You can write a custom shader for drawing the window during an open animation.
 
@@ -200,7 +200,7 @@ When running ymir as a systemd service, you can see the warnings in the journal:
 > [!WARNING]
 >
 > Custom shaders do not have a backwards compatibility guarantee.
-> I may need to change their interface as I'm developing new features.
+> Their interface may change as new features are developed.
 
 Example: open will fill the current geometry with a solid gradient that gradually fades in.
 
@@ -231,7 +231,7 @@ return {
 
 #### `window-close`
 
-<sup>Since: 0.1.5</sup>
+<sup>Since: 1.0.0</sup>
 
 Window closing animation.
 
@@ -249,7 +249,7 @@ return {
 
 ##### `custom-shader`
 
-<sup>Since: 0.1.6</sup>
+<sup>Since: 1.0.0</sup>
 
 You can write a custom shader for drawing the window during a close animation.
 
@@ -261,7 +261,7 @@ When running ymir as a systemd service, you can see the warnings in the journal:
 > [!WARNING]
 >
 > Custom shaders do not have a backwards compatibility guarantee.
-> I may need to change their interface as I'm developing new features.
+> Their interface may change as new features are developed.
 
 Example: close will fill the current geometry with a solid gradient that gradually fades away.
 
@@ -310,7 +310,7 @@ return {
 
 #### `window-movement`
 
-<sup>Since: 0.1.5</sup>
+<sup>Since: 1.0.0</sup>
 
 Movement of individual windows within a workspace.
 
@@ -335,7 +335,7 @@ return {
 
 #### `window-resize`
 
-<sup>Since: 0.1.5</sup>
+<sup>Since: 1.0.0</sup>
 
 Window resize animation.
 
@@ -354,7 +354,7 @@ return {
 
 ##### `custom-shader`
 
-<sup>Since: 0.1.6</sup>
+<sup>Since: 1.0.0</sup>
 
 You can write a custom shader for drawing the window during a resize animation.
 
@@ -366,7 +366,7 @@ When running ymir as a systemd service, you can see the warnings in the journal:
 > [!WARNING]
 >
 > Custom shaders do not have a backwards compatibility guarantee.
-> I may need to change their interface as I'm developing new features.
+> Their interface may change as new features are developed.
 
 Example: resize will show the next (after resize) window texture right away, stretched to the current geometry.
 
@@ -405,7 +405,7 @@ return {
 
 #### `exit-confirmation-open-close`
 
-<sup>Since: 25.08</sup>
+<sup>Since: 1.0.0</sup>
 
 The open/close animation of the exit confirmation dialog.
 
@@ -423,7 +423,7 @@ return {
 
 #### `screenshot-ui-open`
 
-<sup>Since: 0.1.8</sup>
+<sup>Since: 1.0.0</sup>
 
 The open (fade-in) animation of the screenshot UI.
 
@@ -439,7 +439,7 @@ return {
 
 #### `overview-open-close`
 
-<sup>Since: 25.05</sup>
+<sup>Since: 1.0.0</sup>
 
 The open/close zoom animation of the [Overview](./Overview.md).
 
@@ -455,7 +455,7 @@ return {
 
 #### `recent-windows-close`
 
-<sup>Since: 25.11</sup>
+<sup>Since: 1.0.0</sup>
 
 The close fade-out animation of the recent windows switcher.
 
@@ -471,7 +471,7 @@ return {
 
 ### Synchronized Animations
 
-<sup>Since: 0.1.5</sup>
+<sup>Since: 1.0.0</sup>
 
 Sometimes, when two animations are meant to play together synchronized, ymir will drive them both with the same configuration.
 

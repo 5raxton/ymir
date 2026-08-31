@@ -45,7 +45,7 @@ Check the DankMaterialShell's [compositor setup page](https://danklinux.com/docs
 ## Slower and more considered start
 
 Aside from the official installer above, ymir is available as a number of distribution packages maintained by the community.
-Here are some of them: [Fedora COPR](https://copr.fedorainfracloud.org/coprs/yalter/ymir/) and [nightly COPR](https://copr.fedorainfracloud.org/coprs/yalter/ymir-git/), [NixOS Flake](https://github.com/epireyn/ymir-flake) (maintained fork of [sodiboo/ymir-flake](https://github.com/sodiboo/ymir-flake)), and some more from repology below, including a [pacstall package](https://pacstall.dev/packages/ymir/) for Debian-based distros.
+Here are some of them: a [pacstall package](https://pacstall.dev/packages/ymir/) for Debian-based distros and a few more from repology below.
 This repository also ships its own [flake.nix](https://lab.braxton.onl/braxton/ymir/src/branch/main/flake.nix) and an [Arch PKGBUILD](https://lab.braxton.onl/braxton/ymir/src/branch/main/PKGBUILD).
 See the [Building](#building) section if you'd like to compile ymir yourself and the [Packaging ymir](./Packaging-ymir.md) page if you want to package ymir.
 

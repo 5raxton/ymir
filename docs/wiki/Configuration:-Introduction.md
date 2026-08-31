@@ -153,13 +153,13 @@ A notable exception is [`binds`](./Configuration:-Key-Bindings.md): they do not 
 ### Breaking Change Policy
 
 As a rule, ymir updates should not break existing config files.
-(For example, the default config from ymir v0.1.0 still parses fine on v25.02 as I'm writing this.)
+(For example, configs written for the first ymir releases still parse fine today.)
 
 Exceptions can be made for parsing bugs.
 For example, ymir used to accept multiple binds to the same key, but this was not intended and did not do anything (the first bind was always used).
 A patch release changed ymir from silently accepting this to causing a parsing failure.
-This is not a blanket rule, I will consider the potential impact of every breaking change like this before deciding to carry on with it.
+The potential impact of every breaking change is weighed before carrying on with it.
 
 Keep in mind that the breaking change policy applies only to ymir releases.
 Commits between releases can and do occasionally break the config as new features are ironed out.
-However, I do try to limit these, since several people are running git builds.
+However, we do try to limit these, since several people are running git builds.

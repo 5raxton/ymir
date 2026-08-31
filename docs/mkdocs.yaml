@@ -67,7 +67,8 @@ not_in_nav: |
   _Sidebar.md
   Configuration:-Overview.md
   README.md
-# ah, wouldn't it be nice if we could autogenerate this with wiki/_Sidebar.md
+
+# Keep this list in sync with the _Sidebar.md used by the repo wiki.
 nav:
   - Usage:
     - Getting Started: Getting-Started.md

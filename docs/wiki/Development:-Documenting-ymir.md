@@ -1,14 +1,7 @@
-ymir's documentation files are found in `docs/wiki/` and should be viewable and browsable in at least three systems:
+ymir's documentation files are found in `docs/wiki/` and should be viewable and browsable in at least two systems:
 
-- The GitHub repo's markdown file preview
-- [The GitHub repo's wiki](https://lab.braxton.onl/braxton/ymir/wiki)
+- The repository's markdown file preview
 - [The documentation site](https://lab.braxton.onl/braxton/ymir/)
-
-## The GitHub repo's wiki
-
-This is generated with the `publish-wiki` job in `.github/workflows/ci.yml`.
-In order to have this job run as expected in your fork, you'll need to enable the wiki feature in your repo's settings on GitHub.
-This could be useful as a contributor to verify that the wiki generates the way you expect it to.
 
 ## The documentation site
 
@@ -24,7 +17,7 @@ In the `docs/` subdirectory:
 - `uv sync`
 - `uv run mkdocs serve`
 
-The documentation site should now be available on http://127.0.0.1:8000/ymir/
+The documentation site should now be available on http://127.0.0.1:8000/
 
 Changes made to the documentation while the development server is running will cause an automatic page refresh in the browser.
 
@@ -34,7 +27,7 @@ Changes made to the documentation while the development server is running will c
 
 ## Elements
 
-Elements such as links, admonitions, images, and snippets should work as expected in markdown file previews on GitHub, the GitHub repo's wiki, and in the documentation site.
+Elements such as links, admonitions, images, and snippets should work as expected in the markdown file preview and in the documentation site.
 
 ### Links
 
@@ -64,12 +57,12 @@ Images should have relative links to resources in `docs/wiki/img/`, and should c
 
 ### Videos
 
-For compatibility with both mkdocs and GitHub Wiki, videos need to be wrapped in a `<video>` tag (displayed by mkdocs) and have the video link again as fallback text (displayed by GitHub Wiki) padded with blank lines.
+Videos need to be wrapped in a `<video>` tag (displayed by mkdocs) and have the video link again as fallback text, padded with blank lines:
 
 ```html
-<video controls src="https://github.com/user-attachments/assets/379a5d1f-acdb-4c11-b36c-e85fd91f0995">
+<video controls src="https://example.org/assets/video.mp4">
 
-https://github.com/user-attachments/assets/379a5d1f-acdb-4c11-b36c-e85fd91f0995
+https://example.org/assets/video.mp4
 
 </video>
 ```

@@ -6,7 +6,7 @@ Let's look at their differences.
 Maximizing the column via `maximize-column` (bound to <kbd>Mod</kbd><kbd>F</kbd> by default) expands its width to cover the whole screen.
 Maximized columns still leave space for [struts] and [gaps], and can contain multiple windows.
 The windows retain their borders.
-This is the simplest of the sizing modes, and is equivalent to `proportion 1.0` column width, or `set-column-width "100%"`.
+This is the simplest of the sizing modes, and is equivalent to a column width of `{ proportion = 1.0 }`.
 
 ![Screenshot of a maximized column with two windows.](./img/maximized-column.png)
 
@@ -14,7 +14,7 @@ You can make a window open in a maximized column with the [`open-maximized true`
 
 ## Windows maximized to edges
 
-<sup>Since: 25.11</sup>
+<sup>Since: 1.0.0</sup>
 
 You can maximize an individual window via `maximize-window-to-edges` (bound to <kbd>Mod</kbd><kbd>M</kbd> by default).
 This is the same maximize as you can find on other desktop environments and operating systems: it expands a window to the edges of the available screen area.
@@ -66,7 +66,7 @@ From ymir's point of view, the window is already open by this point, so if the w
 
 ## Windowed fullscreen
 
-<sup>Since: 25.05</sup>
+<sup>Since: 1.0.0</sup>
 
 Ymir can also tell a window that it's in fullscreen without actually making it fullscreen, via the `toggle-windowed-fullscreen` action.
 This is generally useful for screencasting browser-based presentations, when you want to hide the browser UI, but still have the window sized as a normal window.

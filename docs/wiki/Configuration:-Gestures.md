@@ -1,6 +1,6 @@
 ### Overview
 
-<sup>Since: 25.02</sup>
+<sup>Since: 1.0.0</sup>
 
 The `gestures` config section contains gesture settings.
 For an overview of all ymir gestures, see the [Gestures](./Gestures.md) wiki page.
@@ -62,7 +62,7 @@ return {
 
 ### `dnd-edge-workspace-switch`
 
-<sup>Since: 25.05</sup>
+<sup>Since: 1.0.0</sup>
 
 Scroll the workspaces up/down when moving the mouse cursor against a monitor edge during drag-and-drop (DnD) while in the overview.
 Also works on a touchscreen.
@@ -89,7 +89,7 @@ return {
 
 ### `hot-corners`
 
-<sup>Since: 25.05</sup>
+<sup>Since: 1.0.0</sup>
 
 Put your mouse at the very top-left corner of a monitor to toggle the overview.
 Also works during drag-and-dropping something.
@@ -107,7 +107,7 @@ return {
 }
 ```
 
-<sup>Since: 25.11</sup> You can choose specific hot corners by name: `top_left`, `top_right`, `bottom_left`, `bottom_right`.
+<sup>Since: 1.0.0</sup> You can choose specific hot corners by name: `top_left`, `top_right`, `bottom_left`, `bottom_right`.
 If no corners are explicitly set, the top-left corner will be active by default.
 
 ```lua
@@ -122,4 +122,4 @@ return {
 }
 ```
 
-You can also customize hot corners per-output [in the output config](./Configuration:-Outputs.md#hot-corners).
+You can also customize hot corners per-output [in the output config](./Configuration:-Outputs.md#hot_corners).

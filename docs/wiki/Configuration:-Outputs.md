@@ -53,9 +53,9 @@ You can find all of these by running `ymir msg outputs`.
 
 Usually, the built-in monitor in laptops will be called `eDP-1`.
 
-<sup>Since: 0.1.6</sup> The output name is case-insensitive.
+<sup>Since: 1.0.0</sup> The output name is case-insensitive.
 
-<sup>Since: 0.1.9</sup> Outputs can be matched by manufacturer, model, and serial.
+<sup>Since: 1.0.0</sup> Outputs can be matched by manufacturer, model, and serial.
 Before, they could be matched only by the connector name.
 
 ### `off`
@@ -108,7 +108,7 @@ return {
 
 #### `mode custom=true`
 
-<sup>Since: 25.11</sup>
+<sup>Since: 1.0.0</sup>
 
 You can configure a custom mode (not offered by the monitor) by setting `custom = true`.
 In this case, the refresh rate is mandatory.
@@ -135,7 +135,7 @@ return {
 
 ### `modeline`
 
-<sup>Since: 25.11</sup>
+<sup>Since: 1.0.0</sup>
 
 Directly configures the monitor's mode via a modeline, overriding any configured `mode`.
 The modeline can be calculated via utilities such as [cvt](https://man.archlinux.org/man/cvt.1.en) or [gtf](https://man.archlinux.org/man/gtf.1.en).
@@ -176,13 +176,13 @@ return {
 
 Set the scale of the monitor.
 
-<sup>Since: 0.1.6</sup> If scale is unset, ymir will guess an appropriate scale based on the physical dimensions and the resolution of the monitor.
+<sup>Since: 1.0.0</sup> If scale is unset, ymir will guess an appropriate scale based on the physical dimensions and the resolution of the monitor.
 
-<sup>Since: 0.1.7</sup> You can use fractional scale values, for example `scale = 1.5` for 150% scale.
+<sup>Since: 1.0.0</sup> You can use fractional scale values, for example `scale = 1.5` for 150% scale.
 
-<sup>Since: 0.1.7</sup> Dot is no longer needed for integer scale, for example you can write `scale = 2` instead of `scale = 2.0`.
+<sup>Since: 1.0.0</sup> Dot is no longer needed for integer scale, for example you can write `scale = 2` instead of `scale = 2.0`.
 
-<sup>Since: 0.1.7</sup> Scale below 0 and above 10 will now fail during config parsing. Scale was previously clamped to these values anyway.
+<sup>Since: 1.0.0</sup> Scale below 0 and above 10 will now fail during config parsing. Scale was previously clamped to these values anyway.
 
 ```lua
 return {
@@ -248,7 +248,7 @@ The following algorithm is used for positioning outputs.
 
 ### `variable_refresh_rate`
 
-<sup>Since: 0.1.5</sup>
+<sup>Since: 1.0.0</sup>
 
 This flag enables variable refresh rate (VRR, also known as adaptive sync, FreeSync, or G-Sync), if the output supports it.
 
@@ -261,7 +261,7 @@ You can check whether an output supports VRR in `ymir msg outputs`.
 >
 > If a monitor is not detected as VRR-capable when it should, sometimes unplugging a different monitor fixes it.
 >
-> Some monitors will continuously modeset (flash black) with VRR enabled; I'm not sure if there's a way to fix it.
+> Some monitors will continuously modeset (flash black) with VRR enabled; there may not be a way to fix it.
 
 ```lua
 return {
@@ -274,7 +274,7 @@ return {
 }
 ```
 
-<sup>Since: 0.1.9</sup> You can also set the `on_demand = true` property, which will only enable VRR when this output shows a window matching the `variable-refresh-rate` window rule.
+<sup>Since: 1.0.0</sup> You can also set the `on_demand = true` property, which will only enable VRR when this output shows a window matching the `variable-refresh-rate` window rule.
 This is helpful to avoid various issues with VRR, since it can be disabled most of the time, and only enabled for specific windows, like games or video players.
 
 ```lua
@@ -290,7 +290,7 @@ return {
 
 ### `focus_at_startup`
 
-<sup>Since: 25.05</sup>
+<sup>Since: 1.0.0</sup>
 
 Focus this output by default when ymir starts.
 
@@ -317,14 +317,14 @@ return {
 
 ### `background_color`
 
-<sup>Since: 0.1.8</sup>
+<sup>Since: 1.0.0</sup>
 
 Set the background color that ymir draws for workspaces on this output.
 This is visible when you're not using any background tools like swaybg.
 
-<sup>Until: 25.05</sup> The alpha channel for this color will be ignored.
+<sup>Until: 1.0.0</sup> The alpha channel for this color will be ignored.
 
-<sup>Since: 25.11</sup> This setting is deprecated, set `background_color` in the [output `layout` table](#layout-config-overrides) instead.
+<sup>Since: 1.0.0</sup> This setting is deprecated, set `background_color` in the [output `layout` table](#layout-config-overrides) instead.
 
 ```lua
 return {
@@ -339,7 +339,7 @@ return {
 
 ### `backdrop_color`
 
-<sup>Since: 25.05</sup>
+<sup>Since: 1.0.0</sup>
 
 Set the backdrop color that ymir draws for this output.
 This is visible between workspaces or in the overview.
@@ -359,7 +359,7 @@ return {
 
 ### `max_bpc`
 
-<sup>Since: next release</sup>
+<sup>Since: 1.0.0</sup>
 
 Set the maximum bits per channel (BPC) for this output.
 
@@ -385,7 +385,7 @@ return {
 
 ### `hot_corners`
 
-<sup>Since: 25.11</sup>
+<sup>Since: 1.0.0</sup>
 
 Customize the hot corners for this output.
 By default, hot corners [in the gestures settings](./Configuration:-Gestures.md#hot-corners) are used for all outputs.
@@ -418,7 +418,7 @@ return {
 
 ### Layout config overrides
 
-<sup>Since: 25.11</sup>
+<sup>Since: 1.0.0</sup>
 
 You can customize layout settings for an output with a `layout` table:
 

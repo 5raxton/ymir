@@ -1,6 +1,6 @@
 ### Overview
 
-<sup>Since: 25.01</sup>
+<sup>Since: 1.0.0</sup>
 
 Layer rules let you adjust behavior for individual layer-shell surfaces.
 They have `match` and `exclude` directives that control which layer-shell surfaces the rule should apply to, and a number of properties that you can set.
@@ -38,7 +38,6 @@ return {
 
             geometry_corner_radius = 12,
             place_within_backdrop = true,
-            baba_is_float = true,
 
             background_effect = {
                 xray = true,
@@ -113,9 +112,9 @@ Can be `"background"`, `"bottom"`, `"top"`, or `"overlay"`.
 return {
     layer_rules = {
         {
-            -- Make all overlay-layer surfaces FLOAT.
+            -- Make overlay-layer surfaces slightly transparent.
             match = { { layer = "overlay" } },
-            baba_is_float = true,
+            opacity = 0.9,
         },
     },
 }
@@ -170,7 +169,7 @@ return {
 
 #### `shadow`
 
-<sup>Since: 25.02</sup>
+<sup>Since: 1.0.0</sup>
 
 Override the shadow options for the surface.
 
@@ -202,7 +201,7 @@ return {
 
 #### `geometry-corner-radius`
 
-<sup>Since: 25.02</sup>
+<sup>Since: 1.0.0</sup>
 
 Set the corner radius of the surface.
 
@@ -221,7 +220,7 @@ return {
 
 #### `place-within-backdrop`
 
-<sup>Since: 25.05</sup>
+<sup>Since: 1.0.0</sup>
 
 Set to `true` to place the surface into the backdrop visible in the [Overview](./Overview.md) and between workspaces.
 
@@ -242,7 +241,7 @@ return {
 
 #### `baba-is-float`
 
-<sup>Since: 25.05</sup>
+<sup>Since: 1.0.0</sup>
 
 Make your layer surfaces FLOAT up and down.
 

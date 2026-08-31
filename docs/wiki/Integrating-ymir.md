@@ -15,13 +15,13 @@ The default configuration locations can be overridden with the `YMIR_CONFIG` env
 
 <sup>Since: 1.0.0</sup> You can also change the configuration path at runtime via the ymir IPC or using the command `ymir msg action load-config-file --path <path-to-init.lua>`.
 
-<sup>Since: 25.11</sup> You can split the ymir config file into multiple files using [`include`](./Configuration:-Include.md).
+<sup>Since: 1.0.0</sup> You can split the ymir config file into multiple files using [`include`](./Configuration:-Include.md).
 
 ### Xwayland
 
 Xwayland is required for running X11 apps and games, and also the Orca screen reader.
 
-<sup>Since: 25.08</sup> Ymir integrates with [xwayland-satellite](https://github.com/Supreeeme/xwayland-satellite) out of the box.
+<sup>Since: 1.0.0</sup> Ymir integrates with [xwayland-satellite](https://github.com/Supreeeme/xwayland-satellite) out of the box.
 The integration requires xwayland-satellite >= 0.7 available in `$PATH`.
 Please consider making ymir depend on (or at least recommend) the xwayland-satellite package.
 If you had a custom config which manually started `xwayland-satellite` and set `$DISPLAY`, you should remove those customizations for the automatic integration to work.
@@ -30,7 +30,7 @@ You can change the path where ymir looks for xwayland-satellite using the [`xway
 
 ### Keyboard layout
 
-<sup>Since: 25.08</sup> By default (unless [manually configured](./Configuration:-Input.md#layout) otherwise), ymir reads keyboard layout settings from systemd-localed at `org.freedesktop.locale1` over D-Bus.
+<sup>Since: 1.0.0</sup> By default (unless [manually configured](./Configuration:-Input.md#layout) otherwise), ymir reads keyboard layout settings from systemd-localed at `org.freedesktop.locale1` over D-Bus.
 Make sure your system installer sets the keyboard layout via systemd-localed, and ymir should pick it up.
 
 ### Autostart
@@ -45,7 +45,7 @@ If this is inconvenient, you can also add [`spawn-at-startup`](./Configuration:-
 
 ### Screen readers
 
-<sup>Since: 25.08</sup> Ymir works with the [Orca](https://orca.gnome.org) screen reader.
+<sup>Since: 1.0.0</sup> Ymir works with the [Orca](https://orca.gnome.org) screen reader.
 Please see the [Accessibility](./Accessibility.md) page for details and advice for accessibility-focused distributions.
 
 ### Desktop components

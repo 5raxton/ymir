@@ -99,17 +99,17 @@ return {
 }
 ```
 
-<sup>Since: 25.11</sup> You can override these settings for specific [outputs](./Configuration:-Outputs.md#layout-config-overrides) and [named workspaces](./Configuration:-Named-Workspaces.md#layout-config-overrides).
+<sup>Since: 1.0.0</sup> You can override these settings for specific [outputs](./Configuration:-Outputs.md#layout-config-overrides) and [named workspaces](./Configuration:-Named-Workspaces.md#layout-config-overrides).
 
 ### `gaps`
 
 Set gaps around (inside and outside) windows in logical pixels.
 
-<sup>Since: 0.1.7</sup> You can use fractional values.
+<sup>Since: 1.0.0</sup> You can use fractional values.
 The value will be rounded to physical pixels according to the scale factor of every output.
 For example, `gaps = 0.5` on an output with `scale = 2` will result in one physical-pixel wide gaps.
 
-<sup>Since: 0.1.8</sup> You can emulate "inner" vs. "outer" gaps with negative `struts` values (see the struts section below).
+<sup>Since: 1.0.0</sup> You can emulate "inner" vs. "outer" gaps with negative `struts` values (see the struts section below).
 
 ```lua
 return {
@@ -138,7 +138,7 @@ return {
 
 ### `always-center-single-column`
 
-<sup>Since: 0.1.9</sup>
+<sup>Since: 1.0.0</sup>
 
 If set, ymir will always center a single column on a workspace, regardless of the `center_focused_column` option.
 
@@ -152,7 +152,7 @@ return {
 
 ### `empty-workspace-above-first`
 
-<sup>Since: 25.01</sup>
+<sup>Since: 1.0.0</sup>
 
 If set, ymir will always add an empty workspace at the very start, in addition to the empty workspace at the very end.
 
@@ -166,7 +166,7 @@ return {
 
 ### `default-column-display`
 
-<sup>Since: 25.02</sup>
+<sup>Since: 1.0.0</sup>
 
 Sets the default display mode for new columns.
 Can be `normal`, `tabbed`, `dwindle` or `depth`.
@@ -204,7 +204,7 @@ return {
 ### `preset-column-widths`
 
 Set the widths that the `switch_preset_column_width` action (Mod+R) toggles between.
-<sup>Since: 25.08</sup> You can use the `switch_preset_column_width_back` action (Mod+Shift+R) to toggle in reverse.
+<sup>Since: 1.0.0</sup> You can use the `switch_preset_column_width_back` action (Mod+Shift+R) to toggle in reverse.
 
 `proportion` sets the width as a fraction of the output width, taking gaps into account.
 For example, you can perfectly fit four windows sized `proportion = 0.25` on an output, regardless of the gaps setting.
@@ -260,10 +260,10 @@ return {
 
 ### `preset-window-heights`
 
-<sup>Since: 0.1.9</sup>
+<sup>Since: 1.0.0</sup>
 
 Set the heights that the `switch_preset_window_height` action (Mod+Ctrl+Shift+R) toggles between.
-<sup>Since: 25.08</sup> You can use the `switch_preset_window_height_back` action (not bound by default) to toggle in reverse.
+<sup>Since: 1.0.0</sup> You can use the `switch_preset_window_height_back` action (not bound by default) to toggle in reverse.
 
 `proportion` sets the height as a fraction of the output height, taking gaps into account.
 The default preset heights are <sup>1</sup>&frasl;<sub>3</sub>, <sup>1</sup>&frasl;<sub>2</sub> and <sup>2</sup>&frasl;<sub>3</sub> of the output.
@@ -335,7 +335,7 @@ return {
 
 Set the thickness of the border in logical pixels.
 
-<sup>Since: 0.1.7</sup> You can use fractional values.
+<sup>Since: 1.0.0</sup> You can use fractional values.
 The value will be rounded to physical pixels according to the scale factor of every output.
 For example, `width = 0.5` on an output with `scale = 2` will result in one physical-pixel thick borders.
 
@@ -401,7 +401,7 @@ return {
 }
 ```
 
-<sup>Since: 0.1.8</sup> You can set the gradient interpolation color space using syntax like `in = "srgb-linear"` or `in = "oklch longer hue"`.
+<sup>Since: 1.0.0</sup> You can set the gradient interpolation color space using syntax like `in = "srgb-linear"` or `in = "oklch longer hue"`.
 Supported color spaces are:
 
 - `srgb` (the default),
@@ -426,7 +426,7 @@ return {
 
 ### `shadow`
 
-<sup>Since: 25.02</sup>
+<sup>Since: 1.0.0</sup>
 
 Shadow rendered behind a window.
 
@@ -436,7 +436,7 @@ Set `on` to enable the shadow.
 Setting `softness = 0` will give you hard shadows.
 
 `spread` is the distance to expand the window rectangle in logical pixels, same as CSS box-shadow spread.
-<sup>Since: 25.05</sup> Spread can be negative.
+<sup>Since: 1.0.0</sup> Spread can be negative.
 
 `offset` moves the shadow relative to the window in logical pixels, same as CSS box-shadow offset.
 For example, `offset = { x = 2, y = 2 }` will move the shadow 2 logical pixels downwards and to the right.
@@ -478,7 +478,7 @@ return {
 
 ### `tab-indicator`
 
-<sup>Since: 25.02</sup>
+<sup>Since: 1.0.0</sup>
 
 Controls the appearance of the tab indicator that appears next to columns in tabbed display mode.
 
@@ -533,7 +533,7 @@ return {
 
 ### `insert-hint`
 
-<sup>Since: 0.1.10</sup> 
+<sup>Since: 1.0.0</sup> 
 
 Settings for the window insert position hint during an interactive window move.
 
@@ -562,7 +562,7 @@ They are set in logical pixels.
 Left and right struts will cause the next window to the side to always peek out slightly.
 Top and bottom struts will simply add outer gaps in addition to the area occupied by layer-shell panels and regular gaps.
 
-<sup>Since: 0.1.7</sup> You can use fractional values.
+<sup>Since: 1.0.0</sup> You can use fractional values.
 The value will be rounded to physical pixels according to the scale factor of every output.
 For example, `top = 0.5` on an output with `scale = 2` will result in one physical-pixel wide top strut.
 
@@ -581,7 +581,7 @@ return {
 
 ![A screenshot illustrating the effects of struts, as explained in the second paragraph in this section](./img/struts.png)
 
-<sup>Since: 0.1.8</sup> You can use negative values.
+<sup>Since: 1.0.0</sup> You can use negative values.
 They will push the windows outwards, even outside the edges of the screen.
 
 You can use negative struts with matching gaps value to emulate "inner" vs. "outer" gaps.
@@ -604,7 +604,7 @@ return {
 
 ### `background-color`
 
-<sup>Since: 25.05</sup>
+<sup>Since: 1.0.0</sup>
 
 Set the default background color that ymir draws for workspaces.
 This is visible when you're not using any background tools like swaybg.

@@ -1,6 +1,6 @@
 ### Overview
 
-<sup>Since: 0.1.6</sup>
+<sup>Since: 1.0.0</sup>
 
 You can declare named workspaces at the top level of the config:
 
@@ -42,18 +42,18 @@ When editing the config while ymir is running, newly declared named workspaces w
 If you delete some named workspace from the config, the workspace will become normal (unnamed), and if there are no windows on it, it will be removed (as any other normal workspace).
 There's no way to give a name to an already existing workspace, but you can simply move windows that you want to a new, empty named workspace.
 
-<sup>Since: 0.1.9</sup> `open_on_output` can now use monitor manufacturer, model, and serial.
+<sup>Since: 1.0.0</sup> `open_on_output` can now use monitor manufacturer, model, and serial.
 Before, it could only use the connector name.
 
-<sup>Since: 25.01</sup> You can use `set_workspace_name` and `unset_workspace_name` actions to change workspace names dynamically.
+<sup>Since: 1.0.0</sup> You can use `set_workspace_name` and `unset_workspace_name` actions to change workspace names dynamically.
 
-<sup>Since: 25.02</sup> Named workspaces no longer update/forget their original output when opening a new window on them (unnamed workspaces will keep doing that).
+<sup>Since: 1.0.0</sup> Named workspaces no longer update/forget their original output when opening a new window on them (unnamed workspaces will keep doing that).
 This means that named workspaces "stick" to their original output in more cases, reflecting their more permanent nature.
 Explicitly moving a named workspace to a different monitor will still update its original output.
 
 ### Layout config overrides
 
-<sup>Since: 25.11</sup>
+<sup>Since: 1.0.0</sup>
 
 You can customize layout settings for named workspaces with a `layout` table:
 
@@ -113,7 +113,7 @@ return {
 
 ### Non-creating layout tags for default workspaces
 
-<sup>Since: 25.12</sup>
+<sup>Since: 1.0.0</sup>
 
 A workspace entry whose name is a plain number is a **non-creating layout rule**: instead of
 creating a named workspace, it applies its `layout` table to the Nth *default* (unnamed)

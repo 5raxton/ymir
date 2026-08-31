@@ -92,7 +92,7 @@ Thanks to this, apps that you configured to autostart in GNOME will also "just w
 
 ### `spawn-sh-at-startup`
 
-<sup>Since: 25.08</sup>
+<sup>Since: 1.0.0</sup>
 
 Add lines like this to run shell commands at ymir startup.
 
@@ -187,7 +187,7 @@ return {
 
 #### `hide-when-typing`
 
-<sup>Since: 0.1.10</sup>
+<sup>Since: 1.0.0</sup>
 
 If set, hides the cursor when pressing a key on the keyboard.
 
@@ -205,7 +205,7 @@ return {
 
 #### `hide-after-inactive-ms`
 
-<sup>Since: 0.1.10</sup>
+<sup>Since: 1.0.0</sup>
 
 If set, the cursor will automatically hide once this number of milliseconds passes since the last cursor movement.
 
@@ -220,7 +220,7 @@ return {
 
 ### `overview`
 
-<sup>Since: 25.05</sup>
+<sup>Since: 1.0.0</sup>
 
 Settings for the [Overview](./Overview.md).
 
@@ -254,7 +254,7 @@ return {
 }
 ```
 
-You can also set the color per-output [in the output config](./Configuration:-Outputs.md#backdrop-color).
+You can also set the color per-output [in the output config](./Configuration:-Outputs.md#backdrop_color).
 
 #### `workspace-shadow`
 
@@ -278,7 +278,7 @@ return {
 
 ### `xwayland-satellite`
 
-<sup>Since: 25.08</sup>
+<sup>Since: 1.0.0</sup>
 
 Settings for integration with [xwayland-satellite](https://github.com/Supreeeme/xwayland-satellite).
 
@@ -302,7 +302,7 @@ return {
 
 ### `clipboard`
 
-<sup>Since: 25.02</sup>
+<sup>Since: 1.0.0</sup>
 
 Clipboard settings.
 
@@ -335,7 +335,7 @@ return {
 
 #### `hide-not-bound`
 
-<sup>Since: 25.08</sup>
+<sup>Since: 1.0.0</sup>
 
 By default, ymir will show the most important actions even if they aren't bound to any key, to prevent confusion.
 Set the `hide_not_bound` flag if you want to hide all actions not bound to any key.
@@ -352,7 +352,7 @@ You can customize which binds the hotkey overlay shows using the [`hotkey_overla
 
 ### `config-notification`
 
-<sup>Since: 25.08</sup>
+<sup>Since: 1.0.0</sup>
 
 Settings for the config created/failed notification.
 

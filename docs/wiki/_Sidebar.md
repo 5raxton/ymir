@@ -30,6 +30,7 @@
 * [Switch Events](./Configuration:-Switch-Events.md)
 * [Layout](./Configuration:-Layout.md)
 * [Dwindle](./Configuration:-Dwindle.md)
+* [Depth](./Configuration:-Depth.md)
 * [Named Workspaces](./Configuration:-Named-Workspaces.md)
 * [Miscellaneous](./Configuration:-Miscellaneous.md)
 * [Window Rules](./Configuration:-Window-Rules.md)

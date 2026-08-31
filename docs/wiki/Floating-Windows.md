@@ -1,6 +1,6 @@
 ### Overview
 
-<sup>Since: 25.01</sup>
+<sup>Since: 1.0.0</sup>
 
 Floating windows in ymir always show on top of the tiled windows.
 The floating layout does not scroll.

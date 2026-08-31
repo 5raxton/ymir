@@ -1,5 +1,5 @@
 <h1 align="center">ymir</h1>
-<p align="center">A scrollable-tiling Wayland compositor with dwindle-style binary tiling.</p>
+<p align="center">A scrollable-tiling Wayland compositor with a dwindle-style binary-split layout.</p>
 <p align="center">
     <a href="https://lab.braxton.onl/braxton/ymir/src/branch/main/LICENSE"><img alt="License" src="https://img.shields.io/badge/license-GPL--3.0--or--later-blue"></a>
     <a href="https://lab.braxton.onl/braxton/ymir/releases"><img alt="Release" src="https://img.shields.io/badge/release-1.0.0-blue"></a>
@@ -10,19 +10,17 @@
 
 ymir is a Wayland compositor built around **scrollable tiling**: windows are arranged in
 columns on an infinite strip that scrolls to the right, and opening a window never disturbs the
-windows you already have open. It is named after Ymir from Norse mythology, and is written in
-Rust on top of [Smithay].
+windows you already have open. It is written in Rust on top of [Smithay], and its full
+configuration system is expressed in **Lua**.
 
 Its signature feature is **Dwindle**, a binary-split tiling layout that is **on by default**:
 inside a column, each new window splits the focused window in two and takes half of its space.
-The result is a resizable binary tree that partitions the whole work area — Hyprland-style,
-living inside a scrollable column strip.
+The result is a resizable binary tree that partitions the whole work area — living inside a
+scrollable column strip.
 
 Four column display modes are available — `dwindle`, `normal` (classic
 scrollable columns), `tabbed` and `depth` (a deck-style queue with a full-size
 apex card) — and you can switch a column between them at any time.
-
-ymir began as a fork of [niri] and has grown its own tiling model and identity since.
 
 ## How tiling works
 
@@ -43,20 +41,26 @@ ymir began as a fork of [niri] and has grown its own tiling model and identity s
 ## Highlights
 
 - **Dwindle-first.** The shipped default config boots straight into dwindle. Classic scrollable
-  tiling and tabbed columns are one `Mod+Shift+D` away, per column, at runtime.
+  tiling, tabbed and depth columns are one `Mod+Shift+D` away, per column, at runtime.
+- **Lua configuration.** Everything is configured from `~/.config/ymir/init.lua`, a live-reloading
+  Lua file with an ergonomic table syntax, an imperative `ymir.*` API, and support for splitting
+  your config across files with `include_config`.
 - **Per-workspace layout config.** Name a workspace `"1"` (numeric) and give it a `layout {}`
   block, and ymir applies it to the Nth default workspace of every monitor *without creating a
   named workspace*. Non-numeric names (`"browser"`) still create real named workspaces. See
   [Configuration: Named Workspaces](docs/wiki/Configuration:-Named-Workspaces.md).
 - **Everything modern.** An Overview zoom, built-in screenshot UI, screencasting through
   xdg-desktop-portal, touchpad and mouse gestures plus hot corners, gradient borders (Oklab and
-  Oklch), background blur, spring animations with custom shaders, and live-reloading config.
+  Oklch), background blur, spring animations with custom shaders, tabbed columns, and live
+  reloading config.
 
 ## Features
 
 - Scrollable tiling built from the ground up
 - [Dwindle column mode](docs/wiki/Configuration:-Dwindle.md): resizable binary-split tree,
   draggable dividers, split preselection, spatial window moves
+- [Depth column mode](docs/wiki/Configuration:-Depth.md): a deck-style queue with a full-size
+  apex card, perspective-tilted fans and background blur
 - Tabbed and normal (scrollable) column displays, switchable at runtime
 - [Dynamic workspaces](docs/wiki/Workspaces.md) like in GNOME, one empty workspace always at the
   bottom, preserved across hotplugs
@@ -145,6 +149,7 @@ development:
 - [Key bindings](docs/wiki/Configuration:-Key-Bindings.md)
 - [Layout configuration](docs/wiki/Configuration:-Layout.md)
 - [Dwindle layout](docs/wiki/Configuration:-Dwindle.md)
+- [Depth layout](docs/wiki/Configuration:-Depth.md)
 - [Named workspaces](docs/wiki/Configuration:-Named-Workspaces.md)
 - [Window rules](docs/wiki/Configuration:-Window-Rules.md)
 - [Recent windows](docs/wiki/Configuration:-Recent-Windows.md)
@@ -170,7 +175,6 @@ ymir is stable for day-to-day use and does most things you'd expect of a Wayland
 ymir is distributed under the GPL-3.0-or-later license. See [LICENSE](LICENSE).
 
 [Smithay]: https://github.com/Smithay/smithay
-[niri]: https://github.com/YaLTeR/niri
 [waybar]: https://github.com/Alexays/Waybar
 [alacritty]: https://github.com/alacritty/alacritty
 [fuzzel]: https://codeberg.org/dnkl/fuzzel

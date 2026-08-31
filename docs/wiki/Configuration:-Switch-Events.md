@@ -1,6 +1,6 @@
 ### Overview
 
-<sup>Since: 0.1.10</sup>
+<sup>Since: 1.0.0</sup>
 
 Switch event bindings are declared in the `switch_events` section of the config.
 

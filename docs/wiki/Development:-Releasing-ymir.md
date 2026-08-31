@@ -9,13 +9,13 @@ Plan for a few days of work, this usually takes a while.
 
 During this process, also check:
 
-- that all additions are marked with "next release" on the wiki,
+- that all additions are marked with "1.0.0" (or the new version) on the wiki,
 - if anything needs updating in `README.md`.
 
 ## Bump version
 
 We use `major.minor.patch` semantic versioning. Ymir 1.0.0 is the first stable
-release, completing the migration from the calver scheme to semver.
+release.
 
 You can use the command from [cargo-edit](https://github.com/killercup/cargo-edit):
 
@@ -31,7 +31,7 @@ Then, manually update version in:
 
 Do a full text search for the old version to make sure there are no other places.
 
-## Replace all "Since: next release" mentions
+## Replace all "Since: next release" mentions
 
 Do a full text search for `next release`, replace everything with the new version number.
 
@@ -45,52 +45,6 @@ RUN_SLOW_TESTS=1 cargo test --release --all
 
 - Run `cargo package -p ymir-ipc` and make sure it succeeds.
 - Make sure the CI passes.
-- Make sure the ymir-git COPR build passes.
-
-## Trigger the "Prepare release" workflow on GitHub Actions
-
-Set the "Public version" input to a version like `1.0.0`.
-
-This workflow will:
-
-- do some pre-release checks like grepping the wiki for "next version",
-- make a vendored dependency archive,
-- build and test ymir with that dependency archive,
-- draft a new GitHub release with the archive attached.
-It will NOT override an existing draft release with the same name so the release notes are safe.
-
-Make sure it succeeds and grab the vendored dependency archive that it produces.
-
-## Update the ymir COPR spec, update licenses in .spec.rpkg
-
-You can grab the previous spec from [the last build](https://copr.fedorainfracloud.org/coprs/yalter/ymir/builds/) in the COPR.
-
-- Update version global to `1.0.0`.
-- Update commit global to the commit hash corresponding to the release commit.
-You can use `git rev-parse HEAD`.
-- Reset the `Release:` number to 1 if it was higher.
-
-To run a test build, you can download the vendored dependency archive from the last step.
-Comment/uncomment `Source:` and `%autosetup` lines accordingly.
-
-Download the source files:
-
-```
-spectool -g ymir.spec
-```
-
-Build RPMs:
-
-```
-fedpkg --release 44 mockbuild
-```
-
-During the build, it will print the list of licenses.
-Update it in both the COPR spec and in `ymir.spec.rpkg` accordingly.
-
-If you had to update `ymir.spec.rpkg` and therefore make another commit to the ymir repo, make sure to update the commit hash in the COPR spec again.
-
-Revert any temporary changes that you did to the COPR spec for local testing.
 
 ## Create and push the release git tag
 
@@ -101,28 +55,45 @@ git tag -am "v1.0.0 release" v1.0.0
 git push origin v1.0.0
 ```
 
-While you can let GitHub create the tag automatically upon creating the release, this is not recommended.
-GitHub creates a *lightweight* tag, but we want an annotated tag that plays better with various tooling.
+Use an annotated tag: it plays better with various tooling than a lightweight tag.
 
-## Publish the release on GitHub
+## Publish the release
 
-- Either upload the vendored dependencies file to your draft release with the release notes, or move the release notes to the GitHub-created release (the difference is that it's attributed to github-actions).
-- Set the tag to `v1.0.0`.
-- Set the release title to `v1.0.0`.
-- Check "Create a discussion for this release".
+- Draft the release on the Forgejo instance (or your preferred mirror) with the release notes.
+- If the release is built from a vendored dependency archive (see below), attach it to the release.
+
+## Vendored dependencies
+
+If you want to make an offline-buildable release, produce a vendored dependency archive:
+
+```
+cargo vendor
+tar cJf ymir-vendored-deps.tar.xz vendor/
+```
+
+Build and test ymir against the archive before attaching it to the release.
+Distro packagers can then use it to build the release completely offline.
+
+## Update the RPM spec
+
+`ymir.spec.rpkg` lives in the repository root.
+
+- Update version global to `1.0.0`.
+- Update commit global to the commit hash corresponding to the release commit.
+You can use `git rev-parse HEAD`.
+- Reset the `Release:` number to 1 if it was higher.
+
+To run a test build, you can download the vendored dependency archive from the last step.
+Comment/uncomment `Source:` and `%autosetup` lines accordingly.
+
+During the build, the list of licenses is printed; update it in the spec accordingly.
+
+If you had to update `ymir.spec.rpkg` and therefore make another commit to the ymir repo, make sure to update the commit hash in the spec global again.
 
 ## Publish the ymir-ipc crate
 
 ```
 cargo publish -p ymir-ipc
-```
-
-## Kick off the COPR build
-
-Upload on the web or:
-
-```
-copr-cli build ymir ymir.spec
 ```
 
 ## Announce the release

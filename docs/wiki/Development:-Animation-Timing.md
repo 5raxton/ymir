@@ -20,7 +20,7 @@ There are hence several properties that a compositor wants from its timing syste
 1. During the processing of a single action, querying the current time should return the exact same value.
    Even if the processing finishes a few microseconds after it started, querying the time in the end should return the same thing.
    This generally makes writing code much more sane; otherwise you'd need to for example avoid reading the position of some element twice in a row, since it could have moved by one pixel in-between, screwing with the logic.
-   Also, fetching the current system time [can be quite expensive](https://mastodon.online/@YaLTeR/109934977035721850) in terms of overhead.
+   Also, fetching the current system time can be quite expensive in terms of overhead.
 1. It should be reasonably easy to implement an animation slow-down preference, so all animations can be slowed down or sped up by the same factor.
 
 The solution in ymir is a `LazyClock`, a clock that remembers one timestamp.

@@ -51,11 +51,11 @@ You can refer to named workspaces by name, e.g. `focus-workspace "browser"`, and
 
 ### Example workflow
 
-This is how I like to use workspaces.
+Here is one way to use workspaces productively.
 
-I will usually have my browser on the topmost workspace, then one workspace per project (or a "thing") I'm working on.
-On a single workspace I have 1–2 windows that fit inside a monitor that I switch between frequently, and maybe extra windows scrolled outside the view, usually either ones I need rarely, or temporary windows that I quickly close.
-When I need another permanent window, I'll put it on a new workspace.
+You might keep your browser on the topmost workspace, then one workspace per project (or a "thing") you're working on.
+On a single workspace you have 1–2 windows that fit inside a monitor that you switch between frequently, and maybe extra windows scrolled outside the view, usually either ones you need rarely, or temporary windows that you quickly close.
+When you need another permanent window, put it on a new workspace.
 
-I actively move workspaces up and down as I'm working on things to make what I need accessible in one motion.
-For example, I usually frequently switch between the browser and whatever I'm doing, so I always move whatever I'm currently doing to right below the browser, so a single `focus-workspace-up/down` gets me where I want.
+You can actively move workspaces up and down as you're working on things to make what you need accessible in one motion.
+For example, if you frequently switch between the browser and whatever you're doing, always move whatever you're currently doing to right below the browser, so a single `focus-workspace-up/down` gets you where you want.

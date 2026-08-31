@@ -33,7 +33,7 @@ Valid modifiers are:
 This way, you can test ymir in a window without causing too many conflicts with the host compositor's key bindings.
 For this reason, most of the default keys use the `Mod` modifier.
 
-<sup>Since: 25.05</sup> You can customize the `Mod` key [in the `input` section of the config](./Configuration:-Input.md#mod-key-mod-key-nested).
+<sup>Since: 1.0.0</sup> You can customize the `Mod` key [in the `input` section of the config](./Configuration:-Input.md#mod_key-mod_key_nested).
 
 > [!TIP]
 > To find an XKB name for a particular key, you may use a program like [`wev`](https://git.sr.ht/~sircmpwn/wev).
@@ -64,7 +64,7 @@ For this reason, most of the default keys use the `Mod` modifier.
 > When resolving latin keys, ymir will search for the *first* configured XKB layout that has the latin key.
 > So for example with US QWERTY and RU layouts configured, US QWERTY will be used for latin binds.
 
-<sup>Since: 0.1.8</sup> Binds will repeat by default (i.e. holding down a bind will make it trigger repeatedly).
+<sup>Since: 1.0.0</sup> Binds will repeat by default (i.e. holding down a bind will make it trigger repeatedly).
 You can disable that for specific binds with `["repeat"] = false`:
 
 ```lua
@@ -122,7 +122,7 @@ For example, if you have a `Mod+WheelScrollDown` bind, then while holding `Mod`,
 
 ### Mouse Click Bindings
 
-<sup>Since: 25.01</sup>
+<sup>Since: 1.0.0</sup>
 
 You can bind mouse clicks using the following syntax.
 
@@ -144,7 +144,7 @@ Note that binding `Mod+MouseLeft` or `Mod+MouseRight` will override the correspo
 
 ### Custom Hotkey Overlay Titles
 
-<sup>Since: 25.02</sup>
+<sup>Since: 1.0.0</sup>
 
 The hotkey overlay (the Important Hotkeys dialog) shows a hardcoded list of binds.
 You can customize this list using the `hotkey_overlay_title` property.
@@ -215,7 +215,7 @@ return {
 
 > [!TIP]
 >
-> <sup>Since: 0.1.5</sup>
+> <sup>Since: 1.0.0</sup>
 >
 > Spawn bindings have a special `allow_when_locked = true` property that makes them work even while the session is locked:
 >
@@ -280,7 +280,7 @@ return {
 
 #### `spawn-sh`
 
-<sup>Since: 25.08</sup>
+<sup>Since: 1.0.0</sup>
 
 Run a command through the shell.
 
@@ -335,7 +335,7 @@ return {
 
 #### `do-screen-transition`
 
-<sup>Since: 0.1.6</sup>
+<sup>Since: 1.0.0</sup>
 
 Freeze the screen for a brief moment then crossfade to the new contents.
 
@@ -376,7 +376,7 @@ ymir msg action do-screen-transition --delay-ms 100
 
 #### `toggle-window-rule-opacity`
 
-<sup>Since: 25.02</sup>
+<sup>Since: 1.0.0</sup>
 
 Toggle the opacity window rule of the focused window.
 This only has an effect if the window's opacity window rule is already set to semitransparent.
@@ -440,7 +440,7 @@ return {
 
 #### `toggle-keyboard-shortcuts-inhibit`
 
-<sup>Since: 25.02</sup>
+<sup>Since: 1.0.0</sup>
 
 Applications such as remote-desktop clients and software KVM switches may request that ymir stops processing its keyboard shortcuts so that they may, for example, forward the key presses as-is to a remote machine.
 `toggle_keyboard_shortcuts_inhibit` is an escape hatch that toggles the inhibitor.

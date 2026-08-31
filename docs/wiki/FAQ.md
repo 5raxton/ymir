@@ -1,6 +1,6 @@
 ### How to disable client-side decorations/make windows rectangular?
 
-Uncomment the [`prefer-no-csd` setting](./Configuration:-Miscellaneous.md#prefer-no-csd) at the top level of the config, and then restart your apps.
+Uncomment the [`prefer_no_csd` setting](./Configuration:-Miscellaneous.md#prefer-no-csd) at the top level of the config, and then restart your apps.
 Then ymir will ask windows to omit client-side decorations, and also inform them that they are being tiled (which makes some windows rectangular, even if they cannot omit the decorations).
 
 Note that currently this will prevent edge window resize handles from showing up.
@@ -8,7 +8,7 @@ You can still resize windows by holding <kbd>Mod</kbd> and the right mouse butto
 
 ### Why are transparent windows tinted? / Why is the border/focus ring showing up through semitransparent windows?
 
-Uncomment the [`prefer-no-csd` setting](./Configuration:-Miscellaneous.md#prefer-no-csd) at the top level of the config, and then restart your apps.
+Uncomment the [`prefer_no_csd` setting](./Configuration:-Miscellaneous.md#prefer-no-csd) at the top level of the config, and then restart your apps.
 Ymir will draw focus rings and borders *around* windows that agree to omit their client-side decorations.
 
 By default, focus ring and border are rendered as a solid background rectangle behind windows.
@@ -72,7 +72,7 @@ Keep in mind that you can run many Electron apps such as VSCode or Discord nativ
 A combination of factors:
 
 - Integrating Xwayland is quite a bit of work, as the compositor needs to implement parts of an X11 window manager.
-- You need to appease the X11 ideas of windowing, whereas for ymir I want to have the best code for Wayland.
+- You need to appease the X11 ideas of windowing, whereas ymir aims to have the best code for Wayland.
 - ymir doesn't have a good global coordinate system required by X11.
 - You tend to get an endless stream of X11 bugs that take further time and effort away from other tasks.
 - There aren't actually that many X11-only clients nowadays, and xwayland-satellite takes perfect care of most of those.
@@ -80,9 +80,9 @@ A combination of factors:
 
 All in all, the situation works out in favor of avoiding Xwayland integration.
 
-<sup>Since: 25.08</sup> ymir has seamless built-in xwayland-satellite integration that by and large works as well as built-in Xwayland in other compositors, solving the hurdle of having to set it up manually.
+<sup>Since: 1.0.0</sup> ymir has seamless built-in xwayland-satellite integration that by and large works as well as built-in Xwayland in other compositors, solving the hurdle of having to set it up manually.
 
-I wouldn't be too surprised if, down the road, xwayland-satellite becomes the standard way of integrating Xwayland into new compositors, since it takes on the bulk of the annoying work, and isolates the compositor from misbehaving clients.
+It wouldn't be too surprising if, down the road, xwayland-satellite becomes the standard way of integrating Xwayland into new compositors, since it takes on the bulk of the annoying work, and isolates the compositor from misbehaving clients.
 
 ### Can I enable blur behind semitransparent windows?
 
@@ -114,7 +114,7 @@ Adding this directly to ymir is challenging:
 
 ### Why does moving the mouse against a monitor edge focus the next window, but only sometimes?
 
-This can happen with [`focus-follows-mouse`](./Configuration:-Input.md#focus-follows-mouse).
+This can happen with [`focus-follows-mouse`](./Configuration:-Input.md#focus_follows_mouse).
 When using client-side decorations, windows are supposed to have some margins outside their geometry for the mouse resizing handles.
 These margins "peek out" of the monitor edges since they're outside the window geometry, and `focus-follows-mouse` triggers when the mouse crosses them.
 
@@ -126,7 +126,7 @@ It doesn't always happen:
 To fix this, you can:
 
 - Use `focus_follows_mouse = { max_scroll_amount = "0%" }`, which will prevent `focus_follows_mouse` from triggering when it would cause scrolling.
-- Set `prefer-no-csd` which will generally cause clients to remove those resizing margins.
+- Set `prefer_no_csd` which will generally cause clients to remove those resizing margins.
 
 ### How do I recover from a dead screen locker / from a red screen?
 

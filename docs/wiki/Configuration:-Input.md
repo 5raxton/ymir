@@ -137,7 +137,7 @@ return {
 
 > [!TIP]
 >
-> <sup>Since: 25.02</sup>
+> <sup>Since: 1.0.0</sup>
 >
 > Alternatively, you can directly set a path to a .xkb file containing an xkb keymap.
 > This overrides all other xkb settings.
@@ -156,7 +156,7 @@ return {
 
 > [!NOTE]
 >
-> <sup>Since: 25.08</sup>
+> <sup>Since: 1.0.0</sup>
 >
 > If the `xkb` section is empty (like it is by default), ymir will fetch xkb settings from systemd-localed at `org.freedesktop.locale1` over D-Bus.
 > This way, for example, system installers can dynamically set the ymir keyboard layout.
@@ -216,7 +216,7 @@ return {
 
 #### Num Lock
 
-<sup>Since: 25.05</sup>
+<sup>Since: 1.0.0</sup>
 
 Set the `numlock` flag to turn on Num Lock automatically at startup.
 
@@ -249,8 +249,8 @@ A few settings are common between `touchpad`, `mouse`, `trackpoint`, and `trackb
 - `accel_profile`: can be `adaptive` (the default) or `flat` (disables pointer acceleration).
 - `scroll_method`: when to generate scroll events instead of pointer motion events, can be `no-scroll`, `two-finger`, `edge`, or `on-button-down`.
   The default and supported methods vary depending on the device type.
-- `scroll_button`: <sup>Since: 0.1.10</sup> the button code used for the `on-button-down` scroll method. You can find it in `libinput debug-events`.
-- `scroll_button_lock`: <sup>Since: 25.08</sup> when enabled, the button does not need to be held down. Pressing once engages scrolling, pressing a second time disengages it, and double click acts as single click of the the underlying button.
+- `scroll_button`: <sup>Since: 1.0.0</sup> the button code used for the `on-button-down` scroll method. You can find it in `libinput debug-events`.
+- `scroll_button_lock`: <sup>Since: 1.0.0</sup> when enabled, the button does not need to be held down. Pressing once engages scrolling, pressing a second time disengages it, and double click acts as single click of the the underlying button.
 - `left_handed`: if set, changes the device to left-handed mode.
 - `middle_emulation`: emulate a middle mouse click by pressing left and right mouse buttons at once.
 
@@ -259,23 +259,23 @@ Settings specific to `touchpad`s:
 - `tap`: tap-to-click.
 - `dwt`: disable-when-typing.
 - `dwtp`: disable-when-trackpointing.
-- `drag`: <sup>Since: 25.05</sup> can be `true` or `false`, controls if tap-and-drag is enabled.
-- `drag_lock`: <sup>Since: 25.02</sup> if set, lifting the finger off for a short time while dragging will not drop the dragged item. See the [libinput documentation](https://wayland.freedesktop.org/libinput/doc/latest/tapping.html#tap-and-drag).
+- `drag`: <sup>Since: 1.0.0</sup> can be `true` or `false`, controls if tap-and-drag is enabled.
+- `drag_lock`: <sup>Since: 1.0.0</sup> if set, lifting the finger off for a short time while dragging will not drop the dragged item. See the [libinput documentation](https://wayland.freedesktop.org/libinput/doc/latest/tapping.html#tap-and-drag).
 - `tap_button_map`: can be `left-right-middle` or `left-middle-right`, controls which button corresponds to a two-finger tap and a three-finger tap.
 - `click_method`: can be `button-areas` or `clickfinger`, changes the [click method](https://wayland.freedesktop.org/libinput/doc/latest/clickpad-softbuttons.html).
 - `disabled_on_external_mouse`: do not send events while external pointer device is plugged in.
 
 Settings specific to `touchpad` and `mouse`:
 
-- `scroll_factor`: <sup>Since: 0.1.10</sup> scales the scrolling speed by this value.
+- `scroll_factor`: <sup>Since: 1.0.0</sup> scales the scrolling speed by this value.
 
-    <sup>Since: 25.08</sup> You can also override horizontal and vertical scroll factor separately like so: `scroll_factor = { horizontal = 2.0, vertical = -1.0 }`
+    <sup>Since: 1.0.0</sup> You can also override horizontal and vertical scroll factor separately like so: `scroll_factor = { horizontal = 2.0, vertical = -1.0 }`
 
 Settings specific to `tablet` and `touch`:
 
 - `calibration_matrix`: set to six floating point numbers to change the calibration matrix. See the [`LIBINPUT_CALIBRATION_MATRIX` documentation](https://wayland.freedesktop.org/libinput/doc/latest/device-configuration-via-udev.html) for examples.
-    - <sup>Since: 25.02</sup> for `tablet`
-    - <sup>Since: 25.11</sup> for `touch`
+    - <sup>Since: 1.0.0</sup> for `tablet`
+    - <sup>Since: 1.0.0</sup> for `touch`
 
 Tablets and touchscreens are absolute pointing devices that can be mapped to a specific output like so:
 
@@ -294,13 +294,13 @@ return {
 
 Valid output names are the same as the ones used for output configuration.
 
-<sup>Since: 0.1.7</sup> When a tablet is not mapped to any output, it will map to the union of all connected outputs, without aspect ratio correction.
+<sup>Since: 1.0.0</sup> When a tablet is not mapped to any output, it will map to the union of all connected outputs, without aspect ratio correction.
 
 Settings specific to `tablet`:
 
 - `map_to_focused_output`: <sup>Since: 1.0.0</sup> will map the tablet to the focused output, takes precedence over `map_to_output`.
 
-- `map_to_focused_window`: <sup>Since: next release</sup> will map the tablet to the focused window's geometry, takes precedence over `map_to_focused_output` and `map_to_output`.
+- `map_to_focused_window`: <sup>Since: 1.0.0</sup> will map the tablet to the focused window's geometry, takes precedence over `map_to_focused_output` and `map_to_output`.
 Falls back to those when no window is focused (for example, in the overview).
 
     When the tablet is also mapped to a specific output via `map_to_output`, the `map_to_focused_window` flag will map the tablet to the active window on that output.
@@ -340,7 +340,7 @@ return {
 By default, the cursor warps *separately* horizontally and vertically.
 I.e. if moving the mouse only horizontally is enough to put it inside the newly focused window, then the mouse will move only horizontally, and not vertically.
 
-<sup>Since: 25.05</sup> You can customize this with the `mode` property.
+<sup>Since: 1.0.0</sup> You can customize this with the `mode` property.
 
 - `mode = "center-xy"`: warps by both X and Y coordinates together.
 So if the mouse was anywhere outside the newly focused window, it will warp to the center of the window.
@@ -366,7 +366,7 @@ return {
 }
 ```
 
-<sup>Since: 0.1.8</sup> You can optionally set `max_scroll_amount`.
+<sup>Since: 1.0.0</sup> You can optionally set `max_scroll_amount`.
 Then, focus_follows_mouse won't focus a window if it will result in the view scrolling more than the set amount.
 The value is a percentage of the working area width.
 
@@ -405,7 +405,7 @@ return {
 
 #### `mod_key`, `mod_key_nested`
 
-<sup>Since: 25.05</sup>
+<sup>Since: 1.0.0</sup>
 
 Customize the `Mod` key for [key bindings](./Configuration:-Key-Bindings.md).
 Only valid modifiers are allowed, e.g. `Super`, `Alt`, `Mod3`, `Mod5`, `Ctrl`, `Shift`.

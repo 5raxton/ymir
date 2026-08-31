@@ -1,6 +1,6 @@
 ## General principles
 
-These are some of the general principles that I try to follow throughout ymir.
+These are some of the general principles that guide ymir's development.
 They can be sidestepped in specific circumstances if there's a good reason.
 
 ### Opening a new window should not affect the sizes of any existing windows.
@@ -56,11 +56,11 @@ Here are some design considerations for the window layout logic.
 
     The top left area of a window is more likely to contain something important, so it should always be visible.
 
-1. Setting window width or height to a fixed pixel size (e.g. `set-column-width 1280` or `default-column-width { fixed 1280; }`) will set the size of the window itself, however setting to a proportional size (e.g. `set-column-width 50%`) will set the size of the tile, including the border added by ymir.
+1. Setting window width or height to a fixed pixel size (e.g. `default_column_width = { fixed = 1280 }`, or `ymir msg action set-column-width 1280`) will set the size of the window itself, however setting to a proportional size (e.g. `default_column_width = { proportion = 0.5 }`) will set the size of the tile, including the border added by ymir.
 
     - With proportions, the user is looking to tile multiple windows on the screen, so they should include borders.
     - With fixed sizes, the user wants to test a specific client size or take a specifically sized screenshot, so they should affect the window directly.
-    - After the size is set, it is always converted to a value that includes the borders, to make the code sane. That is, `set-column-width 1000` followed by changing the ymir border width will resize the window accordingly.
+    - After the size is set, it is always converted to a value that includes the borders, to make the code sane. That is, `default_column_width = { fixed = 1000 }` followed by changing the ymir border width will resize the window accordingly.
 
 1. Fullscreen windows are a normal part of the scrolling layout.
 
@@ -85,7 +85,7 @@ We don't include every possible option in the default config to avoid overwhelmi
 The general rule is to include things that users are reasonably expected to want to change or know how to do.
 We do also advertise our more unique features though like screencast block-out-from.
 
-We default to CSD (`prefer-no-csd` is commented out).
+We default to CSD (`prefer_no_csd` is commented out in the default config).
 This gives new users easy and familiar way to move and close windows via their titlebars, especially considering that ymir doesn't have serverside titlebars (so far at least).
 
 Focus rings are drawn fully behind windows by default.
@@ -94,7 +94,7 @@ The ideal solution here would be to propose a Wayland protocol for windows to re
 
 The default focus ring is quite thick at 4 px to look well with clientside-decorated windows and be obviously noticeable, and the default gaps are also quite big at 16 px to look well with the default focus ring width.
 
-The default input settings like touchpad tap and natural-scroll are how I believe most people want to use their computers.
+The default input settings like touchpad tap and natural-scroll are what most people expect out of the box.
 
 Shadows default to off because they are a fairly performance-intensive shader, and because many clientside-decorated windows already draw their own shadows.
 
@@ -102,7 +102,7 @@ The default screenshot-path matches GNOME Shell.
 
 Default window rules are limited to fixing known severe issues (WezTerm) and doing something the absolute majority likely wants (make Firefox Picture-in-Picture player floating—it can't do that on its own currently, maybe the pip protocol will change that).
 
-The default binds largely come from my own experience using PaperWM, and from other compositors.
+The default binds draw from scrollable-tiling window managers like PaperWM and from common tiling-compositor conventions.
 They assume QWERTY.
 The binds are ordered in a way to gradually introduce you to different bind configuration concepts.
 

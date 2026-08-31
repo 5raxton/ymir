@@ -1,6 +1,6 @@
 ### Overview
 
-<sup>Since: 25.11</sup>
+<sup>Since: 1.0.0</sup>
 
 In this section you can configure the recent windows switcher (Alt-Tab).
 
@@ -50,7 +50,7 @@ Delay, in milliseconds, between the window receiving focus and getting "committe
 When you want to focus some window, you might end up focusing some unrelated windows on the way:
 
 - with keyboard navigation, the windows between your current one and the target one;
-- with [`focus-follows-mouse`](./Configuration:-Input.md#focus-follows-mouse), the windows you happen to cross with the mouse pointer on the way to the target window.
+- with [`focus-follows-mouse`](./Configuration:-Input.md#focus_follows_mouse), the windows you happen to cross with the mouse pointer on the way to the target window.
 
 The debounce delay prevents those intermediate windows from polluting the recent windows list.
 

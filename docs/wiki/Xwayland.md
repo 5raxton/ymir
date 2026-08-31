@@ -1,6 +1,6 @@
 ## Using xwayland-satellite
 
-<sup>Since: 25.08</sup> Ymir integrates with [xwayland-satellite](https://github.com/Supreeeme/xwayland-satellite) out of the box.
+<sup>Since: 1.0.0</sup> Ymir integrates with [xwayland-satellite](https://github.com/Supreeeme/xwayland-satellite) out of the box.
 Ensure xwayland-satellite >= 0.7 is installed and available in `$PATH`.
 With no further configuration, ymir will create X11 sockets on disk, export `$DISPLAY`, and spawn xwayland-satellite on-demand when an X11 client connects.
 If xwayland-satellite dies, ymir will automatically restart it.
@@ -12,7 +12,7 @@ To check that the integration works, verify that the ymir output says something 
 ```sh
 $ journalctl --user-unit=ymir -b
 systemd[2338]: Starting ymir.service - A scrollable-tiling Wayland compositor...
-ymir[2474]: 2025-08-29T04:07:40.043402Z  INFO ymir: starting version 25.05.1 (0.0.git.2345.d9833fc1)
+ymir[2474]: 2025-08-29T04:07:40.043402Z  INFO ymir: starting version 1.0.0
 (...)
 ymir[2474]: 2025-08-29T04:07:40.690512Z  INFO ymir: listening on Wayland socket: wayland-1
 ymir[2474]: 2025-08-29T04:07:40.690520Z  INFO ymir: IPC listening on: /run/user/1000/ymir.wayland-1.2474.sock
@@ -72,10 +72,14 @@ For textual data you can do it manually using [wl-clipboard](https://github.com/
 
 You can also bind these to hotkeys if you want:
 
-```
-binds {
-    Mod+Shift+C { spawn "sh" "-c" "env DISPLAY=:0 xsel -ob | wl-copy"; }
-    Mod+Shift+V { spawn "sh" "-c" "wl-paste -n | env DISPLAY=:0 xsel -ib"; }
+```lua
+return {
+    binds = {
+        -- Copy from Xwayland to the ymir clipboard.
+        { key = "Mod+Shift+C", action = { name = "spawn_sh", command = "env DISPLAY=:0 xsel -ob | wl-copy" } },
+        -- Paste from the ymir clipboard into Xwayland.
+        { key = "Mod+Shift+V", action = { name = "spawn_sh", command = "wl-paste -n | env DISPLAY=:0 xsel -ib" } },
+    },
 }
 ```
 

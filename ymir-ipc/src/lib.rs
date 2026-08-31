@@ -460,9 +460,7 @@ pub enum Action {
     SwapWindowRight {},
     /// Swap focused window with one to the left.
     SwapWindowLeft {},
-    /// Toggle the focused column between normal and tabbed display.
-    ToggleColumnTabbedDisplay {},
-    /// Switch the focused column's layout mode: dwindle, normal (scrollable), tabbed.
+    /// Switch the focused column's layout mode: dwindle or normal.
     SwitchColumnDisplay {},
     /// Set the display mode of the focused column.
     SetColumnDisplay {
@@ -470,28 +468,6 @@ pub enum Action {
         #[cfg_attr(feature = "clap", arg())]
         display: ColumnDisplay,
     },
-    /// Focus the card above the apex in the depth queue.
-    FocusCardUp {},
-    /// Focus the card below the apex in the depth queue.
-    FocusCardDown {},
-    /// Move the focused window to the far end of the depth queue.
-    PushToQueue {},
-    /// Promote a window to the apex of the depth queue.
-    #[cfg_attr(
-        feature = "clap",
-        clap(about = "Promote the focused window (or the window with the given id) to the depth apex")
-    )]
-    PullToApex {
-        /// Id of the window to promote.
-        ///
-        /// If `None`, uses the focused window.
-        #[cfg_attr(feature = "clap", arg(long))]
-        id: Option<u64>,
-    },
-    /// Cycle focus through the depth queue, Alt+Tab style.
-    CycleQueueDepth {},
-    /// Toggle spanning the whole depth queue so every card is visible at once.
-    ToggleQueueCover {},
     /// Center the focused column on the screen.
     CenterColumn {},
     /// Center a window on the screen.
@@ -1041,16 +1017,8 @@ pub enum LayoutSwitchTarget {
 pub enum ColumnDisplay {
     /// Windows are tiled vertically across the working area height.
     Normal,
-    /// Windows are in tabs.
-    Tabbed,
     /// Windows are arranged in a recursive binary-split (dwindle) tree.
     Dwindle,
-    /// Windows are arranged as a depth-sorted card stack (apex).
-    ///
-    /// The focused window sits at the apex of the stack, full size and fully
-    /// interactive; the rest of the queue fans into top and bottom decks behind
-    /// it with decreasing opacity and a hardware-accelerated blurred backdrop.
-    Depth,
 }
 
 /// Direction of a pending dwindle split (preselection).
@@ -1935,10 +1903,8 @@ impl FromStr for ColumnDisplay {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "normal" => Ok(Self::Normal),
-            "tabbed" => Ok(Self::Tabbed),
             "dwindle" => Ok(Self::Dwindle),
-            "depth" => Ok(Self::Depth),
-            _ => Err(r#"invalid column display, can be "normal", "tabbed", "dwindle" or "depth""#),
+            _ => Err(r#"invalid column display, can be "normal" or "dwindle""#),
         }
     }
 }

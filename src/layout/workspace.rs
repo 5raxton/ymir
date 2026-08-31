@@ -1187,13 +1187,6 @@ impl<W: LayoutElement> Workspace<W> {
         self.scrolling.swap_window_in_direction(direction);
     }
 
-    pub fn toggle_column_tabbed_display(&mut self) {
-        if self.floating_is_active.get() {
-            return;
-        }
-        self.scrolling.toggle_column_tabbed_display();
-    }
-
     pub fn switch_column_display(&mut self) {
         if self.floating_is_active.get() {
             return;
@@ -1231,34 +1224,6 @@ impl<W: LayoutElement> Workspace<W> {
         }
         self.scrolling.set_column_display(display);
         self.runtime_column_display = self.scrolling.active_column_display();
-    }
-
-    pub fn push_active_to_depth_queue(&mut self) {
-        if self.floating_is_active.get() {
-            return;
-        }
-        self.scrolling.push_active_to_depth_queue();
-    }
-
-    pub fn pull_to_depth_apex(&mut self, window: Option<&W::Id>) {
-        if self.floating_is_active.get() {
-            return;
-        }
-        self.scrolling.pull_to_depth_apex(window);
-    }
-
-    pub fn cycle_depth_queue(&mut self) {
-        if self.floating_is_active.get() {
-            return;
-        }
-        self.scrolling.cycle_depth_queue();
-    }
-
-    pub fn toggle_depth_queue_cover(&mut self) {
-        if self.floating_is_active.get() {
-            return;
-        }
-        self.scrolling.toggle_depth_queue_cover();
     }
 
     pub fn center_column(&mut self) {

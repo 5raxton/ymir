@@ -124,9 +124,8 @@ return {
 
     -- Dwindle is the default layout mode: new windows split off the focused
     -- window into a resizable binary tree. Set this to "normal" (scrollable
-    -- columns) or "tabbed" if you prefer. You can switch modes per-column at
-    -- runtime with Mod+Shift+D (switch-column-display, bound below), and still use
-    -- "tabbed" via set-column-display per column.
+    -- columns) if you prefer. You can switch modes per-column at
+    -- runtime with Mod+Shift+D (switch-column-display, bound below).
     default_column_display = "dwindle",
 
     -- When to center a column when changing focus, options are:
@@ -639,11 +638,6 @@ return {
     -- Move the focused window between the floating and the tiling layout.
     { key = "Mod+V", action = { name = "toggle_window_floating" } },
     { key = "Mod+Shift+V", action = { name = "switch_focus_between_floating_and_tiling" } },
-
-    -- Toggle tabbed column display mode.
-    -- Windows in this column will appear as vertical tabs,
-    -- rather than stacked on top of each other.
-    { key = "Mod+W", action = { name = "toggle_column_tabbed_display" } },
 
     -- Actions to switch layouts.
     -- Note: if you uncomment these, make sure you do NOT have

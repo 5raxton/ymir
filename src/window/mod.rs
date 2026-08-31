@@ -4,7 +4,7 @@ use ymir_config::utils::MergeWith as _;
 use ymir_config::window_rule::{Match, OnXdgActivate, WindowRule};
 use ymir_config::{
     BackgroundEffect, BlockOutFrom, BorderRule, CornerRadius, FloatingPosition, PresetSize,
-    ResolvedPopupsRules, ShadowRule, TabIndicatorRule,
+    ResolvedPopupsRules, ShadowRule,
 };
 use ymir_ipc::ColumnDisplay;
 use smithay::reexports::wayland_protocols::xdg::shell::server::xdg_toplevel;
@@ -91,8 +91,6 @@ pub struct ResolvedWindowRules {
     pub border: BorderRule,
     /// Shadow overrides.
     pub shadow: ShadowRule,
-    /// Tab indicator overrides.
-    pub tab_indicator: TabIndicatorRule,
 
     /// Whether or not to draw the border with a solid background.
     ///
@@ -280,7 +278,6 @@ impl ResolvedWindowRules {
                 resolved.focus_ring.merge_with(&rule.focus_ring);
                 resolved.border.merge_with(&rule.border);
                 resolved.shadow.merge_with(&rule.shadow);
-                resolved.tab_indicator.merge_with(&rule.tab_indicator);
 
                 if let Some(x) = rule.draw_border_with_background {
                     resolved.draw_border_with_background = Some(x);

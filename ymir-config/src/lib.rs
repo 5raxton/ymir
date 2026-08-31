@@ -502,11 +502,6 @@ mod tests {
                         offset = { x = 10, y = -20 },
                     },
 
-                    tab_indicator = {
-                        width = 10,
-                        position = "top",
-                    },
-
                     preset_column_widths = {
                         { proportion = 0.25 },
                         { proportion = 0.5 },
@@ -529,7 +524,7 @@ mod tests {
 
                     center_focused_column = "on-overflow",
 
-                    default_column_display = "tabbed",
+                    default_column_display = "normal",
 
                     insert_hint = {
                         color = "rgb(255, 200, 127)",
@@ -622,7 +617,7 @@ mod tests {
                         open_floating = false,
                         open_focused = true,
                         default_window_height = { fixed = 500 },
-                        default_column_display = "tabbed",
+                        default_column_display = "dwindle",
                         default_floating_position = { x = 100, y = -200, relative_to = "bottom-left" },
                         on_xdg_activate = "ignore",
 
@@ -634,10 +629,6 @@ mod tests {
                         border = {
                             on = true,
                             width = 8.5,
-                        },
-
-                        tab_indicator = {
-                            active_color = "#f00",
                         },
                     },
                 },
@@ -1123,27 +1114,6 @@ mod tests {
                     },
                     inactive_color: None,
                 },
-                tab_indicator: TabIndicator {
-                    off: false,
-                    hide_when_single_tab: false,
-                    place_within_column: false,
-                    gap: 5.0,
-                    width: 10.0,
-                    length: TabIndicatorLength {
-                        total_proportion: Some(
-                            0.5,
-                        ),
-                    },
-                    position: Top,
-                    gaps_between_tabs: 0.0,
-                    corner_radius: 0.0,
-                    active_color: None,
-                    inactive_color: None,
-                    urgent_color: None,
-                    active_gradient: None,
-                    inactive_gradient: None,
-                    urgent_gradient: None,
-                },
                 insert_hint: InsertHint {
                     off: false,
                     color: Color {
@@ -1211,7 +1181,7 @@ mod tests {
                 center_focused_column: OnOverflow,
                 always_center_single_column: false,
                 empty_workspace_above_first: false,
-                default_column_display: Tabbed,
+                default_column_display: Normal,
                 gaps: 8.0,
                 struts: Struts {
                     left: FloatOrInt(
@@ -1232,39 +1202,6 @@ mod tests {
                     g: 0.25,
                     b: 0.25,
                     a: 1.0,
-                },
-                depth_queue: DepthQueue {
-                    card_height_ratio: 0.62,
-                    top_deck_size: 2,
-                    bottom_deck_size: 2,
-                    gap: 12.0,
-                    deck_bleed: 24.0,
-                    min_opacity: 0.35,
-                    blur_radius: 18.0,
-                    card_shadow: DepthDeckShadow {
-                        on: true,
-                        offset: ShadowOffset {
-                            x: FloatOrInt(
-                                0.0,
-                            ),
-                            y: FloatOrInt(
-                                10.0,
-                            ),
-                        },
-                        blur: 24.0,
-                        color: Color {
-                            r: 0.0,
-                            g: 0.0,
-                            b: 0.0,
-                            a: 0.27058825,
-                        },
-                    },
-                    perspective_tilt: 7.0,
-                    focus_shuffle: SpringParams {
-                        damping_ratio: 0.62,
-                        stiffness: 750,
-                        epsilon: 0.0001,
-                    },
                 },
             },
             prefer_no_csd: true,
@@ -1632,21 +1569,6 @@ mod tests {
                         color: None,
                         inactive_color: None,
                     },
-                    tab_indicator: TabIndicatorRule {
-                        active_color: Some(
-                            Color {
-                                r: 1.0,
-                                g: 0.0,
-                                b: 0.0,
-                                a: 1.0,
-                            },
-                        ),
-                        inactive_color: None,
-                        urgent_color: None,
-                        active_gradient: None,
-                        inactive_gradient: None,
-                        urgent_gradient: None,
-                    },
                     draw_border_with_background: None,
                     opacity: None,
                     geometry_corner_radius: None,
@@ -1655,7 +1577,7 @@ mod tests {
                     block_out_from: None,
                     variable_refresh_rate: None,
                     default_column_display: Some(
-                        Tabbed,
+                        Dwindle,
                     ),
                     default_floating_position: Some(
                         FloatingPosition {

@@ -756,13 +756,8 @@ impl State {
                 let active = self.ymir.layout.active_output().cloned();
                 if let Some(active) = active {
                     self.backend.with_primary_renderer(|renderer| {
-                        if let Err(err) = self.ymir.screenshot(
-                            renderer,
-                            &active,
-                            true,
-                            true,
-                            path,
-                        ) {
+                        if let Err(err) = self.ymir.screenshot(renderer, &active, true, true, path)
+                        {
                             warn!("error taking screenshot: {err:?}");
                         }
                     });
@@ -794,14 +789,10 @@ impl State {
                 let focus = self.ymir.layout.focus_with_output();
                 if let Some((mapped, output)) = focus {
                     self.backend.with_primary_renderer(|renderer| {
-                        if let Err(err) = self.ymir.screenshot_window(
-                            renderer,
-                            output,
-                            mapped,
-                            true,
-                            false,
-                            path,
-                        ) {
+                        if let Err(err) = self
+                            .ymir
+                            .screenshot_window(renderer, output, mapped, true, false, path)
+                        {
                             warn!("error taking screenshot: {err:?}");
                         }
                     });
@@ -1645,12 +1636,6 @@ impl State {
                 // FIXME: granular
                 self.ymir.queue_redraw_all();
             }
-            Action::ToggleColumnTabbedDisplay => {
-                self.ymir.layout.toggle_column_tabbed_display();
-                self.maybe_warp_cursor_to_focus();
-                // FIXME: granular
-                self.ymir.queue_redraw_all();
-            }
             Action::SwitchColumnDisplay => {
                 self.ymir.layout.switch_column_display();
                 self.maybe_warp_cursor_to_focus();
@@ -1660,51 +1645,6 @@ impl State {
             Action::SetColumnDisplay(display) => {
                 self.ymir.layout.set_column_display(display);
                 self.maybe_warp_cursor_to_focus();
-                // FIXME: granular
-                self.ymir.queue_redraw_all();
-            }
-            Action::FocusCardUp => {
-                self.ymir.layout.focus_up();
-                self.maybe_warp_cursor_to_focus();
-                // FIXME: granular
-                self.ymir.queue_redraw_all();
-            }
-            Action::FocusCardDown => {
-                self.ymir.layout.focus_down();
-                self.maybe_warp_cursor_to_focus();
-                // FIXME: granular
-                self.ymir.queue_redraw_all();
-            }
-            Action::PushToQueue => {
-                self.ymir.layout.push_active_to_depth_queue();
-                self.maybe_warp_cursor_to_focus();
-                // FIXME: granular
-                self.ymir.queue_redraw_all();
-            }
-            Action::PullToApex => {
-                self.ymir.layout.pull_to_depth_apex(None);
-                self.maybe_warp_cursor_to_focus();
-                // FIXME: granular
-                self.ymir.queue_redraw_all();
-            }
-            Action::PullToApexById(id) => {
-                let window = self.ymir.layout.windows().find(|(_, m)| m.id().get() == id);
-                let window = window.map(|(_, m)| m.window.clone());
-                if let Some(window) = window {
-                    self.ymir.layout.pull_to_depth_apex(Some(&window));
-                    self.maybe_warp_cursor_to_focus();
-                    // FIXME: granular
-                    self.ymir.queue_redraw_all();
-                }
-            }
-            Action::CycleQueueDepth => {
-                self.ymir.layout.cycle_depth_queue();
-                self.maybe_warp_cursor_to_focus();
-                // FIXME: granular
-                self.ymir.queue_redraw_all();
-            }
-            Action::ToggleQueueCover => {
-                self.ymir.layout.toggle_depth_queue_cover();
                 // FIXME: granular
                 self.ymir.queue_redraw_all();
             }

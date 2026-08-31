@@ -354,7 +354,7 @@ return {
 <sup>Since: 1.0.0</sup>
 
 Some clients (notably, Chromium- and Electron-based, like Teams or Slack) erroneously use the Activated xdg window state instead of keyboard focus for things like deciding whether to send notifications for new messages, or for picking where to show an IME popup.
-Ymir keeps the Activated state on unfocused workspaces and invisible tabbed windows (to reduce unwanted animations), surfacing bugs in these applications.
+Ymir keeps the Activated state on unfocused workspaces and invisible tiled windows (to reduce unwanted animations), surfacing bugs in these applications.
 
 Set this debug flag to work around these problems.
 It will cause ymir to drop the Activated state for all unfocused windows.

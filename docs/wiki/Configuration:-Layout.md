@@ -11,7 +11,7 @@ return {
         center_focused_column = "never",
         always_center_single_column = true,
         empty_workspace_above_first = true,
-        default_column_display = "tabbed",
+        default_column_display = "dwindle",
         background_color = "#003300",
 
         preset_column_widths = {
@@ -61,25 +61,6 @@ return {
             draw_behind_window = true,
             color = "#00000070",
             -- inactive_color = "#00000054"
-        },
-
-        tab_indicator = {
-            -- off = true
-            on = true,
-            hide_when_single_tab = true,
-            place_within_column = true,
-            gap = 5,
-            width = 4,
-            length = { total_proportion = 1.0 },
-            position = "right",
-            gaps_between_tabs = 2,
-            corner_radius = 8,
-            active_color = "red",
-            inactive_color = "gray",
-            urgent_color = "blue",
-            -- active_gradient = { from = "#80c8ff", to = "#bbddff", angle = 45 }
-            -- inactive_gradient = { from = "#505050", to = "#808080", angle = 45, relative_to = "workspace-view" }
-            -- urgent_gradient = { from = "#800", to = "#a33", angle = 45 }
         },
 
         insert_hint = {
@@ -169,17 +150,16 @@ return {
 <sup>Since: 1.0.0</sup>
 
 Sets the default display mode for new columns.
-Can be `normal`, `tabbed`, `dwindle` or `depth`.
+Can be `normal` (scrollable columns) or `dwindle`.
 
 Dwindle is ymir's default out of the box: new windows split off the focused
-window into a binary-split tree. Set it to `normal` (scrollable columns) or
-`tabbed` to change the default. See the [Dwindle](./Configuration:-Dwindle.md)
-page for the full documentation of the dwindle mode.
+window into a binary-split tree. Set it to `normal` to change the default. See
+the [Dwindle](./Configuration:-Dwindle.md) page for the full documentation of
+the dwindle mode.
 
 You can switch between dwindle and scrollable layout at runtime with the
 `switch_column_display` action (bound to Mod+Shift+D in the default config),
-and per-column display modes via `set_column_display` or
-`toggle_column_tabbed_display`.
+and per-column display modes via `set_column_display`.
 
 The `switch_column_display` toggle is remembered per workspace for the rest of
 the session: any new windows (and any further columns) you open in that
@@ -189,14 +169,8 @@ per-workspace `layout` config is applied).
 ```lua
 return {
     layout = {
-        -- Make all new columns tabbed by default.
-        default_column_display = "tabbed",
-
-        -- You may also want to hide the tab indicator
-        -- when there's only a single window in a column.
-        tab_indicator = {
-            hide_when_single_tab = true,
-        },
+        -- Make all new columns scrollable by default.
+        default_column_display = "normal",
     },
 }
 ```
@@ -475,61 +449,6 @@ return {
 ```
 
 [CSS box-shadow]: https://developer.mozilla.org/en-US/docs/Web/CSS/box-shadow
-
-### `tab-indicator`
-
-<sup>Since: 1.0.0</sup>
-
-Controls the appearance of the tab indicator that appears next to columns in tabbed display mode.
-
-Set `off` to hide the tab indicator.
-
-Set `hide_when_single_tab` to hide the indicator for tabbed columns that only have a single window.
-
-Set `place_within_column` to put the tab indicator "within" the column, rather than outside.
-This will include it in column sizing and avoid overlaying adjacent columns.
-
-`gap` sets the gap between the tab indicator and the window in logical pixels.
-The gap can be negative, this will put the tab indicator on top of the window.
-
-`width` sets the thickness of the indicator in logical pixels.
-
-`length` controls the length of the indicator.
-Set the `total_proportion` property to make tabs take up this much length relative to the window size.
-By default, the tab indicator has length equal to half of the window size, or `length = { total_proportion = 0.5 }`.
-
-`position` sets the position of the tab indicator relative to the window.
-It can be `left`, `right`, `top`, or `bottom`.
-
-`gaps_between_tabs` controls the gap between individual tabs in logical pixels.
-
-`corner_radius` sets the rounded corner radius for tabs in the indicator in logical pixels.
-When `gaps_between_tabs` is zero, only the first and the last tabs have rounded corners, otherwise all tabs do.
-
-`active_color`, `inactive_color`, `urgent_color`, `active_gradient`, `inactive_gradient`, `urgent_gradient` let you override the colors for the tabs.
-They have the same semantics as the border and focus ring colors and gradients.
-
-Tab colors are picked in this order:
-
-1. Colors from the `tab_indicator` window rule, if set.
-1. Colors from the `tab_indicator` layout options, if set (you're here).
-1. If neither are set, ymir picks the color matching the window border or focus ring, whichever one is active.
-
-```lua
-return {
-    layout = {
-        -- Make the tab indicator wider and match the window height,
-        -- also put it at the top and within the column.
-        tab_indicator = {
-            width = 8,
-            gap = 8,
-            length = { total_proportion = 1.0 },
-            position = "top",
-            place_within_column = true,
-        },
-    },
-}
-```
 
 ### `insert-hint`
 

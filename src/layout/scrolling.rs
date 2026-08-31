@@ -1,12 +1,10 @@
-use std::cell::RefCell;
 use std::cmp::{max, min};
-use std::collections::HashMap;
 use std::iter::{self, zip};
 use std::rc::Rc;
 use std::time::Duration;
 
 use ordered_float::NotNan;
-use smithay::backend::renderer::gles::{GlesRenderer, Uniform};
+use smithay::backend::renderer::gles::GlesRenderer;
 use smithay::utils::{Logical, Point, Rectangle, Scale, Serial, Size};
 use ymir_config::utils::MergeWith as _;
 use ymir_config::{CenterFocusedColumn, PresetSize, Struts};
@@ -15,21 +13,13 @@ use ymir_ipc::{ColumnDisplay, SizeChange, WindowLayout};
 use super::closing_window::{ClosingWindow, ClosingWindowRenderElement};
 use super::dwindle::{DwindleTree, LeafPath, SpatialDir, SplitSide};
 use super::monitor::InsertPosition;
-use super::tab_indicator::{TabIndicator, TabIndicatorRenderElement, TabInfo};
 use super::tile::{Tile, TileRenderElement, TileRenderSnapshot};
 use super::workspace::{InteractiveResize, ResolvedSize};
-use super::{ConfigureIntent, HitType, InteractiveResizeData, LayoutElement, LayoutElementRenderElement, Options, RemovedTile};
+use super::{ConfigureIntent, HitType, InteractiveResizeData, LayoutElement, Options, RemovedTile};
 use crate::animation::{Animation, Clock};
 use crate::input::swipe_tracker::SwipeTracker;
 use crate::layout::{RenderLayer, SizingMode};
-use crate::render_helpers::background_effect::RenderParams;
-use crate::render_helpers::blur::BlurOptions;
-use crate::render_helpers::framebuffer_effect::{FramebufferEffect, FramebufferEffectElement};
-use crate::render_helpers::offscreen::OffscreenBuffer;
 use crate::render_helpers::renderer::YmirRenderer;
-use crate::render_helpers::shader_element::ShaderRenderElement;
-use crate::render_helpers::shadow::ShadowRenderElement;
-use crate::render_helpers::shaders::ProgramType;
 use crate::render_helpers::xray::XrayPos;
 use crate::render_helpers::RenderCtx;
 use crate::utils::id::IdCounter;
@@ -109,10 +99,6 @@ ymir_render_elements! {
     ScrollingSpaceRenderElement<R> => {
         Tile = TileRenderElement<R>,
         ClosingWindow = ClosingWindowRenderElement,
-        TabIndicator = TabIndicatorRenderElement,
-        DepthCard = ShaderRenderElement,
-        DepthShadow = ShadowRenderElement,
-        DepthBlur = FramebufferEffectElement,
     }
 }
 
@@ -222,9 +208,6 @@ pub struct Column<W: LayoutElement> {
     /// How this column displays and arranges windows.
     display_mode: ColumnDisplay,
 
-    /// Tab indicator for the tabbed display mode.
-    tab_indicator: TabIndicator,
-
     /// Dwindle binary-split tree for the dwindle display mode.
     ///
     /// Leaf values are tile indices (into [`Self::tiles`]). Whenever the tree mutates,
@@ -259,114 +242,6 @@ pub struct Column<W: LayoutElement> {
 
     /// Unique ID of this column.
     id: ColumnId,
-
-    /// Depth-queue display mode state (only meaningful when `display_mode == Depth`).
-    depth: DepthState,
-}
-
-/// Which deck of the depth queue a card fans into.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum DeckSide {
-    Top,
-    Bottom,
-}
-
-/// Animated pose of a single depth-queue card.
-#[derive(Debug, Clone, Copy, PartialEq)]
-struct DepthCardAnim {
-    /// Offset of the card's near (apex-facing) edge from the apex's same edge, in logical px.
-    ///
-    /// Positive for the bottom deck (down), negative for the top deck (up).
-    offset_y: f64,
-    /// Perspective squash (< 1.0 for deck cards).
-    scale_y: f64,
-    /// Fan tilt around the far edge, in radians.
-    rot_x: f32,
-    /// Opacity (1.0 at the apex, `min_opacity` at the far deck).
-    opacity: f32,
-}
-
-impl DepthCardAnim {
-    fn apex() -> Self {
-        Self {
-            offset_y: 0.,
-            scale_y: 1.,
-            rot_x: 0.,
-            opacity: 1.,
-        }
-    }
-}
-
-/// Per-degree-of-freedom spring driving one depth card during the shuffle.
-#[derive(Debug, Clone)]
-struct DepthCardSprings {
-    offset_y: Animation,
-    scale_y: Animation,
-    rot_x: Animation,
-    opacity: Animation,
-}
-
-/// State of the depth-queue ("depth") column display mode.
-///
-/// The queue order is the column's `tiles` order, kept in sync by the same word-order discipline as
-/// the dwindle tree (`apply_permutation` fits ancestry); the apex is `active_tile_idx`. Only the
-/// spring-driven animation geometry lives here: the rest is derived from `tiles`/`active_tile_idx`
-/// on demand, which keeps every invariant (open/focus/close/reorder/mode-conversion) centralized.
-#[derive(Debug)]
-struct DepthState {
-    /// Animated pose of every card, parallel to `tiles`.
-    anim: Vec<DepthCardAnim>,
-    /// Springs driving the current shuffle, parallel to `tiles`.
-    springs: Vec<DepthCardSprings>,
-    /// Whether the whole queue is fanned out ("cover" multi-view).
-    cover: bool,
-    /// Whether the shuffle is currently running (any spring not converged).
-    is_shuffling: bool,
-    /// Cached offscreen snapshot of each card's window content, parallel to `tiles`. The apex
-    /// entry is unused. Interior mutability lets the render pass (which holds `&self`) refresh the
-    /// texture while hovering over the cached poses.
-    snapshots: RefCell<Vec<OffscreenBuffer>>,
-    /// Persisted element id for the deck-region backdrop blur, so the compositor can keep the
-    /// blur's intermediate textures between frames.
-    blur: FramebufferEffect,
-}
-
-impl DepthState {
-    fn new() -> Self {
-        Self {
-            anim: Vec::new(),
-            springs: Vec::new(),
-            cover: false,
-            is_shuffling: false,
-            snapshots: RefCell::new(Vec::new()),
-            blur: FramebufferEffect::new(),
-        }
-    }
-}
-
-impl DepthCardSprings {
-    /// Static springs, snapped to `pose`. Used when the fan is built or reset without shuffling,
-    /// so `depth_update` always has a parallel (already-converged) spring per card.
-    fn static_from(clock: Clock, pose: DepthCardAnim, config: ymir_config::Animation) -> Self {
-        Self {
-            offset_y: Animation::new(clock.clone(), pose.offset_y, pose.offset_y, 0., config),
-            scale_y: Animation::new(clock.clone(), pose.scale_y, pose.scale_y, 0., config),
-            rot_x: Animation::new(
-                clock.clone(),
-                f64::from(pose.rot_x),
-                f64::from(pose.rot_x),
-                0.,
-                config,
-            ),
-            opacity: Animation::new(
-                clock,
-                f64::from(pose.opacity),
-                f64::from(pose.opacity),
-                0.,
-                config,
-            ),
-        }
-    }
 }
 
 /// Extra per-tile data.
@@ -622,20 +497,10 @@ impl<W: LayoutElement> ScrollingSpace<W> {
     pub fn new_window_toplevel_bounds(&self, rules: &ResolvedWindowRules) -> Size<i32, Logical> {
         let border_config = self.options.layout.border.merged_with(&rules.border);
 
-        let display_mode = rules
-            .default_column_display
-            .unwrap_or(self.options.layout.default_column_display);
-        let will_tab = display_mode == ColumnDisplay::Tabbed;
-        let extra_size = if will_tab {
-            TabIndicator::new(self.options.layout.tab_indicator).extra_size(1, self.scale)
-        } else {
-            Size::from((0., 0.))
-        };
-
         compute_toplevel_bounds(
             border_config,
             self.working_area.size,
-            extra_size,
+            Size::from((0., 0.)),
             self.options.layout.gaps,
         )
     }
@@ -648,20 +513,10 @@ impl<W: LayoutElement> ScrollingSpace<W> {
     ) -> Size<i32, Logical> {
         let border = self.options.layout.border.merged_with(&rules.border);
 
-        let display_mode = rules
-            .default_column_display
-            .unwrap_or(self.options.layout.default_column_display);
-        let will_tab = display_mode == ColumnDisplay::Tabbed;
-        let extra = if will_tab {
-            TabIndicator::new(self.options.layout.tab_indicator).extra_size(1, self.scale)
-        } else {
-            Size::from((0., 0.))
-        };
-
         let working_size = self.working_area.size;
 
         let width = if let Some(size) = width {
-            let size = match resolve_preset_size(size, &self.options, working_size.w, extra.w) {
+            let size = match resolve_preset_size(size, &self.options, working_size.w, 0.) {
                 ResolvedSize::Tile(mut size) => {
                     if !border.off {
                         size -= border.width * 2.;
@@ -682,7 +537,7 @@ impl<W: LayoutElement> ScrollingSpace<W> {
         }
 
         let height = if let Some(height) = height {
-            let height = match resolve_preset_size(height, &self.options, working_size.h, extra.h) {
+            let height = match resolve_preset_size(height, &self.options, working_size.h, 0.) {
                 ResolvedSize::Tile(mut size) => {
                     if !border.off {
                         size -= border.width * 2.;
@@ -999,23 +854,12 @@ impl<W: LayoutElement> ScrollingSpace<W> {
         // Find the closest gap between tiles.
         let col = &self.columns[col_idx];
 
-        let (closest_tile_idx, tile_y) = if col.display_mode == ColumnDisplay::Tabbed {
-            // In tabbed mode, there's only one tile visible, and we want to check its top and
-            // bottom.
-            let top = col.tile_offsets().nth(col.active_tile_idx).unwrap().y;
-            let bottom = top + col.data[col.active_tile_idx].size.h;
-            if (top - y).abs() <= (bottom - y).abs() {
-                (col.active_tile_idx, top)
-            } else {
-                (col.active_tile_idx + 1, bottom)
-            }
-        } else {
-            col.tile_offsets()
-                .map(|tile_off| tile_off.y)
-                .enumerate()
-                .min_by_key(|(_, tile_y)| NotNan::new((tile_y - y).abs()).unwrap())
-                .unwrap()
-        };
+        let (closest_tile_idx, tile_y) = col
+            .tile_offsets()
+            .map(|tile_off| tile_off.y)
+            .enumerate()
+            .min_by_key(|(_, tile_y)| NotNan::new((tile_y - y).abs()).unwrap())
+            .unwrap();
 
         // Return the closest among the vertical and the horizontal gap.
         let vert_dist = (col_x - x).abs();
@@ -1102,19 +946,6 @@ impl<W: LayoutElement> ScrollingSpace<W> {
 
         if activate && self.active_column_idx != col_idx {
             self.activate_column(col_idx);
-        }
-
-        let target_column = &mut self.columns[col_idx];
-        if target_column.display_mode == ColumnDisplay::Tabbed {
-            if target_column.active_tile_idx == tile_idx {
-                // Fade out the previously active tile.
-                let tile = &mut target_column.tiles[prev_active_tile_idx];
-                tile.animate_alpha(1., 0., self.options.animations.window_movement.0);
-            } else {
-                // Fade out when adding into a tabbed column into the background.
-                let tile = &mut target_column.tiles[tile_idx];
-                tile.animate_alpha(1., 0., self.options.animations.window_movement.0);
-            }
         }
 
         // Adding a wider window into a column increases its width now (even if the window will
@@ -1267,21 +1098,14 @@ impl<W: LayoutElement> ScrollingSpace<W> {
             tile.animate_move_y_from(offset_y);
         }
 
-        if column.display_mode == ColumnDisplay::Tabbed && tile_idx != column.active_tile_idx {
-            // Fade in when removing background tab from a tabbed column.
-            let tile = &mut column.tiles[tile_idx];
-            tile.animate_alpha(0., 1., movement_config);
-        }
-
         let was_normal = column.sizing_mode().is_normal();
 
         let tile = column.tiles.remove(tile_idx);
         column.data.remove(tile_idx);
 
-        // Correct the active tile index BEFORE the depth queue re-fans its deck: depth_on_remove()
-        // recomputes goal poses from the already-trimmed tile list, and a stale index pointing past
-        // the end (e.g. when the closed window sat above the apex, or was the apex itself) makes
-        // depth_goal_pose() underflow `len - active - 1` and panic.
+        // Correct the active tile index BEFORE re-fanning: a stale index pointing past the end
+        // (e.g. when the closed window sat above the apex, or was the apex itself) would make the
+        // alpha animation target the wrong tile.
         #[allow(clippy::comparison_chain)] // What do you even want here?
         if tile_idx < column.active_tile_idx {
             // A tile above was removed; preserve the current position.
@@ -1291,8 +1115,6 @@ impl<W: LayoutElement> ScrollingSpace<W> {
             column.active_tile_idx = tile_idx - 1;
             column.tiles[tile_idx - 1].ensure_alpha_animates_to_1();
         }
-
-        column.depth_on_remove(tile_idx);
 
         // If the active tile was removed (and wasn't the bottom one), the tile that shifted into
         // its slot is now active; ensure it animates to opaque.
@@ -1709,10 +1531,10 @@ impl<W: LayoutElement> ScrollingSpace<W> {
 
             // Upon unfullscreening, restore the view offset.
             //
-            // In tabbed display mode, there can be multiple tiles in a fullscreen column. They
-            // will unfullscreen one by one, and the column width will shrink only when the
-            // last tile unfullscreens. This is when we want to restore the view offset,
-            // otherwise it will immediately reset back by the animate_view_offset below.
+            // A fullscreen column can hold multiple tiles that respond to the unfullscreen request
+            // one by one, and the column width will shrink only when the last tile unfullscreens.
+            // This is when we want to restore the view offset, otherwise it will immediately reset
+            // back by the animate_view_offset below.
             let unfullscreen_offset = if !was_normal && is_normal {
                 // Take the value unconditionally, even if the view is currently frozen by
                 // a view gesture. It shouldn't linger around because it's only valid for this
@@ -1814,11 +1636,6 @@ impl<W: LayoutElement> ScrollingSpace<W> {
 
         let col = &self.columns[col_idx];
         let removing_last = col.tiles.len() == 1;
-
-        // Skip closing animation for invisible tiles in a tabbed column.
-        if col.display_mode == ColumnDisplay::Tabbed && tile_idx != col.active_tile_idx {
-            return;
-        }
 
         tile_pos.x += self.view_pos();
 
@@ -2204,8 +2021,9 @@ impl<W: LayoutElement> ScrollingSpace<W> {
                 // Make sure the previous (target) column is activated so the animation looks right.
                 //
                 // However, if it was already going to be activated, leave the offset as is. This
-                // improves the workflow that has become common with tabbed columns: open a new
-                // window, then immediately consume it left as a new tab.
+                // improves the workflow where you open a new window, then immediately consume it
+                // left into the previous column: the new window lands right next to the one you
+                // were looking at.
                 self.activate_prev_column_on_removal
                     .get_or_insert(self.view_offset.stationary() + offset.x);
             }
@@ -2560,22 +2378,6 @@ impl<W: LayoutElement> ScrollingSpace<W> {
         self.activate_column(target_column_idx);
     }
 
-    pub fn toggle_column_tabbed_display(&mut self) {
-        if self.columns.is_empty() {
-            return;
-        }
-
-        let col = &mut self.columns[self.active_column_idx];
-        let display = match col.display_mode {
-            ColumnDisplay::Normal => ColumnDisplay::Tabbed,
-            ColumnDisplay::Tabbed => ColumnDisplay::Normal,
-            ColumnDisplay::Dwindle => ColumnDisplay::Normal,
-            ColumnDisplay::Depth => ColumnDisplay::Tabbed,
-        };
-
-        self.set_column_display(display);
-    }
-
     pub fn switch_column_display(&mut self) {
         if self.columns.is_empty() {
             return;
@@ -2584,9 +2386,7 @@ impl<W: LayoutElement> ScrollingSpace<W> {
         let col = &mut self.columns[self.active_column_idx];
         let display = match col.display_mode {
             ColumnDisplay::Normal => ColumnDisplay::Dwindle,
-            ColumnDisplay::Dwindle => ColumnDisplay::Depth,
-            ColumnDisplay::Depth => ColumnDisplay::Tabbed,
-            ColumnDisplay::Tabbed => ColumnDisplay::Normal,
+            ColumnDisplay::Dwindle => ColumnDisplay::Normal,
         };
 
         self.set_column_display(display);
@@ -2631,17 +2431,12 @@ impl<W: LayoutElement> ScrollingSpace<W> {
             col_idx
         };
 
-        // With place_within_column, the tab indicator changes the column size immediately.
         let col = &mut self.columns[idx];
         self.data[idx].update(col);
         col.update_tile_sizes(true);
 
         // Disable fullscreen if needed.
-        if !matches!(
-            col.display_mode,
-            ColumnDisplay::Tabbed | ColumnDisplay::Dwindle | ColumnDisplay::Depth
-        ) && col.tiles.len() > 1
-        {
+        if !matches!(col.display_mode, ColumnDisplay::Dwindle) && col.tiles.len() > 1 {
             let window = col.tiles[col.active_tile_idx].window().id().clone();
             self.set_fullscreen(&window, false);
             self.set_maximized(&window, false);
@@ -2701,58 +2496,6 @@ impl<W: LayoutElement> ScrollingSpace<W> {
 
         let col = &mut self.columns[self.active_column_idx];
         col.toggle_split();
-    }
-
-    /// Moves the focused apex card of the active depth-queue column to the far end of the queue.
-    /// No-op (and still safe) when the active column isn't in depth mode.
-    pub fn push_active_to_depth_queue(&mut self) {
-        if self.columns.is_empty() {
-            return;
-        }
-
-        self.columns[self.active_column_idx].depth_push_active_to_queue();
-    }
-
-    /// Promotes the window to the apex of the active depth-queue column (the apex already for
-    /// `None`). No-op when the active column isn't in depth mode.
-    pub fn pull_to_depth_apex(&mut self, window: Option<&W::Id>) {
-        if self.columns.is_empty() {
-            return;
-        }
-
-        let col = &mut self.columns[self.active_column_idx];
-        if !col.is_depth() {
-            return;
-        }
-
-        if let Some(id) = window {
-            // Only windows actually in this column can move; foreign windows are ignored.
-            if col.position(id).is_none() {
-                return;
-            }
-        }
-
-        col.depth_pull_to_apex(window);
-    }
-
-    /// Cycles focus through the active depth-queue column, wrapping from the last back to the
-    /// first. No-op when the active column isn't in depth mode.
-    pub fn cycle_depth_queue(&mut self) {
-        if self.columns.is_empty() {
-            return;
-        }
-
-        self.columns[self.active_column_idx].depth_cycle_queue();
-    }
-
-    /// Toggles the cover multi-view of the active depth-queue column. No-op when the active column
-    /// isn't in depth mode.
-    pub fn toggle_depth_queue_cover(&mut self) {
-        if self.columns.is_empty() {
-            return;
-        }
-
-        self.columns[self.active_column_idx].depth_toggle_cover();
     }
 
     /// Sets a one-time directional override for the next window opened in the active column
@@ -3099,20 +2842,7 @@ impl<W: LayoutElement> ScrollingSpace<W> {
                     return None;
                 }
 
-                let is_tabbed = col.display_mode == ColumnDisplay::Tabbed;
-
-                let (height, y) = if is_tabbed {
-                    // In tabbed mode, there's only one tile visible, and we want to draw the hint
-                    // at its top or bottom.
-                    let top = col.tile_offset(col.active_tile_idx).y;
-                    let bottom = top + col.data[col.active_tile_idx].size.h;
-
-                    if tile_index <= col.active_tile_idx {
-                        (150., top)
-                    } else {
-                        (150., bottom - 150.)
-                    }
-                } else {
+                let (height, y) = {
                     let top = col.tile_offset(tile_index).y;
 
                     if tile_index == 0 {
@@ -3124,13 +2854,8 @@ impl<W: LayoutElement> ScrollingSpace<W> {
                     }
                 };
 
-                // Adjust for place-within-column tab indicator.
                 let origin_x = col.tiles_origin().x;
-                let extra_w = if is_tabbed && col.sizing_mode().is_normal() {
-                    col.tab_indicator.extra_size(col.tiles.len(), col.scale).w
-                } else {
-                    0.
-                };
+                let extra_w = 0.;
 
                 let size = Size::from((self.data[column_index].width - extra_w, height));
                 let loc = Point::from((self.column_x(column_index) + origin_x, y));
@@ -3453,16 +3178,11 @@ impl<W: LayoutElement> ScrollingSpace<W> {
         }
 
         let mut col = &mut self.columns[col_idx];
-        let is_tabbed = col.display_mode == ColumnDisplay::Tabbed;
 
         cancel_resize_for_column(&mut self.interactive_resize, col);
 
-        if is_fullscreen
-            && (col.tiles.len() > 1 && !is_tabbed && !col.is_dwindle() && !col.is_depth())
-        {
+        if is_fullscreen && (col.tiles.len() > 1 && !col.is_dwindle()) {
             // This wasn't the only window in its column; extract it into a separate column.
-            // Depth columns fullscreen in place: the deck hides for the fullscreen duration and
-            // is restored on un-fullscreen, so extraction isn't needed.
             self.consume_or_expel_window_right(Some(window));
             col_idx += 1;
             col = &mut self.columns[col_idx];
@@ -3470,7 +3190,6 @@ impl<W: LayoutElement> ScrollingSpace<W> {
 
         col.set_fullscreen(is_fullscreen);
 
-        // With place_within_column, the tab indicator changes the column size immediately.
         self.data[col_idx].update(col);
 
         true
@@ -3488,16 +3207,11 @@ impl<W: LayoutElement> ScrollingSpace<W> {
         }
 
         let mut col = &mut self.columns[col_idx];
-        let is_tabbed = col.display_mode == ColumnDisplay::Tabbed;
 
         cancel_resize_for_column(&mut self.interactive_resize, col);
 
-        if maximize
-            && (col.tiles.len() > 1 && !is_tabbed && !col.is_dwindle() && !col.is_depth())
-        {
+        if maximize && (col.tiles.len() > 1 && !col.is_dwindle()) {
             // This wasn't the only window in its column; extract it into a separate column.
-            // Depth columns maximize in place: the deck hides for the maximized duration and
-            // is restored on un-maximize, so extraction isn't needed.
             self.consume_or_expel_window_right(Some(window));
             col_idx += 1;
             col = &mut self.columns[col_idx];
@@ -3505,7 +3219,6 @@ impl<W: LayoutElement> ScrollingSpace<W> {
 
         col.set_maximized(maximize);
 
-        // With place_within_column, the tab indicator changes the column size immediately.
         self.data[col_idx].update(col);
 
         true
@@ -3559,24 +3272,6 @@ impl<W: LayoutElement> ScrollingSpace<W> {
                 continue;
             }
 
-            // Draw the tab indicator on top.
-            {
-                let pos = col_pos.to_physical_precise_round(scale).to_logical(scale);
-                col.tab_indicator
-                    .render(ctx.renderer, pos, &mut |elem| push(elem.into()));
-            }
-
-            // Draw the depth deck (backdrop blur, card shadows, fanned cards) behind the apex tile.
-            if col.is_depth() && col.sizing_mode().is_normal() {
-                col.render_depth_cards(
-                    ctx.r(),
-                    col_pos,
-                    scale,
-                    xray_pos,
-                    &mut |elem| push(elem),
-                );
-            }
-
             for (tile, tile_off, visible) in col.tiles_in_render_order() {
                 let tile_pos = col_pos + tile_off + tile.render_offset();
                 // Round to physical pixels.
@@ -3588,12 +3283,10 @@ impl<W: LayoutElement> ScrollingSpace<W> {
                 let focus_ring = focus_ring && first;
                 first = false;
 
-                // In the scrolling layout, we currently use visible only for hidden tabs in the
-                // tabbed mode. We want to animate their opacity when going in and out of tabbed
-                // mode, so we don't want to apply "visible" immediately. However, "visible" is
-                // also used for input handling, and there we *do* want to apply it immediately.
-                // So, let's just selectively ignore "visible" here when animating alpha.
-                let visible = visible || (tile.alpha_animation.is_some() && !col.is_depth());
+                // "visible" is used for input handling, and there we *do* want to apply it
+                // immediately. So, let's just selectively ignore "visible" here when animating
+                // alpha.
+                let visible = visible || tile.alpha_animation.is_some();
                 if !visible {
                     continue;
                 }
@@ -3610,23 +3303,6 @@ impl<W: LayoutElement> ScrollingSpace<W> {
         // This matches self.tiles_with_render_positions().
         let scale = self.scale;
         for (col, col_pos) in self.columns_with_render_positions() {
-            // Hit the tab indicator.
-            if col.display_mode == ColumnDisplay::Tabbed && col.sizing_mode().is_normal() {
-                let col_pos = col_pos.to_physical_precise_round(scale).to_logical(scale);
-
-                if let Some(idx) = col.tab_indicator.hit(
-                    col.tab_indicator_area(),
-                    col.tiles.len(),
-                    scale,
-                    pos - col_pos,
-                ) {
-                    let hit = HitType::Activate {
-                        is_tab_indicator: true,
-                    };
-                    return Some((col.tiles[idx].window(), hit));
-                }
-            }
-
             for (tile, tile_off, visible) in col.tiles_in_render_order() {
                 if !visible {
                     continue;
@@ -3639,29 +3315,6 @@ impl<W: LayoutElement> ScrollingSpace<W> {
                 if let Some(rv) = HitType::hit_tile(tile, tile_pos, pos) {
                     return Some(rv);
                 }
-            }
-        }
-
-        // In depth mode, a click on a fanned deck card hits the card (activating it pulls it to the
-        // apex) rather than passing through to the background. Deck cards sit behind the apex, so
-        // they're never in `tiles_in_render_order` above; hit them by their fanned rects instead.
-        // Nearest cards win on overlap, mirroring the far-to-near drawing order.
-        for (col, col_pos) in self.columns_with_render_positions() {
-            if !col.is_depth_visible() {
-                continue;
-            }
-
-            let mut deck: Vec<(usize, Rectangle<f64, Logical>)> = col
-                .depth_deck_rects()
-                .into_iter()
-                .map(|(tile_idx, pose)| {
-                    let rect = col.depth_card_rect(pose);
-                    (tile_idx, Rectangle::new(rect.loc + col_pos, rect.size))
-                })
-                .collect();
-            deck.sort_unstable_by_key(|(tile_idx, _)| tile_idx.abs_diff(col.active_tile_idx));
-            if let Some((tile_idx, _)) = deck.into_iter().find(|(_, rect)| rect.contains(pos)) {
-                return Some((col.tiles[tile_idx].window(), HitType::ActivateDepthCard));
             }
         }
 
@@ -4319,13 +3972,11 @@ impl<W: LayoutElement> ScrollingSpace<W> {
                 }
             }
 
-            let is_tabbed = col.display_mode == ColumnDisplay::Tabbed;
             let extra_size = col.extra_size();
 
             // If transactions are disabled, also disable combined throttling, for more intuitive
-            // behavior. In tabbed display mode, only one window is visible, so individual
-            // throttling makes more sense.
-            let individual_throttling = self.options.disable_transactions || is_tabbed;
+            // behavior.
+            let individual_throttling = self.options.disable_transactions;
 
             let intent = if self.options.disable_resize_throttling {
                 ConfigureIntent::CanSend
@@ -4359,9 +4010,7 @@ impl<W: LayoutElement> ScrollingSpace<W> {
                 if self.options.deactivate_unfocused_windows {
                     active &= active_in_column && is_focused;
                 } else {
-                    // In tabbed mode, all tabs have activated state to reduce unnecessary
-                    // animations when switching tabs.
-                    active &= active_in_column || is_tabbed;
+                    active &= active_in_column;
                 }
                 win.set_activated(active);
 
@@ -4662,7 +4311,6 @@ impl<W: LayoutElement> Column<W> {
             is_pending_maximized: false,
             is_pending_fullscreen: false,
             display_mode,
-            tab_indicator: TabIndicator::new(options.layout.tab_indicator),
             dwindle_tree: DwindleTree::new(),
             move_x_animation: None,
             move_y_animation: None,
@@ -4673,7 +4321,6 @@ impl<W: LayoutElement> Column<W> {
             clock: tile.clock.clone(),
             options,
             id: ColumnId::next(),
-            depth: DepthState::new(),
         };
 
         let pending_sizing_mode = tile.window().pending_sizing_mode();
@@ -4684,17 +4331,6 @@ impl<W: LayoutElement> Column<W> {
             SizingMode::Normal => (),
             SizingMode::Maximized => rv.set_maximized(true),
             SizingMode::Fullscreen => rv.set_fullscreen(true),
-        }
-
-        // Animate the tab indicator for new columns.
-        if display_mode == ColumnDisplay::Tabbed
-            && !rv.options.layout.tab_indicator.hide_when_single_tab
-            && rv.sizing_mode().is_normal()
-        {
-            // Usually new columns are created together with window movement actions. For new
-            // windows, we handle that in start_open_animation().
-            rv.tab_indicator
-                .start_open_animation(rv.clock.clone(), rv.options.animations.window_movement.0);
         }
 
         rv
@@ -4742,17 +4378,11 @@ impl<W: LayoutElement> Column<W> {
             update_sizes = true;
         }
 
-        if self.options.layout.tab_indicator != options.layout.tab_indicator {
-            update_sizes = true;
-        }
-
         for (tile, data) in zip(&mut self.tiles, &mut self.data) {
             tile.update_config(view_size, scale, options.clone());
             data.update(tile);
         }
 
-        self.tab_indicator
-            .update_config(options.layout.tab_indicator);
         self.view_size = view_size;
         self.working_area = working_area;
         self.parent_area = parent_area;
@@ -4768,8 +4398,6 @@ impl<W: LayoutElement> Column<W> {
         for tile in &mut self.tiles {
             tile.update_shaders();
         }
-
-        self.tab_indicator.update_shaders();
     }
 
     pub fn advance_animations(&mut self) {
@@ -4787,24 +4415,17 @@ impl<W: LayoutElement> Column<W> {
         for tile in &mut self.tiles {
             tile.advance_animations();
         }
-
-        self.depth_update();
-
-        self.tab_indicator.advance_animations();
     }
 
     pub fn are_animations_ongoing(&self) -> bool {
         self.move_x_animation.is_some()
             || self.move_y_animation.is_some()
-            || self.tab_indicator.are_animations_ongoing()
             || self.tiles.iter().any(Tile::are_animations_ongoing)
-            || self.depth_is_shuffling()
     }
 
     pub fn are_transitions_ongoing(&self) -> bool {
         self.move_x_animation.is_some()
             || self.move_y_animation.is_some()
-            || self.tab_indicator.are_animations_ongoing()
             || self.tiles.iter().any(Tile::are_transitions_ongoing)
     }
 
@@ -4845,33 +4466,6 @@ impl<W: LayoutElement> Column<W> {
             tile_view_rect.loc -= tile_off + tile.render_offset();
             tile.update_render_elements(is_active, tile_view_rect);
         }
-
-        let config = self.tab_indicator.config();
-        let offsets = self.tile_offsets_iter(self.data.iter().copied());
-        let tabs = zip(&self.tiles, offsets)
-            .enumerate()
-            .map(|(tile_idx, (tile, tile_off))| {
-                let is_active = tile_idx == active_idx;
-                let is_urgent = tile.window().is_urgent();
-                let tile_pos = tile_off + tile.render_offset();
-                TabInfo::from_tile(tile, tile_pos, is_active, is_urgent, &config)
-            });
-
-        // Hide the tab indicator in fullscreen. If you have it configured to overlap the window,
-        // you don't want that to happen in fullscreen. Also, laying things out correctly when the
-        // tab indicator is within the column and the column goes fullscreen, would require too
-        // many changes to the code for too little benefit (it's mostly invisible anyway).
-        let enabled = self.display_mode == ColumnDisplay::Tabbed && self.sizing_mode().is_normal();
-
-        self.tab_indicator.update_render_elements(
-            enabled,
-            self.tab_indicator_area(),
-            view_rect,
-            self.tiles.len(),
-            tabs,
-            is_active,
-            self.scale,
-        );
     }
 
     pub fn is_pending_fullscreen(&self) -> bool {
@@ -4987,8 +4581,7 @@ impl<W: LayoutElement> Column<W> {
 
     /// Returns whether this column is currently fullscreen.
     ///
-    /// As in, if it contains one currently-fullscreen tile, or in tabbed mode, if it contains at
-    /// least one currently-fullscreen tile.
+    /// As in, if it contains at least one currently-fullscreen tile.
     ///
     /// This will lag behind is_pending_fullscreen, depending on when the tiles actually respond to
     /// the un/fullscreen request. But, it's possible for is_fullscreen() to flip instantly, for
@@ -4998,20 +4591,16 @@ impl<W: LayoutElement> Column<W> {
     ///
     /// - whether the column draws at the top of the screen or at the start of the working area
     /// - whether the column draws above the top layer-shell layer
-    /// - whether the tab indicator is shown
     /// - restoring view_offset_before_fullscreen
     ///
     /// Edge cases to watch out for:
     ///
-    /// - Consuming a fullscreen tile into a non-tabbed column will keep that tile fullscreen until
-    ///   it responds to the unfullscreen request. This tile may be anywhere in the column,
-    ///   including at the active position.
+    /// - Consuming a fullscreen tile into a column will keep that tile fullscreen until it
+    ///   responds to the unfullscreen request. This tile may be anywhere in the column, including
+    ///   at the active position.
     ///
-    /// - Changing a fullscreen tabbed column into normal mode is an easy way to get randomly
-    ///   delayed unfullscreening tiles in a normal column.
-    ///
-    /// - is_fullscreen() can suddenly change when consuming/expelling a fullscreen tile into/from a
-    ///   non-fullscreen column. This can influence the code that saves/restores the unfullscreen
+    /// - is_fullscreen() can suddenly change when consuming/expelling a fullscreen tile into/from
+    ///   a non-fullscreen column. This can influence the code that saves/restores the unfullscreen
     ///   view offset.
     fn sizing_mode(&self) -> SizingMode {
         // Behaviors that we want:
@@ -5021,13 +4610,13 @@ impl<W: LayoutElement> Column<W> {
         //    fullscreening. Similarly, unfullscreening should keep it at the top-left until the
         //    tile had unfullscreened.
         //
-        // 2. Unfullscreening a tabbed column with multiple tiles should restore the view offset
-        //    correctly. This means waiting for *all* tiles to unfullscreen, because otherwise the
-        //    restored view offset will immediately get overwritten by the still screen-wide column
-        //    (it uses the largest tile's width).
+        // 2. Unfullscreening a column with multiple tiles should restore the view offset correctly.
+        //    This means waiting for *all* tiles to unfullscreen, because otherwise the restored
+        //    view offset will immediately get overwritten by the still screen-wide column (it uses
+        //    the largest tile's width).
         //
-        // 3. Changing a fullscreen tabbed column to normal should probably also restore the view
-        //    offset correctly. Same problem as above, but now for normal columns (since display
+        // 3. Changing the display mode of a fullscreen column should probably also restore the
+        //    view offset correctly. Same problem as above, but now for the new mode (since display
         //    mode change applies instantly).
         //
         // The logic that satisfies these behaviors is to check if *any* tile is fullscreen.
@@ -5083,10 +4672,6 @@ impl<W: LayoutElement> Column<W> {
 
         self.tiles[idx].ensure_alpha_animates_to_1();
 
-        if self.is_depth() {
-            self.depth_restart_shuffle();
-        }
-
         true
     }
 
@@ -5109,15 +4694,12 @@ impl<W: LayoutElement> Column<W> {
             return self.add_tile_to_dwindle(tile, prev_offsets);
         }
 
-        if self.display_mode != ColumnDisplay::Tabbed {
-            self.is_pending_fullscreen = false;
-            self.is_pending_maximized = false;
-        }
+        self.is_pending_fullscreen = false;
+        self.is_pending_maximized = false;
 
         self.data
             .insert(idx, TileData::new(&tile, WindowHeight::auto_1()));
         self.tiles.insert(idx, tile);
-        self.depth_on_add();
         self.update_tile_sizes(true);
 
         // Animate tiles according to the offset changes.
@@ -5264,7 +4846,6 @@ impl<W: LayoutElement> Column<W> {
 
         let offset = prev_height - self.data[tile_idx].size.h;
 
-        let is_tabbed = self.display_mode == ColumnDisplay::Tabbed;
         let is_dwindle = self.display_mode == ColumnDisplay::Dwindle;
 
         // Move windows below in tandem with resizing.
@@ -5273,7 +4854,7 @@ impl<W: LayoutElement> Column<W> {
         // windows in the column, so they should all be animated. How should this interact with
         // animated vs. non-animated resizes? For example, an animated +20 resize followed by two
         // non-animated -10 resizes.
-        if !is_tabbed && !is_dwindle && offset != 0. {
+        if !is_dwindle && offset != 0. {
             if tile.resize_animation().is_some() {
                 // If there's a resize animation (that may have just started in
                 // tile.update_window()), then the apparent size change is smooth with no sudden
@@ -5306,13 +4887,9 @@ impl<W: LayoutElement> Column<W> {
         }
     }
 
-    /// Extra size taken up by elements in the column such as the tab indicator.
+    /// Extra size taken up by elements in the column.
     fn extra_size(&self) -> Size<f64, Logical> {
-        if self.display_mode == ColumnDisplay::Tabbed {
-            self.tab_indicator.extra_size(self.tiles.len(), self.scale)
-        } else {
-            Size::from((0., 0.))
-        }
+        Size::from((0., 0.))
     }
 
     fn resolve_preset_width(&self, preset: PresetSize) -> ResolvedSize {
@@ -5345,40 +4922,14 @@ impl<W: LayoutElement> Column<W> {
     fn update_tile_sizes_with_transaction(&mut self, animate: bool, transaction: Transaction) {
         let sizing_mode = self.pending_sizing_mode();
         if matches!(sizing_mode, SizingMode::Fullscreen | SizingMode::Maximized) {
-            for (tile_idx, tile) in self.tiles.iter_mut().enumerate() {
-                // In tabbed and depth mode, only the visible window participates in the transaction.
-                let is_active = tile_idx == self.active_tile_idx;
-                let transaction = if (self.display_mode == ColumnDisplay::Tabbed
-                    || self.display_mode == ColumnDisplay::Depth)
-                    && !is_active
-                {
-                    None
-                } else {
-                    Some(transaction.clone())
-                };
+            for tile in self.tiles.iter_mut() {
+                let transaction = Some(transaction.clone());
 
                 if matches!(sizing_mode, SizingMode::Fullscreen) {
                     tile.request_fullscreen(animate, transaction);
                 } else {
                     tile.request_maximized(self.parent_area.size, animate, transaction);
                 }
-            }
-            return;
-        }
-
-        if self.is_depth() {
-            // Depth geometry is entirely determined by the fan: every card is sized to the apex
-            // card, centered in the working area. Non-apex cards don't participate in the
-            // transaction, since they don't report geometry to the compositor.
-            let apex_size = self.depth_content_rect().size;
-            for (tile_idx, tile) in self.tiles.iter_mut().enumerate() {
-                let is_active = tile_idx == self.active_tile_idx;
-                let transaction = if is_active {
-                    Some(transaction.clone())
-                } else {
-                    None
-                };
-                tile.request_tile_size(apex_size, animate, transaction);
             }
             return;
         }
@@ -5394,8 +4945,6 @@ impl<W: LayoutElement> Column<W> {
             }
             return;
         }
-
-        let is_tabbed = self.display_mode == ColumnDisplay::Tabbed;
 
         let min_size: Vec<_> = self
             .tiles
@@ -5451,7 +5000,7 @@ impl<W: LayoutElement> Column<W> {
         // If there are multiple windows in a column, clamp the non-auto window's height according
         // to other windows' min sizes.
         let mut max_non_auto_window_height = None;
-        if self.tiles.len() > 1 && !is_tabbed {
+        if self.tiles.len() > 1 {
             if let Some(non_auto_idx) = self
                 .data
                 .iter()
@@ -5506,37 +5055,6 @@ impl<W: LayoutElement> Column<W> {
                 }
             })
             .collect::<Vec<_>>();
-
-        // In tabbed display mode, fill fixed heights right away.
-        if is_tabbed {
-            // All tiles have the same height, equal to the height of the only fixed tile (if any).
-            let tabbed_height = heights
-                .iter()
-                .find_map(|h| {
-                    if let WindowHeight::Fixed(h) = h {
-                        Some(*h)
-                    } else {
-                        None
-                    }
-                })
-                .unwrap_or(max_tile_height);
-
-            // We also take min height of all tabs into account.
-            let min_height = min_size
-                .iter()
-                .map(|size| NotNan::new(size.h).unwrap())
-                .max()
-                .map(NotNan::into_inner)
-                .unwrap();
-            // But, if there's a larger-than-workspace tab, we don't want to force all tabs to that
-            // size.
-            let min_height = f64::min(max_tile_height, min_height);
-            let tabbed_height = f64::max(tabbed_height, min_height);
-
-            heights.fill(WindowHeight::Fixed(tabbed_height));
-
-            // The following logic will apply individual min/max height, etc.
-        }
 
         let gaps_left = self.options.layout.gaps * (self.tiles.len() + 1) as f64;
         let mut height_left = working_size.h - gaps_left;
@@ -5649,40 +5167,24 @@ impl<W: LayoutElement> Column<W> {
             assert_eq!(auto_tiles_left, 0);
         }
 
-        for (tile_idx, (tile, h)) in zip(&mut self.tiles, heights).enumerate() {
+        for (tile, h) in zip(&mut self.tiles, heights) {
             let WindowHeight::Fixed(height) = h else {
                 unreachable!()
             };
 
             let size = Size::from((width, height));
 
-            // In tabbed mode, only the visible window participates in the transaction.
-            let is_active = tile_idx == self.active_tile_idx;
-            let transaction = if self.display_mode == ColumnDisplay::Tabbed && !is_active {
-                None
-            } else {
-                Some(transaction.clone())
-            };
-
-            tile.request_tile_size(size, animate, transaction);
+            tile.request_tile_size(size, animate, Some(transaction.clone()));
         }
     }
 
     fn width(&self) -> f64 {
-        let mut tiles_width = self
-            .data
+        self.data
             .iter()
             .map(|data| NotNan::new(data.size.w).unwrap())
             .max()
             .map(NotNan::into_inner)
-            .unwrap_or(0.);
-
-        if self.display_mode == ColumnDisplay::Tabbed && self.sizing_mode().is_normal() {
-            let extra_size = self.tab_indicator.extra_size(self.tiles.len(), self.scale);
-            tiles_width += extra_size.w;
-        }
-
-        tiles_width
+            .unwrap_or(0.)
     }
 
     fn focus_index(&mut self, index: u8) {
@@ -5752,7 +5254,6 @@ impl<W: LayoutElement> Column<W> {
 
         self.tiles.swap(self.active_tile_idx, new_idx);
         self.data.swap(self.active_tile_idx, new_idx);
-        self.depth_on_swap(self.active_tile_idx, new_idx);
         self.active_tile_idx = new_idx;
 
         // Animate the movement.
@@ -5780,7 +5281,6 @@ impl<W: LayoutElement> Column<W> {
 
         self.tiles.swap(self.active_tile_idx, new_idx);
         self.data.swap(self.active_tile_idx, new_idx);
-        self.depth_on_swap(self.active_tile_idx, new_idx);
         self.active_tile_idx = new_idx;
 
         // Animate the movement.
@@ -6078,16 +5578,13 @@ impl<W: LayoutElement> Column<W> {
         };
 
         // Clamp the height according to other windows' min sizes, or simply to working area height.
-        let min_height_taken = if self.display_mode == ColumnDisplay::Tabbed {
-            0.
-        } else {
-            self.tiles
-                .iter()
-                .enumerate()
-                .filter(|(idx, _)| *idx != tile_idx)
-                .map(|(_, tile)| f64::max(1., tile.min_size_nonfullscreen().h) + gaps)
-                .sum::<f64>()
-        };
+        let min_height_taken = self
+            .tiles
+            .iter()
+            .enumerate()
+            .filter(|(idx, _)| *idx != tile_idx)
+            .map(|(_, tile)| f64::max(1., tile.min_size_nonfullscreen().h) + gaps)
+            .sum::<f64>();
         let height_left = working_size - extra_size - gaps - min_height_taken - gaps;
         let height_left = f64::max(1., tile.window_height_for_tile_height(height_left));
         window_height = f64::min(height_left, window_height);
@@ -6114,16 +5611,8 @@ impl<W: LayoutElement> Column<W> {
             return;
         }
 
-        if self.display_mode == ColumnDisplay::Tabbed {
-            // When tabbed, reset window height should work on any window, not just the fixed-size
-            // one.
-            for data in &mut self.data {
-                data.height = WindowHeight::auto_1();
-            }
-        } else {
-            let tile_idx = tile_idx.unwrap_or(self.active_tile_idx);
-            self.data[tile_idx].height = WindowHeight::auto_1();
-        }
+        let tile_idx = tile_idx.unwrap_or(self.active_tile_idx);
+        self.data[tile_idx].height = WindowHeight::auto_1();
 
         self.update_tile_sizes(true);
     }
@@ -6211,7 +5700,7 @@ impl<W: LayoutElement> Column<W> {
         }
 
         if is_fullscreen {
-            assert!(self.tiles.len() == 1 || self.is_tabbed_or_dwindle());
+            assert!(self.tiles.len() == 1 || self.is_dwindle());
         }
 
         self.is_pending_fullscreen = is_fullscreen;
@@ -6224,7 +5713,7 @@ impl<W: LayoutElement> Column<W> {
         }
 
         if maximize {
-            assert!(self.tiles.len() == 1 || self.is_tabbed_or_dwindle());
+            assert!(self.tiles.len() == 1 || self.is_dwindle());
         }
 
         self.is_pending_maximized = maximize;
@@ -6236,8 +5725,6 @@ impl<W: LayoutElement> Column<W> {
             return;
         }
 
-        let was_depth = self.is_depth();
-
         // Capture the animated positions of all tiles in the current mode.
         let prev_offsets: Vec<Point<f64, Logical>> =
             self.tile_offsets().take(self.tiles.len()).collect();
@@ -6247,25 +5734,13 @@ impl<W: LayoutElement> Column<W> {
             // current tile order and focus.
             self.become_dwindle();
         } else if self.is_dwindle() && display != ColumnDisplay::Dwindle {
-            // Leaving dwindle: the tree is dropped and normal/tabbed geometry takes over.
+            // Leaving dwindle: the tree is dropped and normal geometry takes over.
             self.dwindle_tree = DwindleTree::single(0);
             // Dwindle made the column full-width; hand the width back to the stored value.
             self.is_full_width = false;
         }
 
-        // Entering depth: the queue order is the current tile order, the apex is the current
-        // focus, and the fan is built in place (no rush into state) so the transition into the
-        // mode reads as the apex sliding into place and the deck forming beneath it.
-        let entering_depth = display == ColumnDisplay::Depth && !was_depth;
-        let leaving_depth = was_depth && display != ColumnDisplay::Depth;
-
         self.display_mode = display;
-
-        if entering_depth {
-            self.depth_build();
-        } else if leaving_depth {
-            self.depth_reset();
-        }
 
         // Animate tiles according to the offset changes.
         let new_offsets: Vec<Point<f64, Logical>> =
@@ -6280,642 +5755,13 @@ impl<W: LayoutElement> Column<W> {
         // Animate the opacity.
         for (idx, tile) in self.tiles.iter_mut().enumerate() {
             let is_active = idx == self.active_tile_idx;
-            if is_active || display == ColumnDisplay::Depth {
-                // Deck cards are drawn by the depth renderer with per-card opacity; the tile
-                // path never draws them in depth mode, so leave their window alpha alone.
+            if is_active {
                 continue;
             }
-            let (from, to) = if display == ColumnDisplay::Tabbed {
-                (1., 0.)
-            } else {
-                (0., 1.)
-            };
-            tile.animate_alpha(from, to, self.options.animations.window_movement.0);
-        }
-
-        // Animate the appearance of the tab indicator.
-        if display == ColumnDisplay::Tabbed {
-            self.tab_indicator.start_open_animation(
-                self.clock.clone(),
-                self.options.animations.window_movement.0,
-            );
+            tile.animate_alpha(0., 1., self.options.animations.window_movement.0);
         }
 
         self.update_tile_sizes(true);
-    }
-
-    fn is_depth(&self) -> bool {
-        self.display_mode == ColumnDisplay::Depth
-    }
-
-    /// Whether the depth deck is visible: depth mode in a normal (non-max/fullscreen) sizing mode.
-    fn is_depth_visible(&self) -> bool {
-        self.is_depth() && self.sizing_mode().is_normal()
-    }
-
-    /// The spring animation config driving the shuffle, resolved from `layout.depth_queue`.
-    fn depth_spring_config(&self) -> ymir_config::Animation {
-        let params = self.options.layout.depth_queue.focus_shuffle;
-        ymir_config::Animation {
-            off: false,
-            kind: ymir_config::animations::Kind::Spring(params),
-        }
-    }
-
-    /// Rectangle of the apex card, in column space.
-    ///
-    /// The apex is full column width and `card_height_ratio` of the working area's height, centered
-    /// vertically within the working area (so the top and bottom decks have equal air around it).
-    fn depth_content_rect(&self) -> Rectangle<f64, Logical> {
-        let cfg = &self.options.layout.depth_queue;
-        let height = self.working_area.size.h - self.options.layout.gaps * 2.;
-        let width = self.resolve_column_width(self.width);
-        // The apex card honors the apex window's min size by growing, never below the configured
-        // ratio and bounded to the working area.
-        let min_h = self
-            .tiles
-            .get(self.active_tile_idx)
-            .map(Tile::min_size_nonfullscreen)
-            .map(|size| size.h)
-            .unwrap_or(0.);
-        let apex_h = (height * cfg.card_height_ratio).max(min_h).clamp(1., height);
-        let size = Size::from((width, apex_h));
-        let mut loc = self.tiles_origin();
-        loc.y += (height - apex_h) / 2.;
-
-        Rectangle::new(loc, size)
-    }
-
-    /// Rectangles of all deck (non-apex) cards, positioned by the current animated poses.
-    ///
-    /// Only cards that are actually visible in the fan are returned (opacity > 0). Used by the
-    /// deck renderer to compute the blur-backdrop union rect and to draw each card at its fanned
-    /// position.
-    fn depth_deck_rects(&self) -> Vec<(usize, DepthCardAnim)> {
-        if !self.is_depth_visible() {
-            return Vec::new();
-        }
-        self.depth
-            .anim
-            .iter()
-            .enumerate()
-            .filter(|(i, pose)| *i != self.active_tile_idx && pose.opacity > 0.)
-            .map(|(i, pose)| (i, *pose))
-            .collect()
-    }
-
-    /// The rendered rect of a card with pose `pose` in column space: its near edge sits at
-    /// `depth_content_rect()`'s same edge plus `pose.offset_y`, sized to the apex height times
-    /// `pose.scale_y`.
-    fn depth_card_rect(&self, pose: DepthCardAnim) -> Rectangle<f64, Logical> {
-        let content = self.depth_content_rect();
-        let height = (content.size.h * pose.scale_y).max(1.);
-        let y = if pose.offset_y >= 0. {
-            content.loc.y + content.size.h + pose.offset_y
-        } else {
-            content.loc.y + pose.offset_y - height
-        };
-        Rectangle::new(
-            Point::from((content.loc.x, y)),
-            Size::from((content.size.w, height)),
-        )
-    }
-
-    /// Goal (steady-state) pose of the card at `tile_idx`, from the committed fan geometry.
-    fn depth_goal_pose(&self, tile_idx: usize) -> DepthCardAnim {
-        let cfg = &self.options.layout.depth_queue;
-        let len = self.tiles.len();
-        let active = self.active_tile_idx;
-
-        if tile_idx == active {
-            return DepthCardAnim::apex();
-        }
-
-        let side = if tile_idx < active {
-            DeckSide::Top
-        } else {
-            DeckSide::Bottom
-        };
-        let s = tile_idx.abs_diff(active);
-        let top_cap = min(active, cfg.top_deck_size);
-        let bottom_cap = min(len - active - 1, cfg.bottom_deck_size);
-        let slots = max(top_cap, max(bottom_cap, 1)) as f64;
-
-        if self.depth.cover {
-            // Cover mode: fan the whole deck so every card peeks out, bounded by the air around the
-            // apex card. Slots interpolate across the entire non-apex deck.
-            let t = if len <= 1 {
-                0.
-            } else {
-                (s as f64 / (len - 1) as f64).clamp(0., 1.)
-            };
-            let squash = 1. / (1. + 0.15 * t);
-            let opacity =
-                (1. - (1. - cfg.min_opacity as f32) * t as f32).clamp(cfg.min_opacity as f32, 1.);
-            let rot_x = cfg.perspective_tilt.to_radians() as f32 * t as f32 * 0.5;
-            let apex_h = self.depth_content_rect().size.h;
-            let air = (self.working_area.size.h - self.options.layout.gaps * 2. - apex_h) / 2.
-                - cfg.deck_bleed;
-            let air = air.max(0.);
-            let base = cfg.deck_bleed + air * t;
-            let offset_y = match side {
-                DeckSide::Top => -base,
-                DeckSide::Bottom => base,
-            };
-            return DepthCardAnim {
-                offset_y,
-                scale_y: squash,
-                rot_x,
-                opacity,
-            };
-        }
-
-        // Cards outside their own deck's fan are hidden entirely.
-        let cap = match side {
-            DeckSide::Top => top_cap,
-            DeckSide::Bottom => bottom_cap,
-        };
-        if s > cap {
-            return DepthCardAnim {
-                offset_y: 0.,
-                scale_y: 0.9,
-                rot_x: 0.,
-                opacity: 0.,
-            };
-        }
-
-        let s = s as f64;
-        let squash = 1. / (1. + 0.10 * s);
-        let fade = (s / slots).clamp(0., 1.) as f32;
-        let opacity =
-            (1. - (1. - cfg.min_opacity as f32) * fade).clamp(cfg.min_opacity as f32, 1.);
-        let rot_x = cfg.perspective_tilt.to_radians() as f32 * s as f32;
-        let base = cfg.gap * s + cfg.deck_bleed;
-        let offset_y = match side {
-            DeckSide::Top => -base,
-            DeckSide::Bottom => base,
-        };
-
-        DepthCardAnim {
-            offset_y,
-            scale_y: squash,
-            rot_x,
-            opacity,
-        }
-    }
-
-    /// Builds the fan in place: every card is snapped to its goal pose and the shuffle is idle.
-    fn depth_build(&mut self) {
-        self.depth.cover = false;
-        let len = self.tiles.len();
-        self.depth.anim = (0..len).map(|i| self.depth_goal_pose(i)).collect();
-        let clock = self.clock.clone();
-        let config = self.depth_spring_config();
-        self.depth.springs = self
-            .depth
-            .anim
-            .iter()
-            .map(|pose| DepthCardSprings::static_from(clock.clone(), *pose, config))
-            .collect();
-        self.depth.snapshots.borrow_mut().clear();
-        self.depth
-            .snapshots
-            .borrow_mut()
-            .resize_with(len, OffscreenBuffer::default);
-        self.depth.is_shuffling = false;
-    }
-
-    fn depth_reset(&mut self) {
-        self.depth.anim.clear();
-        self.depth.springs.clear();
-        self.depth.snapshots.borrow_mut().clear();
-        self.depth.cover = false;
-        self.depth.is_shuffling = false;
-    }
-
-    /// Reconciles the animation arrays with `tiles` so a length mismatch (e.g. a tile closed from
-    /// one of the paths that doesn't touch the depth state) can never panic the animation code.
-    fn depth_sync(&mut self) {
-        let len = self.tiles.len();
-        if self.depth.anim.len() == len && self.depth.springs.len() == len {
-            return;
-        }
-
-        if len == 0 {
-            self.depth_reset();
-            return;
-        }
-
-        if self.depth.anim.len() > len {
-            self.depth.anim.truncate(len);
-        } else {
-            self.depth.anim.resize(len, DepthCardAnim::apex());
-        }
-
-        let clock = self.clock.clone();
-        let config = self.depth_spring_config();
-        while self.depth.springs.len() < len {
-            let pose = self.depth.anim[self.depth.springs.len()];
-            self.depth.springs
-                .push(DepthCardSprings::static_from(clock.clone(), pose, config));
-        }
-        self.depth.springs.truncate(len);
-        self.depth.snapshots.borrow_mut().clear();
-        self.depth
-            .snapshots
-            .borrow_mut()
-            .resize_with(len, OffscreenBuffer::default);
-        self.depth.is_shuffling = false;
-    }
-
-    /// Called after a tile was inserted. The new card starts at the apex pose so it appears to
-    /// bounce into the deck as the rest of the fan re-flows.
-    fn depth_on_add(&mut self) {
-        if !self.is_depth() {
-            return;
-        }
-        let len = self.tiles.len();
-        if self.depth.anim.len() + 1 != len {
-            self.depth_sync();
-        } else {
-            self.depth.anim.push(DepthCardAnim::apex());
-            let clock = self.clock.clone();
-            let config = self.depth_spring_config();
-            self.depth
-                .springs
-                .push(DepthCardSprings::static_from(
-                    clock,
-                    DepthCardAnim::apex(),
-                    config,
-                ));
-            self.depth.snapshots.borrow_mut().push(OffscreenBuffer::default());
-        }
-        self.depth_restart_shuffle();
-    }
-
-    /// Called after two tiles were swapped (move up/down in the queue). Keeps the per-card pose
-    /// with its window and re-fans so the queue's apex follows the moved window.
-    fn depth_on_swap(&mut self, a: usize, b: usize) {
-        if !self.is_depth() {
-            return;
-        }
-        if self.depth.anim.len() == self.tiles.len() {
-            self.depth.anim.swap(a, b);
-            self.depth.springs.swap(a, b);
-            self.depth.snapshots.borrow_mut().swap(a, b);
-        } else {
-            self.depth_sync();
-        }
-        self.depth_restart_shuffle();
-    }
-
-    /// Called after a tile was removed at `tile_idx` (i.e. `tiles` no longer contains it). Drops
-    /// the removed card's pose, keeps every remaining pose with its window, and re-fans. A single
-    /// remaining card is trivially the apex.
-    fn depth_on_remove(&mut self, tile_idx: usize) {
-        if !self.is_depth() {
-            return;
-        }
-        if self.depth.anim.len() == self.tiles.len() + 1 {
-            self.depth.anim.remove(tile_idx);
-            self.depth.springs.remove(tile_idx);
-            self.depth.snapshots.borrow_mut().remove(tile_idx);
-        } else {
-            self.depth_sync();
-        }
-        if self.tiles.len() <= 1 {
-            self.depth.anim = vec![DepthCardAnim::apex()];
-            self.depth.springs = self
-                .depth
-                .anim
-                .iter()
-                .map(|pose| {
-                    DepthCardSprings::static_from(
-                        self.clock.clone(),
-                        *pose,
-                        self.depth_spring_config(),
-                    )
-                })
-                .collect();
-            self.depth.snapshots.borrow_mut().clear();
-            self.depth
-                .snapshots
-                .borrow_mut()
-                .resize_with(1, OffscreenBuffer::default);
-            self.depth.is_shuffling = false;
-            return;
-        }
-        self.depth_restart_shuffle();
-    }
-
-    /// Restarts every card's spring from its *current* animated pose (never from a goal), so a
-    /// rapid chain of focus/Push/Pull inputs mid-flight chains the next shuffle without teleports
-    /// or snaps.
-    fn depth_restart_shuffle(&mut self) {
-        if !self.is_depth() {
-            return;
-        }
-        self.depth_sync();
-        let clock = self.clock.clone();
-        let config = self.depth_spring_config();
-        let len = self.tiles.len();
-        for i in 0..len {
-            let goal = self.depth_goal_pose(i);
-            let cur = self.depth.anim[i];
-            self.depth.springs[i] = DepthCardSprings {
-                offset_y: Animation::new(
-                    clock.clone(),
-                    cur.offset_y,
-                    goal.offset_y,
-                    0.,
-                    config,
-                ),
-                scale_y: Animation::new(clock.clone(), cur.scale_y, goal.scale_y, 0., config),
-                rot_x: Animation::new(
-                    clock.clone(),
-                    f64::from(cur.rot_x),
-                    f64::from(goal.rot_x),
-                    0.,
-                    config,
-                ),
-                opacity: Animation::new(
-                    clock.clone(),
-                    f64::from(cur.opacity),
-                    f64::from(goal.opacity),
-                    0.,
-                    config,
-                ),
-            };
-        }
-        self.depth.is_shuffling = true;
-    }
-
-    /// Applies the springs to the animated poses and tracks whether the shuffle converged.
-    fn depth_update(&mut self) {
-        if !self.is_depth() {
-            return;
-        }
-        self.depth_sync();
-        let mut running = false;
-        for i in 0..self.tiles.len() {
-            let springs = &self.depth.springs[i];
-            let anim = &mut self.depth.anim[i];
-            anim.offset_y = springs.offset_y.value();
-            anim.scale_y = springs.scale_y.value().max(0.1);
-            anim.rot_x = springs.rot_x.value().clamp(-1.5, 1.5) as f32;
-            anim.opacity = springs.opacity.value().clamp(0., 1.) as f32;
-            running |= !springs.offset_y.is_done()
-                || !springs.scale_y.is_done()
-                || !springs.rot_x.is_done()
-                || !springs.opacity.is_done();
-        }
-        self.depth.is_shuffling = running;
-    }
-
-    pub(super) fn depth_is_shuffling(&self) -> bool {
-        self.is_depth() && self.depth.is_shuffling
-    }
-
-    /// Renders the depth deck behind the apex card: a backdrop blur over the whole fan, then each
-    /// card's shadow and its window contents composited with the fake perspective.
-    ///
-    /// Deck cards snapshot their window contents to a per-card offscreen texture per frame; the
-    /// quads are drawn with the depth-card shader which applies the squash/tilt remap and the
-    /// opacity fade towards the far edge. Cards are drawn far-to-near so nearer cards cover the
-    /// farther ones.
-    pub(super) fn render_depth_cards<R: YmirRenderer>(
-        &self,
-        mut ctx: RenderCtx<R>,
-        col_pos: Point<f64, Logical>,
-        scale: Scale<f64>,
-        xray_pos: XrayPos,
-        push: &mut dyn FnMut(ScrollingSpaceRenderElement<R>),
-    ) {
-        if !self.is_depth_visible() {
-            return;
-        }
-        let deck = self.depth_deck_rects();
-        if deck.is_empty() {
-            return;
-        }
-
-        let cfg = &self.options.layout.depth_queue;
-        let active = self.active_tile_idx;
-
-        // Blurred backdrop behind the whole fanned deck.
-        if cfg.blur_radius > 0. {
-            let mut union: Option<Rectangle<f64, Logical>> = None;
-            for (_, pose) in &deck {
-                let rect = self.depth_card_rect(*pose);
-                union = Some(match union {
-                    None => rect,
-                    Some(u) => u.merge(rect),
-                });
-            }
-            if let Some(race) = union {
-                let race_pos = col_pos + race.loc;
-                let race_pos = race_pos.to_physical_precise_round(scale).to_logical(scale);
-                let params = RenderParams {
-                    geometry: Rectangle::new(race_pos, race.size),
-                    subregion: None,
-                    clip: None,
-                    scale: scale.x,
-                };
-                let blur_options = BlurOptions {
-                    passes: (cfg.blur_radius / 6.).clamp(1., 4.) as u8,
-                    offset: 0.,
-                };
-                let elem = self
-                    .depth
-                    .blur
-                    .render(None, params, Some(blur_options), 0., 1.);
-                push(elem.into());
-            }
-        }
-
-        // Draw the deck far-to-near so nearer cards overlap the farther ones. Bottom deck cards
-        // have their near edge at the top, top deck cards at the bottom.
-        let mut far_to_near: Vec<usize> = deck.iter().map(|(i, _)| *i).collect();
-        far_to_near.sort_unstable_by_key(|i| std::cmp::Reverse(i.abs_diff(active)));
-
-        let snapshots = self.depth.snapshots.borrow_mut();
-        for i in far_to_near {
-            let tile = &self.tiles[i];
-            let pose = self.depth.anim[i];
-            let rect = self.depth_card_rect(pose);
-            let rect = Rectangle::new(
-                rect.loc.to_physical_precise_round(scale).to_logical(scale),
-                rect.size,
-            );
-            let rect_pos = col_pos + rect.loc;
-            let rect_pos = rect_pos.to_physical_precise_round(scale).to_logical(scale);
-            let side = if i < active { DeckSide::Top } else { DeckSide::Bottom };
-
-            let radius = tile
-                .window()
-                .geometry_corner_radius()
-                .fit_to(rect.size.w as f32, rect.size.h as f32)
-                .scaled_by((scale.x * pose.scale_y) as f32);
-
-            let shadow = self.options.layout.depth_queue.card_shadow;
-            if shadow.on {
-                // Mirror the tile shadow geometry: a box equal to the card rect with a halo of
-                // `ceil(sigma * 3)` around it, shifted down by the configured offset. The card
-                // interior is cut out so the semi-transparent card doesn't get darkened.
-                let ceil = |logical: f64| (logical * scale.x).ceil() / scale.x;
-                let sigma = shadow.blur / 2.;
-                let width = ceil(sigma * 3.);
-                let offset = Point::from((ceil(shadow.offset.x.0), ceil(shadow.offset.y.0)));
-                let shader_size = rect.size + Size::from((width, width)).upscale(2.);
-                let geometry = Rectangle::new(Point::from((width, width)), rect.size);
-                let elem = ShadowRenderElement::new(
-                    shader_size,
-                    geometry,
-                    shadow.color,
-                    sigma as f32,
-                    radius,
-                    scale.x as f32,
-                    geometry,
-                    radius,
-                    pose.opacity,
-                )
-                .with_location(rect_pos + offset - Point::from((width, width)));
-                push(elem.into());
-            }
-
-            // Refresh the offscreen snapshot of the card's window contents of the current frame.
-            let mut window_elements: Vec<LayoutElementRenderElement<GlesRenderer>> = Vec::new();
-            let mut gles = ctx.as_gles();
-            tile.window().render(
-                gles.r(),
-                Point::from((0., 0.)),
-                scale,
-                1.0,
-                xray_pos.offset(col_pos),
-                &mut |elem| window_elements.push(elem),
-            );
-            let elems = snapshots[i].render(gles.renderer, scale, &window_elements);
-            let (snapshot, _, data) = match elems {
-                Ok(elems) => elems,
-                Err(err) => {
-                    warn!("error rendering depth card snapshot: {err:?}");
-                    continue;
-                }
-            };
-            tile.window().set_offscreen_data(Some(data));
-
-            let tilt_pow = (1.0 + f64::from(pose.rot_x.abs()) * 5.0).clamp(1.0, 3.0);
-            let bottom = if side == DeckSide::Bottom { 1. } else { 0. };
-
-            let elem = ShaderRenderElement::new(
-                ProgramType::DepthCard,
-                rect.size,
-                None,
-                scale.x as f32,
-                pose.opacity,
-                Rc::new([
-                    Uniform::new("ymir_depth_bottom", bottom),
-                    Uniform::new("ymir_depth_tilt_pow", tilt_pow as f32),
-                    Uniform::new("ymir_min_opacity", cfg.min_opacity as f32),
-                    Uniform::new(
-                        "ymir_corner_radius",
-                        <[f32; 4]>::from(radius),
-                    ),
-                ]),
-                HashMap::from([(String::from("ymir_tex"), snapshot.texture().clone())]),
-                smithay::backend::renderer::element::Kind::Unspecified,
-            )
-            .with_location(rect_pos);
-            push(elem.into());
-        }
-    }
-
-    /// Moves the focused (apex) card to the far end of the queue; the window that slides into the
-    /// apex slot becomes the new focus.
-    fn depth_push_active_to_queue(&mut self) {
-        if !self.is_depth() || self.tiles.len() < 2 {
-            return;
-        }
-
-        let active = self.active_tile_idx;
-        let tile = self.tiles.remove(active);
-        let data = self.data.remove(active);
-        self.depth.anim.remove(active);
-        self.depth.springs.remove(active);
-        self.depth.snapshots.borrow_mut().remove(active);
-
-        let len = self.tiles.len();
-        self.tiles.push(tile);
-        self.data.push(data);
-
-        self.depth.anim.push(DepthCardAnim::apex());
-        let clock = self.clock.clone();
-        let config = self.depth_spring_config();
-        self.depth
-            .springs
-            .push(DepthCardSprings::static_from(clock, DepthCardAnim::apex(), config));
-        self.depth.snapshots.borrow_mut().push(OffscreenBuffer::default());
-
-        self.active_tile_idx = min(active, len - 1);
-        self.depth_restart_shuffle();
-    }
-
-    /// Promotes the window (or, when `window` is none, nothing — the apex already is the apex) to
-    /// the apex card, springing the shuffle. The promoted window becomes the active tile.
-    fn depth_pull_to_apex(&mut self, window: Option<&W::Id>) {
-        if !self.is_depth() {
-            return;
-        }
-        let Some(window) = window else {
-            return;
-        };
-        let Some(idx) = self.position(window) else {
-            return;
-        };
-        if idx == self.active_tile_idx {
-            return;
-        }
-
-        let active = self.active_tile_idx;
-        let tile = self.tiles.remove(idx);
-        let data = self.data.remove(idx);
-        self.depth.anim.remove(idx);
-        self.depth.springs.remove(idx);
-        self.depth.snapshots.borrow_mut().remove(idx);
-
-        self.tiles.insert(active, tile);
-        self.data.insert(active, data);
-
-        self.depth.anim.insert(active, DepthCardAnim::apex());
-        let clock = self.clock.clone();
-        let config = self.depth_spring_config();
-        self.depth
-            .springs
-            .insert(active, DepthCardSprings::static_from(clock, DepthCardAnim::apex(), config));
-        self.depth
-            .snapshots
-            .borrow_mut()
-            .insert(active, OffscreenBuffer::default());
-
-        self.active_tile_idx = active;
-        self.depth_restart_shuffle();
-    }
-
-    /// Alt-Tab-style cycler through the queue: wrap to the next card, focusing it at the apex.
-    fn depth_cycle_queue(&mut self) {
-        if !self.is_depth() || self.tiles.len() < 2 {
-            return;
-        }
-        self.activate_idx((self.active_tile_idx + 1) % self.tiles.len());
-    }
-
-    /// Toggles the "cover" multi-view: the whole deck fans out so every card peeks.
-    fn depth_toggle_cover(&mut self) {
-        if !self.is_depth() {
-            return;
-        }
-        self.depth.cover = !self.depth.cover;
-        self.depth_restart_shuffle();
     }
 
     fn become_dwindle(&mut self) {
@@ -6988,12 +5834,6 @@ impl<W: LayoutElement> Column<W> {
 
         origin.y += self.working_area.loc.y + self.options.layout.gaps;
 
-        if self.display_mode == ColumnDisplay::Tabbed {
-            origin += self
-                .tab_indicator
-                .content_offset(self.tiles.len(), self.scale);
-        }
-
         origin
     }
 
@@ -7005,25 +5845,12 @@ impl<W: LayoutElement> Column<W> {
             return self.dwindle_offsets();
         }
 
-        if self.is_depth() && self.sizing_mode().is_normal() {
-            // Every card sits in the apex slot; the fan separates them visually.
-            let dummy = TileData {
-                height: WindowHeight::auto_1(),
-                size: Size::default(),
-                interactively_resizing_by_left_edge: false,
-            };
-            let apex_loc = self.depth_content_rect().loc;
-            return data.chain(iter::once(dummy)).map(|_| apex_loc).collect();
-        }
-
         // FIXME: this should take into account always-center-single-column, which means that
         // Column should somehow know when it is being centered due to being the single column on
         // the workspace or some other reason.
         let center = self.options.layout.center_focused_column == CenterFocusedColumn::Always;
         let gaps = self.options.layout.gaps;
-        let tabbed = self.display_mode == ColumnDisplay::Tabbed;
 
-        // Does not include extra size from the tab indicator.
         let tiles_width = self
             .data
             .iter()
@@ -7051,9 +5878,7 @@ impl<W: LayoutElement> Column<W> {
                 pos.x += tiles_width - data.size.w;
             }
 
-            if !tabbed {
-                origin.y += data.size.h + gaps;
-            }
+            origin.y += data.size.h + gaps;
 
             pos
         });
@@ -7135,13 +5960,6 @@ impl<W: LayoutElement> Column<W> {
         }
 
         (!edges.is_empty()).then_some(edges)
-    }
-
-    fn is_tabbed_or_dwindle(&self) -> bool {
-        matches!(
-            self.display_mode,
-            ColumnDisplay::Tabbed | ColumnDisplay::Dwindle | ColumnDisplay::Depth
-        )
     }
 
     /// The outer region that the dwindle tree partitions between its leaves.
@@ -7269,15 +6087,8 @@ impl<W: LayoutElement> Column<W> {
         let (first, rest) = self.tiles.split_at(self.active_tile_idx);
         let (active, rest) = rest.split_at(1);
 
-        let active = active.iter().map(|tile| (tile, true));
-
-        let rest_visible = self.display_mode != ColumnDisplay::Tabbed
-            && self.display_mode != ColumnDisplay::Depth;
-        let rest = first.iter().chain(rest);
-        let rest = rest.map(move |tile| (tile, rest_visible));
-
-        let tiles = active.chain(rest);
-        zip(tiles, offsets).map(|((tile, visible), pos)| (tile, pos, visible))
+        let tiles = active.iter().chain(first).chain(rest);
+        zip(tiles, offsets).map(|(tile, pos)| (tile, pos, true))
     }
 
     fn tiles_in_render_order_mut(
@@ -7292,50 +6103,10 @@ impl<W: LayoutElement> Column<W> {
         zip(tiles, offsets)
     }
 
-    fn tab_indicator_area(&self) -> Rectangle<f64, Logical> {
-        // We'd like to use the active tile's animated size for the tab indicator, however we need
-        // to be mindful of the case where the active tile is smaller than some other tile in the
-        // column. The column assumes the size of the largest tile.
-        //
-        // We expect users to mainly resize tabbed columns by width, so matching the animated size
-        // is more important here. Besides, we always try to resize all windows in a column to the
-        // same width when possible, and also the animation for going into tabbed mode doesn't move
-        // tiles horizontally as much.
-        //
-        // For height though, it's a different story. First, users probably aren't resizing a
-        // tabbed column by height. Second, we don't match windows by height, so it's easy to have
-        // a smaller active tile than the rest of the column, e.g. by adding a fixed-size dialog.
-        // Then, switching to that dialog and back should ideally keep the tab indicator position
-        // fixed. Third, the animation for making a column tabbed moves tiles vertically, and using
-        // the active tile's animated size in this case only works for the topmost tile, and looks
-        // broken otherwise.
-        let mut max_height = 0.;
-        for tile in &self.tiles {
-            max_height = f64::max(max_height, tile.tile_size().h);
-        }
-
-        let tile = &self.tiles[self.active_tile_idx];
-        let area_size = Size::from((tile.animated_tile_size().w, max_height));
-
-        Rectangle::new(self.tiles_origin(), area_size)
-    }
-
     pub fn start_open_animation(&mut self, id: &W::Id) -> bool {
         for tile in &mut self.tiles {
             if tile.window().id() == id {
                 tile.start_open_animation();
-
-                // Animate the appearance of the tab indicator.
-                if self.display_mode == ColumnDisplay::Tabbed
-                    && self.sizing_mode().is_normal()
-                    && self.tiles.len() == 1
-                    && !self.tab_indicator.config().hide_when_single_tab
-                {
-                    self.tab_indicator.start_open_animation(
-                        self.clock.clone(),
-                        self.options.animations.window_open.anim,
-                    );
-                }
 
                 return true;
             }
@@ -7351,7 +6122,7 @@ impl<W: LayoutElement> Column<W> {
         assert_eq!(self.tiles.len(), self.data.len());
 
         if !self.pending_sizing_mode().is_normal() {
-            assert!(self.tiles.len() == 1 || self.is_tabbed_or_dwindle());
+            assert!(self.tiles.len() == 1 || self.is_dwindle());
         }
 
         // Dwindle geometry is governed by the tree, not by the per-window height rules that the
@@ -7365,29 +6136,9 @@ impl<W: LayoutElement> Column<W> {
             return;
         }
 
-        if self.is_depth() {
-            assert_eq!(
-                self.depth.anim.len(),
-                self.tiles.len(),
-                "depth animation poses must be kept parallel to the tiles"
-            );
-            assert_eq!(
-                self.depth.springs.len(),
-                self.tiles.len(),
-                "depth springs must be kept parallel to the tiles"
-            );
-            assert_eq!(
-                self.depth.snapshots.borrow().len(),
-                self.tiles.len(),
-                "depth card snapshots must be kept parallel to the tiles"
-            );
-        }
-
         if let Some(idx) = self.preset_width_idx {
             assert!(idx < self.options.layout.preset_column_widths.len());
         }
-
-        let is_tabbed = self.display_mode == ColumnDisplay::Tabbed;
 
         let tile_count = self.tiles.len();
         if tile_count == 1 {
@@ -7438,9 +6189,7 @@ impl<W: LayoutElement> Column<W> {
                 tile.tile_height_for_window_height(f64::from(requested_size.h));
             let min_tile_height = f64::max(1., tile.min_size_nonfullscreen().h);
 
-            if !is_tabbed
-                && !self.is_depth()
-                && self.pending_sizing_mode().is_normal()
+            if self.pending_sizing_mode().is_normal()
                 && self.scale.round() == self.scale
                 && working_size.h.round() == working_size.h
                 && gaps.round() == gaps
@@ -7459,9 +6208,7 @@ impl<W: LayoutElement> Column<W> {
             total_min_height += min_tile_height;
         }
 
-        if !is_tabbed
-            && !self.is_depth()
-            && tile_count > 1
+        if tile_count > 1
             && self.scale.round() == self.scale
             && working_size.h.round() == working_size.h
             && gaps.round() == gaps

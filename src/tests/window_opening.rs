@@ -451,7 +451,6 @@ fn target_size() {
     // * open-floating
     // * default-column-width
     // * border
-    // * default-column-display normal, tabbed
 
     let open_fullscreen = [None, Some("false"), Some("true")];
     let want_fullscreen = [
@@ -477,7 +476,6 @@ fn target_size() {
         Some(DefaultSize::Fixed("500")),
     ];
     let border = [false, true];
-    let tabbed = [false, true];
 
     let mut powerset = Vec::new();
     for fs in open_fullscreen {
@@ -487,9 +485,7 @@ fn target_size() {
                     for dw in default_column_width {
                         for dh in default_window_height {
                             for b in border {
-                                for t in tabbed {
-                                    powerset.push((fs, wfs, om, of, dw, dh, b, t));
-                                }
+                                powerset.push((fs, wfs, om, of, dw, dh, b));
                             }
                         }
                     }
@@ -500,8 +496,8 @@ fn target_size() {
 
     powerset
         .into_par_iter()
-        .for_each(|(fs, wfs, om, of, dw, dh, b, t)| {
-            check_target_size(fs, wfs, om, of, dw, dh, b, t);
+        .for_each(|(fs, wfs, om, of, dw, dh, b)| {
+            check_target_size(fs, wfs, om, of, dw, dh, b);
         });
 }
 
@@ -514,7 +510,6 @@ fn check_target_size(
     default_width: Option<DefaultSize>,
     default_height: Option<DefaultSize>,
     border: bool,
-    tabbed: bool,
 ) {
     let mut snapshot_desc = Vec::new();
     let mut snapshot_suffix = Vec::new();
@@ -593,10 +588,6 @@ fn check_target_size(
         snapshot_suffix.push(String::from("b"));
     }
 
-    if tabbed {
-        writeln!(config, "                    default_column_display = \"tabbed\",").unwrap();
-    }
-
     config.push_str("                },\n            },\n");
 
     match &want_fullscreen {
@@ -605,11 +596,6 @@ fn check_target_size(
             snapshot_desc.push(format!("want fullscreen: {x}"));
             snapshot_suffix.push(format!("wfs{x}"));
         }
-    }
-
-    if tabbed {
-        config.push_str("            layout = { tab_indicator = { place_within_column = true } },\n");
-        snapshot_suffix.push(String::from("t"));
     }
 
     config.push_str("        }\n");

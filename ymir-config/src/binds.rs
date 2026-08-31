@@ -234,16 +234,8 @@ pub enum Action {
     PromoteWindow,
     SwapWindowLeft,
     SwapWindowRight,
-    ToggleColumnTabbedDisplay,
     SwitchColumnDisplay,
     SetColumnDisplay(ColumnDisplay),
-    FocusCardUp,
-    FocusCardDown,
-    PushToQueue,
-    PullToApex,
-    PullToApexById(u64),
-    CycleQueueDepth,
-    ToggleQueueCover,
     CenterColumn,
     CenterWindow,
     CenterWindowById(u64),
@@ -506,16 +498,8 @@ impl From<ymir_ipc::Action> for Action {
             ymir_ipc::Action::PromoteWindow {} => Self::PromoteWindow,
             ymir_ipc::Action::SwapWindowRight {} => Self::SwapWindowRight,
             ymir_ipc::Action::SwapWindowLeft {} => Self::SwapWindowLeft,
-            ymir_ipc::Action::ToggleColumnTabbedDisplay {} => Self::ToggleColumnTabbedDisplay,
             ymir_ipc::Action::SwitchColumnDisplay {} => Self::SwitchColumnDisplay,
             ymir_ipc::Action::SetColumnDisplay { display } => Self::SetColumnDisplay(display),
-            ymir_ipc::Action::FocusCardUp {} => Self::FocusCardUp,
-            ymir_ipc::Action::FocusCardDown {} => Self::FocusCardDown,
-            ymir_ipc::Action::PushToQueue {} => Self::PushToQueue,
-            ymir_ipc::Action::PullToApex { id: None } => Self::PullToApex,
-            ymir_ipc::Action::PullToApex { id: Some(id) } => Self::PullToApexById(id),
-            ymir_ipc::Action::CycleQueueDepth {} => Self::CycleQueueDepth,
-            ymir_ipc::Action::ToggleQueueCover {} => Self::ToggleQueueCover,
             ymir_ipc::Action::CenterColumn {} => Self::CenterColumn,
             ymir_ipc::Action::CenterWindow { id: None } => Self::CenterWindow,
             ymir_ipc::Action::CenterWindow { id: Some(id) } => Self::CenterWindowById(id),
@@ -737,9 +721,6 @@ impl From<WorkspaceReferenceArg> for WorkspaceReference {
         }
     }
 }
-
-
-
 
 impl FromStr for Key {
     type Err = miette::Error;

@@ -6261,15 +6261,7 @@ impl Ymir {
 
         if let Some(window) = &new_focus.window {
             if !self.layout.is_overview_open() && current_focus.window.as_ref() != Some(window) {
-                let (window, hit) = window;
-
-                // Don't trigger focus-follows-mouse over the tab indicator or a depth deck card
-                // (hovering the deck shouldn't shuffle it; clicking a card pulls it to the apex).
-                if matches!(hit, HitType::Activate { is_tab_indicator: true })
-                    || matches!(hit, HitType::ActivateDepthCard)
-                {
-                    return;
-                }
+                let (window, _) = window;
 
                 if !self.layout.should_trigger_focus_follows_mouse_on(window) {
                     return;

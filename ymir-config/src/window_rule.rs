@@ -2,7 +2,6 @@ use ymir_ipc::ColumnDisplay;
 
 use crate::appearance::{
     BackgroundEffect, BackgroundEffectRule, BlockOutFrom, BorderRule, CornerRadius, ShadowRule,
-    TabIndicatorRule,
 };
 use crate::layout::DefaultPresetSize;
 use crate::utils::{MergeWith, RegexEq};
@@ -34,7 +33,6 @@ pub struct WindowRule {
     pub focus_ring: BorderRule,
     pub border: BorderRule,
     pub shadow: ShadowRule,
-    pub tab_indicator: TabIndicatorRule,
     pub draw_border_with_background: Option<bool>,
     pub opacity: Option<f32>,
     pub geometry_corner_radius: Option<CornerRadius>,

@@ -65,7 +65,7 @@ return {
             block_out_from = "screencast",
             -- block_out_from = "screen-capture"
             variable_refresh_rate = true,
-            default_column_display = "tabbed",
+            default_column_display = "dwindle",
             default_floating_position = { x = 100, y = 200, relative_to = "bottom-left" },
             scroll_factor = 0.75,
             on_xdg_activate = "focus",
@@ -95,15 +95,6 @@ return {
                 draw_behind_window = true,
                 color = "#00000064",
                 -- inactive_color = "#00000064"
-            },
-
-            tab_indicator = {
-                active_color = "red",
-                inactive_color = "gray",
-                urgent_color = "blue",
-                -- active_gradient = { from = "#80c8ff", to = "#bbddff", angle = 45 }
-                -- inactive_gradient = { from = "#505050", to = "#808080", angle = 45, relative_to = "workspace-view" }
-                -- urgent_gradient = { from = "#800", to = "#a33", angle = 45 }
             },
 
             geometry_corner_radius = 12,
@@ -365,11 +356,6 @@ return {
 
             shadow = {
                 color = "#7d0d2d70",
-            },
-
-            tab_indicator = {
-                active_color = "#f38ba8",
-                inactive_color = "#7d0d2d",
             },
         },
     },
@@ -865,7 +851,7 @@ return {
 <sup>Since: 1.0.0</sup>
 
 Set the default display mode for columns created from this window.
-Can be `normal`, `tabbed` or `dwindle` (see the [Dwindle](./Configuration:-Dwindle.md) page for dwindle mode).
+Can be `normal` or `dwindle` (see the [Dwindle](./Configuration:-Dwindle.md) page for dwindle mode).
 
 This is used any time a window goes into its own column.
 For example:
@@ -877,12 +863,12 @@ For example:
 return {
     window_rules = {
         {
-            -- Make Evince windows open as tabbed columns.
+            -- Make Evince windows open as dwindle columns.
             match = {
                 { app_id = "^evince$" },
             },
 
-            default_column_display = "tabbed",
+            default_column_display = "dwindle",
         },
     },
 }
@@ -1051,31 +1037,6 @@ return {
 
             shadow = {
                 on = true,
-            },
-        },
-    },
-}
-```
-
-#### `tab-indicator`
-
-<sup>Since: 1.0.0</sup>
-
-Override the tab indicator options for the window.
-
-Options in this rule match the same options as the normal [`tab-indicator` config in the layout section](./Configuration:-Layout.md#tab-indicator), so check the documentation there.
-
-```lua
-return {
-    window_rules = {
-        {
-            -- Make KeePassXC tab have a dark red inactive color.
-            match = {
-                { app_id = "^org\\.keepassxc\\.KeePassXC$" },
-            },
-
-            tab_indicator = {
-                inactive_color = "darkred",
             },
         },
     },

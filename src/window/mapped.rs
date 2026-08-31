@@ -1108,8 +1108,7 @@ impl LayoutElement for Mapped {
 
             // Send the window a frame callback unconditionally to let it respond to size changes
             // and such immediately, even when it's hidden. This especially matters for cases like
-            // tabbed columns which compute their width based on all windows in the column, even
-            // hidden ones.
+            // a hidden tiled window whose requested size still influences the column width.
             self.needs_frame_callback = true;
 
             if self.animate_next_configure {

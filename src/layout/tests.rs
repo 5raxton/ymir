@@ -7,8 +7,7 @@ use smithay::utils::Rectangle;
 use ymir_config::utils::Flag;
 use ymir_config::workspace::WorkspaceName;
 use ymir_config::{
-    CenterFocusedColumn, FloatOrInt, OutputName, Struts, TabIndicatorLength, TabIndicatorPosition,
-    WorkspaceReference,
+    CenterFocusedColumn, FloatOrInt, OutputName, Struts, WorkspaceReference,
 };
 
 use super::*;
@@ -401,7 +400,7 @@ fn arbitrary_scroll_direction() -> impl Strategy<Value = ScrollDirection> {
 }
 
 fn arbitrary_column_display() -> impl Strategy<Value = ColumnDisplay> {
-    prop_oneof![Just(ColumnDisplay::Normal), Just(ColumnDisplay::Tabbed)]
+    prop_oneof![Just(ColumnDisplay::Normal), Just(ColumnDisplay::Dwindle)]
 }
 
 #[derive(Debug, Clone, Arbitrary)]
@@ -509,7 +508,6 @@ enum Op {
     ConsumeWindowIntoColumn,
     ExpelWindowFromColumn,
     SwapWindowInDirection(#[proptest(strategy = "arbitrary_scroll_direction()")] ScrollDirection),
-    ToggleColumnTabbedDisplay,
     SetColumnDisplay(#[proptest(strategy = "arbitrary_column_display()")] ColumnDisplay),
     CenterColumn,
     CenterWindow {
@@ -1171,7 +1169,6 @@ impl Op {
             Op::ConsumeWindowIntoColumn => layout.consume_into_column(),
             Op::ExpelWindowFromColumn => layout.expel_from_column(),
             Op::SwapWindowInDirection(direction) => layout.swap_window_in_direction(direction),
-            Op::ToggleColumnTabbedDisplay => layout.toggle_column_tabbed_display(),
             Op::SetColumnDisplay(display) => layout.set_column_display(display),
             Op::CenterColumn => layout.center_column(),
             Op::CenterWindow { id } => {
@@ -1748,7 +1745,6 @@ fn operations_dont_panic() {
         Op::ConsumeOrExpelWindowLeft { id: None },
         Op::ConsumeOrExpelWindowRight { id: None },
         Op::MoveWorkspaceToOutput(1),
-        Op::ToggleColumnTabbedDisplay,
     ];
 
     for third in &every_op {
@@ -2233,7 +2229,7 @@ fn dwindle_resize_grab_zones_follow_real_divider() {
 fn dwindle_resize_grab_rejects_exterior_edges() {
     // In a dwindle column every window edge that is flush with the outer work area is pinned:
     // grabbing it must not start a dead resize. Only real shared dividers are reportable.
-    let mut layout = dwindle_layout(true);
+    let layout = dwindle_layout(true);
     let (p0, s0) = rect_of(&layout, 0);
     let (p1, s1) = rect_of(&layout, 1);
     let workspace = layout.active_workspace().unwrap();
@@ -2265,67 +2261,6 @@ fn dwindle_resize_grab_rejects_exterior_edges() {
         Some(ResizeEdge::LEFT),
         "the shared divider must be grabbable from the right window"
     );
-}
-
-#[test]
-fn depth_closing_window_does_not_underflow_goal_pose() {
-    // Regression for the window-close crash: closing a window in a depth column re-fans the deck
-    // with the tile list already trimmed, so the active tile index has to be corrected BEFORE the
-    // pose recomputation. With a stale index (apex sitting at the bottom of the queue and closing a
-    // window above it) the goal pose computed `len - active - 1` and underflow-panicked.
-    let mut layout = check_ops_with_options(
-        Options::default(),
-        [
-            Op::AddOutput(0),
-            Op::AddWindow {
-                params: TestWindowParams::new(0),
-            },
-            Op::AddWindow {
-                params: TestWindowParams::new(1),
-            },
-            Op::AddWindow {
-                params: TestWindowParams::new(2),
-            },
-            Op::AddWindow {
-                params: TestWindowParams::new(3),
-            },
-        ],
-    );
-    check_ops_on_layout(&mut layout, [Op::CompleteAnimations]);
-
-    // Merge the four single-window columns into one column [0, 1, 2, 3] (depth is a per-column
-    // mode), then switch it to depth.
-    layout.focus_column_first();
-    layout.consume_into_column();
-    layout.consume_into_column();
-    layout.consume_into_column();
-    check_ops_on_layout(&mut layout, [Op::CompleteAnimations]);
-    layout.set_column_display(ymir_ipc::ColumnDisplay::Depth);
-    check_ops_on_layout(&mut layout, [Op::CompleteAnimations]);
-
-    // Make the apex the bottom card of the queue.
-    Op::FocusWindow(3).apply(&mut layout);
-    check_ops_on_layout(&mut layout, [Op::CompleteAnimations]);
-
-    // Close a window sitting above the apex; the stale index pointed past the trimmed list.
-    Op::CloseWindow(1).apply(&mut layout);
-    check_ops_on_layout(&mut layout, [Op::CompleteAnimations]);
-    assert_eq!(
-        *layout.focus().unwrap().id(),
-        3,
-        "focus stays on the apex window"
-    );
-    layout.verify_invariants();
-
-    // Closing the apex itself must not underflow either (it falls back to the new last card).
-    Op::CloseWindow(3).apply(&mut layout);
-    check_ops_on_layout(&mut layout, [Op::CompleteAnimations]);
-    assert_eq!(
-        *layout.focus().unwrap().id(),
-        2,
-        "focus falls back to the new last card"
-    );
-    layout.verify_invariants();
 }
 
 #[test]
@@ -2395,137 +2330,6 @@ fn normal_and_dwindle_resize_stay_separate() {
     );
 }
 
-#[test]
-fn depth_queue_push_pull_and_cycle() {
-    let mut layout = check_ops_with_options(
-        Options::default(),
-        [
-            Op::AddOutput(0),
-            Op::AddWindow {
-                params: TestWindowParams::new(0),
-            },
-            Op::AddWindow {
-                params: TestWindowParams::new(1),
-            },
-            Op::AddWindow {
-                params: TestWindowParams::new(2),
-            },
-        ],
-    );
-    check_ops_on_layout(&mut layout, [Op::CompleteAnimations]);
-
-    // Merging the three single-window columns into one column [0, 1, 2] whose focus sits on
-    // the leftmost window (depth is a per-column mode).
-    layout.focus_column_first();
-    layout.consume_into_column();
-    layout.consume_into_column();
-    check_ops_on_layout(&mut layout, [Op::CompleteAnimations]);
-
-    let order_of = |layout: &Layout<TestWindow>| -> Vec<usize> {
-        layout
-            .active_workspace()
-            .unwrap()
-            .windows()
-            .map(|win| *win.id())
-            .collect()
-    };
-    let active_of = |layout: &Layout<TestWindow>| -> usize {
-        *layout
-            .active_workspace()
-            .unwrap()
-            .active_window()
-            .unwrap()
-            .id()
-    };
-
-    let initial = order_of(&layout);
-    let active_pos = initial
-        .iter()
-        .position(|id| *id == active_of(&layout))
-        .unwrap();
-
-    // Entering depth builds the fan without reordering or stealing focus.
-    layout.set_column_display(ymir_ipc::ColumnDisplay::Depth);
-    check_ops_on_layout(&mut layout, [Op::CompleteAnimations]);
-    assert_eq!(order_of(&layout), initial);
-    assert_eq!(active_of(&layout), initial[active_pos]);
-
-    // Every card is sized to the apex card in depth mode.
-    let sized: Vec<_> = layout
-        .active_workspace()
-        .unwrap()
-        .windows()
-        .map(|win| win.requested_size().unwrap())
-        .collect();
-    assert_eq!(sized.len(), initial.len());
-    assert!(
-        sized.iter().all(|size| *size == sized[0]),
-        "depth mode must size every card to the apex card: got {sized:?}"
-    );
-
-    // Push: the apex card moves to the far end of the queue; the card that slides into the apex
-    // slot takes focus.
-    layout.push_active_to_depth_queue();
-    check_ops_on_layout(&mut layout, [Op::CompleteAnimations]);
-    let mut expected_order = initial.clone();
-    expected_order.retain(|id| *id != initial[active_pos]);
-    expected_order.push(initial[active_pos]);
-    assert_eq!(order_of(&layout), expected_order);
-    assert_eq!(
-        active_of(&layout),
-        if active_pos + 1 < initial.len() {
-            initial[active_pos + 1]
-        } else {
-            initial[active_pos]
-        },
-        "pushing the apex must hand focus to the card that slid into the apex slot"
-    );
-
-    // Cycle: focus wraps over the queue without reordering it.
-    let order_now = order_of(&layout);
-    let cur_pos = order_now
-        .iter()
-        .position(|id| *id == active_of(&layout))
-        .unwrap();
-    layout.cycle_depth_queue();
-    check_ops_on_layout(&mut layout, [Op::CompleteAnimations]);
-    assert_eq!(order_of(&layout), order_now);
-    let active_after_cycle = active_of(&layout);
-    assert_eq!(
-        active_after_cycle,
-        order_now[(cur_pos + 1) % order_now.len()],
-        "cycling focus must advance to the next card, wrapping"
-    );
-    let apex_slot_after_cycle = order_now
-        .iter()
-        .position(|id| *id == active_after_cycle)
-        .unwrap();
-
-    // Pull: the promoted window moves to the apex slot in the queue and takes focus.
-    let target = *order_now.last().unwrap();
-    layout.pull_to_depth_apex(Some(&target));
-    check_ops_on_layout(&mut layout, [Op::CompleteAnimations]);
-    let mut expected = order_now.clone();
-    expected.remove(expected.iter().position(|id| *id == target).unwrap());
-    expected.insert(apex_slot_after_cycle, target);
-    assert_eq!(order_of(&layout), expected);
-    assert_eq!(active_of(&layout), target);
-
-    // The cover multi-view is a pure view toggle: no reorder, no focus change.
-    layout.toggle_depth_queue_cover();
-    check_ops_on_layout(&mut layout, [Op::CompleteAnimations]);
-    assert_eq!(order_of(&layout), expected);
-    assert_eq!(active_of(&layout), target);
-
-    // Exiting and re-entering depth preserves the queue order and focus.
-    layout.set_column_display(ymir_ipc::ColumnDisplay::Normal);
-    check_ops_on_layout(&mut layout, [Op::CompleteAnimations]);
-    layout.set_column_display(ymir_ipc::ColumnDisplay::Depth);
-    check_ops_on_layout(&mut layout, [Op::CompleteAnimations]);
-    assert_eq!(order_of(&layout), expected);
-    assert_eq!(active_of(&layout), target);
-}
-
 /// True when two axis-aligned rectangles share any positive area.
 fn rects_overlap(a: Rectangle<f64, Logical>, b: Rectangle<f64, Logical>) -> bool {
     a.loc.x < b.loc.x + b.size.w
@@ -2535,8 +2339,8 @@ fn rects_overlap(a: Rectangle<f64, Logical>, b: Rectangle<f64, Logical>) -> bool
 }
 
 /// Returns the on-screen rectangles (render position + tile size) of every window in the active
-/// workspace's scrolling (tiled) space, grouped by column. Windows in the same column share a
-/// stack in tabbed/depth mode, so only rectangles from *different* columns must stay disjoint.
+/// workspace's scrolling (tiled) space, grouped by column. Windows in the same column are
+/// placed within it, so only rectangles from *different* columns must stay disjoint.
 fn active_tiled_rects_by_column(layout: &Layout<TestWindow>) -> Vec<Vec<Rectangle<f64, Logical>>> {
     layout
         .active_workspace()
@@ -2599,12 +2403,12 @@ fn layout_mode_switches_never_overlap_tiled_windows() {
 
     for display in [
         ColumnDisplay::Normal,
-        ColumnDisplay::Tabbed,
         ColumnDisplay::Dwindle,
         ColumnDisplay::Normal,
-        ColumnDisplay::Depth,
+        ColumnDisplay::Dwindle,
         ColumnDisplay::Normal,
-        ColumnDisplay::Tabbed,
+        ColumnDisplay::Dwindle,
+        ColumnDisplay::Normal,
     ] {
         layout.set_column_display(display);
         check_ops_on_layout(&mut layout, [Op::CompleteAnimations]);
@@ -2616,12 +2420,7 @@ fn layout_mode_switches_never_overlap_tiled_windows() {
 /// layout to each freshly created column) must never make tiled windows overlap.
 #[test]
 fn spawning_after_layout_override_never_overlaps() {
-    for display in [
-        ColumnDisplay::Normal,
-        ColumnDisplay::Tabbed,
-        ColumnDisplay::Depth,
-        ColumnDisplay::Dwindle,
-    ] {
+    for display in [ColumnDisplay::Normal, ColumnDisplay::Dwindle] {
         let mut layout = check_ops_with_options(
             Options::default(),
             [
@@ -2651,8 +2450,8 @@ fn spawning_after_layout_override_never_overlaps() {
 }
 
 /// A single workspace can hold columns in different display modes at once (a normal column, a
-/// tabbed column with several tabs, a depth column, a dwindle column). None of the tiled windows
-/// in this mixed-layout workspace may clip on top of one another.
+/// dwindle column). None of the tiled windows in this mixed-layout workspace may clip on top of
+/// one another.
 #[test]
 fn coexisting_different_layouts_never_overlap() {
     let mut layout = check_ops_with_options(
@@ -2680,14 +2479,14 @@ fn coexisting_different_layouts_never_overlap() {
     layout.consume_into_column();
     check_ops_on_layout(&mut layout, [Op::CompleteAnimations]);
 
-    // Column 0: tabbed with three tabs.
-    layout.set_column_display(ymir_ipc::ColumnDisplay::Tabbed);
+    // Column 0: three windows in normal mode.
+    layout.set_column_display(ymir_ipc::ColumnDisplay::Normal);
     check_ops_on_layout(&mut layout, [Op::CompleteAnimations]);
-    assert_no_cross_column_overlap(&layout, "three-tab tabbed column");
+    assert_no_cross_column_overlap(&layout, "three-window normal column");
 
     // Spawn additional windows into separate columns, cycling the focused column's layout.
     for (id, display) in [
-        (3, ymir_ipc::ColumnDisplay::Depth),
+        (3, ymir_ipc::ColumnDisplay::Dwindle),
         (4, ymir_ipc::ColumnDisplay::Normal),
     ] {
         Op::AddWindow {
@@ -2730,7 +2529,11 @@ fn coexisting_different_layouts_never_overlap() {
     .apply(&mut layout);
     check_ops_on_layout(&mut layout, [Op::CompleteAnimations]);
     let columns = active_tiled_rects_by_column(&layout);
-    assert_eq!(columns.len(), 1, "new spawn joins the dwindle column: got {columns:?}");
+    assert_eq!(
+        columns.len(),
+        1,
+        "new spawn joins the dwindle column: got {columns:?}"
+    );
     assert_eq!(layout.windows().count(), 7);
     assert_no_cross_column_overlap(&layout, "dwindle column after a new spawn");
 }
@@ -3465,7 +3268,6 @@ fn operations_from_starting_state_dont_panic() {
         Op::MoveWindowUpOrToWorkspaceUp,
         Op::ConsumeOrExpelWindowLeft { id: None },
         Op::ConsumeOrExpelWindowRight { id: None },
-        Op::ToggleColumnTabbedDisplay,
     ];
 
     for third in &every_op {
@@ -5169,73 +4971,6 @@ fn move_window_to_workspace_maximize_and_fullscreen() {
 }
 
 #[test]
-fn tabs_with_different_border() {
-    let ops = [
-        Op::AddOutput(1),
-        Op::AddWindow {
-            params: TestWindowParams {
-                rules: Some(ResolvedWindowRules {
-                    border: ymir_config::BorderRule {
-                        on: true,
-                        ..Default::default()
-                    },
-                    ..ResolvedWindowRules::default()
-                }),
-                ..TestWindowParams::new(2)
-            },
-        },
-        Op::SwitchPresetWindowHeight { id: None },
-        Op::ToggleColumnTabbedDisplay,
-        Op::AddWindow {
-            params: TestWindowParams::new(3),
-        },
-        Op::ConsumeOrExpelWindowLeft { id: None },
-    ];
-
-    let options = Options {
-        layout: ymir_config::Layout {
-            struts: Struts {
-                left: FloatOrInt(0.),
-                right: FloatOrInt(0.),
-                top: FloatOrInt(20000.),
-                bottom: FloatOrInt(0.),
-            },
-            ..Default::default()
-        },
-        ..Default::default()
-    };
-    check_ops_with_options(options, ops);
-}
-
-#[test]
-fn expel_pending_left_from_fullscreen_tabbed_column() {
-    let ops = [
-        Op::AddOutput(1),
-        Op::AddWindow {
-            params: TestWindowParams::new(1),
-        },
-        Op::FullscreenWindow(1),
-        Op::Communicate(1),
-        // 1 is now fullscreen, view_offset_to_restore is set.
-        Op::ToggleColumnTabbedDisplay,
-        Op::AddWindow {
-            params: TestWindowParams::new(2),
-        },
-        Op::ConsumeOrExpelWindowLeft { id: Some(2) },
-        // 2 is consumed into a fullscreen column, fullscreen is requested but not applied.
-        //
-        // Now, get it back out while keeping it focused.
-        //
-        // Importantly, we expel it *left*, which results in adding a new column with the exact
-        // same active_column_idx.
-        Op::FocusWindow(2),
-        Op::ConsumeOrExpelWindowLeft { id: None },
-    ];
-
-    check_ops(ops);
-}
-
-#[test]
 fn workspace_render_geo_at_fractional_scale() {
     let ops = [
         Op::AddScaledOutput {
@@ -5339,15 +5074,6 @@ fn arbitrary_center_focused_column() -> impl Strategy<Value = CenterFocusedColum
     ]
 }
 
-fn arbitrary_tab_indicator_position() -> impl Strategy<Value = TabIndicatorPosition> {
-    prop_oneof![
-        Just(TabIndicatorPosition::Left),
-        Just(TabIndicatorPosition::Right),
-        Just(TabIndicatorPosition::Top),
-        Just(TabIndicatorPosition::Bottom),
-    ]
-}
-
 prop_compose! {
     fn arbitrary_focus_ring()(
         off in any::<bool>(),
@@ -5391,38 +5117,12 @@ prop_compose! {
 }
 
 prop_compose! {
-    fn arbitrary_tab_indicator()(
-        off in any::<bool>(),
-        hide_when_single_tab in prop::option::of(any::<bool>().prop_map(Flag)),
-        place_within_column in prop::option::of(any::<bool>().prop_map(Flag)),
-        width in prop::option::of(arbitrary_spacing().prop_map(FloatOrInt)),
-        gap in prop::option::of(arbitrary_spacing_neg().prop_map(FloatOrInt)),
-        length in prop::option::of((0f64..2f64)
-            .prop_map(|x| TabIndicatorLength { total_proportion: Some(x) })),
-        position in prop::option::of(arbitrary_tab_indicator_position()),
-    ) -> ymir_config::TabIndicatorPart {
-        ymir_config::TabIndicatorPart {
-            off,
-            on: !off,
-            hide_when_single_tab,
-            place_within_column,
-            width,
-            gap,
-            length,
-            position,
-            ..Default::default()
-        }
-    }
-}
-
-prop_compose! {
     fn arbitrary_layout_part()(
         gaps in prop::option::of(arbitrary_spacing().prop_map(FloatOrInt)),
         struts in prop::option::of(arbitrary_struts()),
         focus_ring in prop::option::of(arbitrary_focus_ring()),
         border in prop::option::of(arbitrary_border()),
         shadow in prop::option::of(arbitrary_shadow()),
-        tab_indicator in prop::option::of(arbitrary_tab_indicator()),
         center_focused_column in prop::option::of(arbitrary_center_focused_column()),
         always_center_single_column in prop::option::of(any::<bool>().prop_map(Flag)),
         empty_workspace_above_first in prop::option::of(any::<bool>().prop_map(Flag)),
@@ -5436,7 +5136,6 @@ prop_compose! {
             focus_ring,
             border,
             shadow,
-            tab_indicator,
             ..Default::default()
         }
     }
@@ -5579,9 +5278,16 @@ fn dwindle_layout(two: bool) -> Layout<TestWindow> {
         },
         ..Default::default()
     };
-    let mut ops = vec![Op::AddOutput(0), Op::AddWindow { params: TestWindowParams::new(0) }];
+    let mut ops = vec![
+        Op::AddOutput(0),
+        Op::AddWindow {
+            params: TestWindowParams::new(0),
+        },
+    ];
     if two {
-        ops.push(Op::AddWindow { params: TestWindowParams::new(1) });
+        ops.push(Op::AddWindow {
+            params: TestWindowParams::new(1),
+        });
     }
     let mut layout = check_ops_with_options(options, ops);
     check_ops_on_layout(&mut layout, [Op::CompleteAnimations]);
@@ -5606,7 +5312,10 @@ fn rect_of(layout: &Layout<TestWindow>, id: usize) -> (Point<f64, Logical>, Size
 fn dwindle_move_window_climbs_out_of_bottom_row() {
     let mut layout = dwindle_layout(true);
     for id in 2..8usize {
-        Op::AddWindow { params: TestWindowParams::new(id) }.apply(&mut layout);
+        Op::AddWindow {
+            params: TestWindowParams::new(id),
+        }
+        .apply(&mut layout);
     }
     check_ops_on_layout(&mut layout, [Op::CompleteAnimations]);
 
@@ -5614,9 +5323,10 @@ fn dwindle_move_window_climbs_out_of_bottom_row() {
     let mut prev_y = initial_y;
     let mut ascend_steps = 0;
     for _ in 1..=20 {
-        let ws = layout.active_workspace_mut().unwrap();
-        let moved = ws.move_up();
-        drop(ws);
+        let moved = {
+            let ws = layout.active_workspace_mut().unwrap();
+            ws.move_up()
+        };
         check_ops_on_layout(&mut layout, [Op::CompleteAnimations]);
         let p = rect_of(&layout, 7).0;
         if moved {

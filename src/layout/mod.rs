@@ -85,7 +85,6 @@ pub mod monitor;
 pub mod opening_window;
 pub mod scrolling;
 pub mod shadow;
-pub mod tab_indicator;
 pub mod tile;
 pub mod workspace;
 
@@ -561,14 +560,7 @@ pub enum HitType {
     /// The hit can activate a window, but it is not in the input region so cannot send events.
     ///
     /// For example, this could be clicking on a tile border outside the window.
-    Activate {
-        /// Whether the hit was on the tab indicator.
-        is_tab_indicator: bool,
-    },
-    /// The hit was on a depth-queue deck card. Activating the window pulls the card to the apex;
-    /// it never sends input events to the (hidden) card's surface, and it does not trigger
-    /// focus-follows-mouse (hovering the deck shouldn't shuffle it).
-    ActivateDepthCard,
+    Activate {},
 }
 
 #[derive(Debug)]
@@ -658,7 +650,7 @@ impl HitType {
     pub fn offset_win_pos(mut self, offset: Point<f64, Logical>) -> Self {
         match &mut self {
             HitType::Input { win_pos } => *win_pos += offset,
-            HitType::Activate { .. } | HitType::ActivateDepthCard => (),
+            HitType::Activate { .. } => (),
         }
         self
     }
@@ -675,10 +667,8 @@ impl HitType {
 
     pub fn to_activate(self) -> Self {
         match self {
-            HitType::Input { .. } => HitType::Activate {
-                is_tab_indicator: false,
-            },
-            HitType::Activate { .. } | HitType::ActivateDepthCard => self,
+            HitType::Input { .. } => HitType::Activate {},
+            HitType::Activate { .. } => self,
         }
     }
 }
@@ -2310,14 +2300,6 @@ impl<W: LayoutElement> Layout<W> {
         workspace.swap_window_in_direction(direction);
     }
 
-    pub fn toggle_column_tabbed_display(&mut self) {
-        let Some(workspace) = self.active_workspace_mut() else {
-            return;
-        };
-
-        workspace.toggle_column_tabbed_display();
-    }
-
     pub fn switch_column_display(&mut self) {
         let Some(workspace) = self.active_workspace_mut() else {
             return;
@@ -2361,40 +2343,6 @@ impl<W: LayoutElement> Layout<W> {
             return;
         };
         workspace.set_column_display(display);
-    }
-
-    /// Moves the focused apex card of the active depth-queue column to the far end of the queue.
-    pub fn push_active_to_depth_queue(&mut self) {
-        let Some(workspace) = self.active_workspace_mut() else {
-            return;
-        };
-        workspace.push_active_to_depth_queue();
-    }
-
-    /// Promotes the given (or, when `None`, no) window to the apex of the active depth-queue
-    /// column.
-    pub fn pull_to_depth_apex(&mut self, window: Option<&W::Id>) {
-        let Some(workspace) = self.active_workspace_mut() else {
-            return;
-        };
-        workspace.pull_to_depth_apex(window);
-    }
-
-    /// Cycles focus through the active depth-queue column, wrapping from the last back to the
-    /// first.
-    pub fn cycle_depth_queue(&mut self) {
-        let Some(workspace) = self.active_workspace_mut() else {
-            return;
-        };
-        workspace.cycle_depth_queue();
-    }
-
-    /// Toggles the cover multi-view of the active depth-queue column.
-    pub fn toggle_depth_queue_cover(&mut self) {
-        let Some(workspace) = self.active_workspace_mut() else {
-            return;
-        };
-        workspace.toggle_depth_queue_cover();
     }
 
     pub fn center_column(&mut self) {

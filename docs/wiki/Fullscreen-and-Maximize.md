@@ -23,8 +23,6 @@ You will still see your bar, but not struts, gaps, or borders.
 Windows are aware of their maximized-to-edges status and generally respond by squaring their corners.
 Windows can also control maximizing-to-edges: when you click on the square icon in the window's titlebar, or double-click on the titlebar, the window will request ymir to maximize or unmaximize itself.
 
-You can put multiple maximized windows into a [tabbed column](./Tabs.md), but not into a regular column.
-
 ![Screenshot of a window maximized to edges.](./img/window-maximized-to-edges.png)
 
 You can make a window open maximized-to-edges, or prevent a window from maximizing upon opening, with the [`open-maximized-to-edges`](./Configuration:-Window-Rules.md#open-maximized-to-edges) window rule.

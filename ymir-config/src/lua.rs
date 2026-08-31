@@ -735,39 +735,10 @@ fn resolve_action(action: &Table, errors: &mut Vec<String>) -> Result<Action, ()
         "promote_window" => Ok(A::PromoteWindow),
         "swap_window_left" => Ok(A::SwapWindowLeft),
         "swap_window_right" => Ok(A::SwapWindowRight),
-        "toggle_column_tabbed_display" => Ok(A::ToggleColumnTabbedDisplay),
         "switch_column_display" => Ok(A::SwitchColumnDisplay),
         "set_column_display" => arg!(errors).enum_parse("display", ColumnDisplay::from_str, move |d| {
             A::SetColumnDisplay(d)
         }),
-        "focus_card_up" => Ok(A::FocusCardUp),
-        "focus_card_down" => Ok(A::FocusCardDown),
-        "push_to_queue" => Ok(A::PushToQueue),
-        "pull_to_apex" => {
-            let mut id = None;
-            match action.get::<Value>("id") {
-                Ok(Value::Integer(i)) if i >= 0 => id = Some(i as u64),
-                Ok(Value::Integer(_)) | Ok(Value::Number(_)) => {
-                    errors.push(format!(
-                        "action `{name}` requires a non-negative integer `id`"
-                    ));
-                }
-                Ok(Value::Nil) => {}
-                Ok(other) => {
-                    errors.push(format!(
-                        "action `{name}` requires a non-negative integer `id`, got {}",
-                        type_name(&other)
-                    ));
-                }
-                Err(_) => {}
-            }
-            Ok(match id {
-                Some(id) => A::PullToApexById(id),
-                None => A::PullToApex,
-            })
-        }
-        "cycle_queue_depth" => Ok(A::CycleQueueDepth),
-        "toggle_queue_cover" => Ok(A::ToggleQueueCover),
         "center_column" => Ok(A::CenterColumn),
         "center_window" => Ok(A::CenterWindow),
         "center_visible_columns" => Ok(A::CenterVisibleColumns),
@@ -3144,7 +3115,6 @@ fn read_layout_part(value: &Value, key: &str, errors: &mut Vec<String>) -> Optio
             "focus_ring" => part.focus_ring = read_border_rule(&value, &format!("{key}.focus_ring"), errors),
             "border" => part.border = read_border_rule(&value, &format!("{key}.border"), errors),
             "shadow" => part.shadow = read_shadow_rule(&value, &format!("{key}.shadow"), errors),
-            "tab_indicator" => part.tab_indicator = read_tab_indicator_part(&value, &format!("{key}.tab_indicator"), errors),
             "insert_hint" => part.insert_hint = read_insert_hint_part(&value, &format!("{key}.insert_hint"), errors),
             "preset_column_widths" => part.preset_column_widths = read_preset_sizes(&value, &format!("{key}.preset_column_widths"), errors),
             "default_column_width" => part.default_column_width = read_default_preset_size(&value, &format!("{key}.default_column_width"), errors),
@@ -3156,118 +3126,10 @@ fn read_layout_part(value: &Value, key: &str, errors: &mut Vec<String>) -> Optio
             "gaps" => part.gaps = read_float_or_int(&value, &format!("{key}.gaps"), errors),
             "struts" => part.struts = read_struts(&value, &format!("{key}.struts"), errors),
             "background_color" => part.background_color = read_color(&value, &format!("{key}.background_color"), errors),
-            "depth_queue" => part.depth_queue = read_depth_queue_part(&value, &format!("{key}.depth_queue"), errors),
             _ => push_err(errors, &key, format!("unexpected key `{key}`")),
         }
     }
     Some(part)
-}
-
-fn read_depth_queue_part(value: &Value, key: &str, errors: &mut Vec<String>) -> Option<DepthQueuePart> {
-    let t = match value {
-        Value::Table(t) => t,
-        _ => {
-            push_err(errors, key, format!("expected a table, got {}", type_name(value)));
-            return None;
-        }
-    };
-
-    let mut part = DepthQueuePart::default();
-    let it = t.pairs::<String, Value>();
-    for kv in it {
-        let (key, value) = match kv { Ok(kv) => kv, Err(_) => continue };
-        let key = normalize_key(&key);
-        match key.as_str() {
-            "card_height_ratio" => part.card_height_ratio = read_float_or_int(&value, &format!("{key}.card_height_ratio"), errors),
-            "top_deck_size" => part.top_deck_size = read_non_negative_usize(&value, &format!("{key}.top_deck_size"), errors),
-            "bottom_deck_size" => part.bottom_deck_size = read_non_negative_usize(&value, &format!("{key}.bottom_deck_size"), errors),
-            "gap" => part.gap = read_float_or_int(&value, &format!("{key}.gap"), errors),
-            "deck_bleed" => part.deck_bleed = read_float_or_int(&value, &format!("{key}.deck_bleed"), errors),
-            "min_opacity" => part.min_opacity = read_float_or_int(&value, &format!("{key}.min_opacity"), errors),
-            "blur_radius" => part.blur_radius = read_float_or_int(&value, &format!("{key}.blur_radius"), errors),
-            "card_shadow" => part.card_shadow = read_depth_deck_shadow_part(&value, &format!("{key}.card_shadow"), errors),
-            "perspective_tilt" => part.perspective_tilt = read_float_or_int(&value, &format!("{key}.perspective_tilt"), errors),
-            "focus_shuffle" => part.focus_shuffle = read_spring_part(&value, &format!("{key}.focus_shuffle"), errors),
-            _ => push_err(errors, &key, format!("unexpected key `{key}`")),
-        }
-    }
-    Some(part)
-}
-
-fn read_depth_deck_shadow_part(value: &Value, key: &str, errors: &mut Vec<String>) -> Option<DepthDeckShadowPart> {
-    let t = match value {
-        Value::Table(t) => t,
-        _ => {
-            push_err(errors, key, format!("expected a table, got {}", type_name(value)));
-            return None;
-        }
-    };
-
-    let mut part = DepthDeckShadowPart::default();
-    let it = t.pairs::<String, Value>();
-    for kv in it {
-        let (key, value) = match kv { Ok(kv) => kv, Err(_) => continue };
-        let key = normalize_key(&key);
-        match key.as_str() {
-            "on" => part.on = read_flag(&value),
-            "off" => part.on = !read_flag(&value),
-            "offset" => part.offset = read_shadow_offset(&value, &format!("{key}.offset"), errors),
-            "blur" => part.blur = read_float_or_int(&value, &format!("{key}.blur"), errors),
-            "color" => part.color = read_color(&value, &format!("{key}.color"), errors),
-            _ => push_err(errors, &key, format!("unexpected key `{key}`")),
-        }
-    }
-    Some(part)
-}
-
-fn read_spring_part(value: &Value, key: &str, errors: &mut Vec<String>) -> Option<SpringPart> {
-    let t = match value {
-        Value::Table(t) => t,
-        _ => {
-            push_err(errors, key, format!("expected a table, got {}", type_name(value)));
-            return None;
-        }
-    };
-
-    let mut part = SpringPart::default();
-    let it = t.pairs::<String, Value>();
-    for kv in it {
-        let (key, value) = match kv { Ok(kv) => kv, Err(_) => continue };
-        let key = normalize_key(&key);
-        match key.as_str() {
-            "spring" => {
-                let t = match &value {
-                    Value::Table(t) => t,
-                    _ => {
-                        push_err(errors, &format!("{key}.spring"), format!("expected a table, got {}", type_name(&value)));
-                        continue;
-                    }
-                };
-                for kv in t.pairs::<String, Value>() {
-                    let (skey, svalue) = match kv { Ok(kv) => kv, Err(_) => continue };
-                    let skey = normalize_key(&skey);
-                    match skey.as_str() {
-                        "damping_ratio" => part.damping_ratio = read_float_or_int(&svalue, &format!("{key}.spring.{skey}"), errors),
-                        "stiffness" => part.stiffness = read_u32(&svalue, &format!("{key}.spring.{skey}"), errors),
-                        "epsilon" => part.epsilon = read_float_or_int(&svalue, &format!("{key}.spring.{skey}"), errors),
-                        _ => push_err(errors, &skey, format!("unexpected key `{skey}`")),
-                    }
-                }
-            }
-            _ => push_err(errors, &key, format!("unexpected key `{key}`")),
-        }
-    }
-    Some(part)
-}
-
-fn read_non_negative_usize(value: &Value, key: &str, errors: &mut Vec<String>) -> Option<usize> {
-    match value {
-        Value::Integer(i) if *i >= 0 => Some(*i as usize),
-        _ => {
-            errors.push(format!("`{key}` must be a non-negative integer, got {}", type_name(value)));
-            None
-        }
-    }
 }
 
 fn read_border_rule(value: &Value, key: &str, errors: &mut Vec<String>) -> Option<BorderRule> {
@@ -3329,70 +3191,6 @@ fn read_shadow_rule(value: &Value, key: &str, errors: &mut Vec<String>) -> Optio
     Some(part)
 }
 
-fn read_tab_indicator_part(value: &Value, key: &str, errors: &mut Vec<String>) -> Option<TabIndicatorPart> {
-    let t = match value {
-        Value::Table(t) => t,
-        _ => {
-            push_err(errors, key, format!("expected a table, got {}", type_name(value)));
-            return None;
-        }
-    };
-
-    let mut part = TabIndicatorPart::default();
-    let it = t.pairs::<String, Value>();
-    for kv in it {
-        let (key, value) = match kv { Ok(kv) => kv, Err(_) => continue };
-        let key = normalize_key(&key);
-        match key.as_str() {
-            "off" => part.off = read_flag(&value),
-            "on" => part.on = read_flag(&value),
-            "hide_when_single_tab" => part.hide_when_single_tab = read_flag_value(&value),
-            "place_within_column" => part.place_within_column = read_flag_value(&value),
-            "gap" => part.gap = read_float_or_int(&value, &format!("{key}.gap"), errors),
-            "width" => part.width = read_float_or_int(&value, &format!("{key}.width"), errors),
-            "length" => part.length = read_tab_indicator_length(&value, &format!("{key}.length"), errors),
-            "position" => part.position = read_tab_indicator_position(&value, &format!("{key}.position"), errors),
-            "gaps_between_tabs" => part.gaps_between_tabs = read_float_or_int(&value, &format!("{key}.gaps_between_tabs"), errors),
-            "corner_radius" => part.corner_radius = read_float_or_int(&value, &format!("{key}.corner_radius"), errors),
-            "active_color" => part.active_color = read_color(&value, &format!("{key}.active_color"), errors),
-            "inactive_color" => part.inactive_color = read_color(&value, &format!("{key}.inactive_color"), errors),
-            "urgent_color" => part.urgent_color = read_color(&value, &format!("{key}.urgent_color"), errors),
-            "active_gradient" => part.active_gradient = read_gradient(&value, &format!("{key}.active_gradient"), errors),
-            "inactive_gradient" => part.inactive_gradient = read_gradient(&value, &format!("{key}.inactive_gradient"), errors),
-            "urgent_gradient" => part.urgent_gradient = read_gradient(&value, &format!("{key}.urgent_gradient"), errors),
-            _ => push_err(errors, &key, format!("unexpected key `{key}`")),
-        }
-    }
-    Some(part)
-}
-
-fn read_tab_indicator_rule(value: &Value, key: &str, errors: &mut Vec<String>) -> Option<TabIndicatorRule> {
-    let t = match value {
-        Value::Table(t) => t,
-        _ => {
-            push_err(errors, key, format!("expected a table, got {}", type_name(value)));
-            return None;
-        }
-    };
-
-    let mut part = TabIndicatorRule::default();
-    let it = t.pairs::<String, Value>();
-    for kv in it {
-        let (key, value) = match kv { Ok(kv) => kv, Err(_) => continue };
-        let key = normalize_key(&key);
-        match key.as_str() {
-            "active_color" => part.active_color = read_color(&value, &format!("{key}.active_color"), errors),
-            "inactive_color" => part.inactive_color = read_color(&value, &format!("{key}.inactive_color"), errors),
-            "urgent_color" => part.urgent_color = read_color(&value, &format!("{key}.urgent_color"), errors),
-            "active_gradient" => part.active_gradient = read_gradient(&value, &format!("{key}.active_gradient"), errors),
-            "inactive_gradient" => part.inactive_gradient = read_gradient(&value, &format!("{key}.inactive_gradient"), errors),
-            "urgent_gradient" => part.urgent_gradient = read_gradient(&value, &format!("{key}.urgent_gradient"), errors),
-            _ => push_err(errors, &key, format!("unexpected key `{key}`")),
-        }
-    }
-    Some(part)
-}
-
 fn read_insert_hint_part(value: &Value, key: &str, errors: &mut Vec<String>) -> Option<InsertHintPart> {
     let t = match value {
         Value::Table(t) => t,
@@ -3416,47 +3214,6 @@ fn read_insert_hint_part(value: &Value, key: &str, errors: &mut Vec<String>) -> 
         }
     }
     Some(part)
-}
-
-fn read_tab_indicator_length(value: &Value, key: &str, errors: &mut Vec<String>) -> Option<TabIndicatorLength> {
-    match value {
-        Value::Number(n) => Some(TabIndicatorLength {
-            total_proportion: Some(*n),
-        }),
-        Value::Integer(i) => Some(TabIndicatorLength {
-            total_proportion: Some(*i as f64),
-        }),
-        Value::Table(t) => {
-            let proportion = match opts_raw_get(t, "total_proportion") {
-                Value::Nil => None,
-                other => read_f64(&other, &format!("{key}.total_proportion"), errors),
-            };
-            Some(TabIndicatorLength {
-                total_proportion: proportion,
-            })
-        }
-        _ => {
-            push_err(errors, key, format!("expected a number or a table, got {}", type_name(value)));
-            None
-        }
-    }
-}
-
-fn read_tab_indicator_position(value: &Value, key: &str, errors: &mut Vec<String>) -> Option<TabIndicatorPosition> {
-    let Value::String(s) = value else {
-        push_err(errors, key, format!("expected a string, got {}", type_name(value)));
-        return None;
-    };
-    match s.to_str().as_deref() {
-        Ok("left") => Some(TabIndicatorPosition::Left),
-        Ok("right") => Some(TabIndicatorPosition::Right),
-        Ok("top") => Some(TabIndicatorPosition::Top),
-        Ok("bottom") => Some(TabIndicatorPosition::Bottom),
-        _ => {
-            push_err(errors, key, "must be \"left\", \"right\", \"top\" or \"bottom\"");
-            None
-        }
-    }
 }
 
 fn read_preset_sizes(value: &Value, key: &str, errors: &mut Vec<String>) -> Option<Vec<PresetSize>> {
@@ -3922,7 +3679,6 @@ fn read_window_rule(t: &Table, errors: &mut Vec<String>) -> Option<WindowRule> {
             "focus_ring" => rule.focus_ring = read_border_rule(&value, "window_rules.focus_ring", errors).unwrap_or_default(),
             "border" => rule.border = read_border_rule(&value, "window_rules.border", errors).unwrap_or_default(),
             "shadow" => rule.shadow = read_shadow_rule(&value, "window_rules.shadow", errors).unwrap_or_default(),
-            "tab_indicator" => rule.tab_indicator = read_tab_indicator_rule(&value, "window_rules.tab_indicator", errors).unwrap_or_default(),
             "draw_border_with_background" => rule.draw_border_with_background = read_optional_bool2(&value),
             "opacity" => rule.opacity = read_opacity(&value, "window_rules.opacity", errors),
             "geometry_corner_radius" => rule.geometry_corner_radius = read_corner_radius(&value, "window_rules.geometry_corner_radius", errors),

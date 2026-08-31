@@ -18,9 +18,8 @@ inside a column, each new window splits the focused window in two and takes half
 The result is a resizable binary tree that partitions the whole work area — living inside a
 scrollable column strip.
 
-Four column display modes are available — `dwindle`, `normal` (classic
-scrollable columns), `tabbed` and `depth` (a deck-style queue with a full-size
-apex card) — and you can switch a column between them at any time.
+Two column display modes are available — `dwindle` and `normal` (classic
+scrollable columns) — and you can switch a column between them at any time.
 
 ## How tiling works
 
@@ -41,7 +40,7 @@ apex card) — and you can switch a column between them at any time.
 ## Highlights
 
 - **Dwindle-first.** The shipped default config boots straight into dwindle. Classic scrollable
-  tiling, tabbed and depth columns are one `Mod+Shift+D` away, per column, at runtime.
+  tiling is one `Mod+Shift+D` away, per column, at runtime.
 - **Lua configuration.** Everything is configured from `~/.config/ymir/init.lua`, a live-reloading
   Lua file with an ergonomic table syntax, an imperative `ymir.*` API, and support for splitting
   your config across files with `include_config`.
@@ -51,7 +50,7 @@ apex card) — and you can switch a column between them at any time.
   [Configuration: Named Workspaces](docs/wiki/Configuration:-Named-Workspaces.md).
 - **Everything modern.** An Overview zoom, built-in screenshot UI, screencasting through
   xdg-desktop-portal, touchpad and mouse gestures plus hot corners, gradient borders (Oklab and
-  Oklch), background blur, spring animations with custom shaders, tabbed columns, and live
+  Oklch), background blur, spring animations with custom shaders, and live
   reloading config.
 
 ## Features
@@ -59,9 +58,7 @@ apex card) — and you can switch a column between them at any time.
 - Scrollable tiling built from the ground up
 - [Dwindle column mode](docs/wiki/Configuration:-Dwindle.md): resizable binary-split tree,
   draggable dividers, split preselection, spatial window moves
-- [Depth column mode](docs/wiki/Configuration:-Depth.md): a deck-style queue with a full-size
-  apex card, perspective-tilted fans and background blur
-- Tabbed and normal (scrollable) column displays, switchable at runtime
+- Normal (scrollable) column display with dwindle, switchable at runtime
 - [Dynamic workspaces](docs/wiki/Workspaces.md) like in GNOME, one empty workspace always at the
   bottom, preserved across hotplugs
 - [Overview](docs/wiki/Overview.md) that zooms out workspaces and windows; recent-windows
@@ -131,7 +128,7 @@ size.
 
 | Key combo | Action |
 | --- | --- |
-| `Mod+Shift+D` | switch-column-display: cycle the focused column between dwindle, normal (scrollable), tabbed and depth |
+| `Mod+Shift+D` | switch-column-display: toggle the focused column between dwindle and normal (scrollable) |
 | `Mod+Space` | toggle-split: flip the split orientation of the focused window's container |
 | `Mod+Ctrl+Space` | preselect `"bottom"`: split direction for the next window opened in the column |
 | `Mod+Shift+Home` | promote-window: move the focused window to the head of the dwindle tree |
@@ -149,7 +146,6 @@ development:
 - [Key bindings](docs/wiki/Configuration:-Key-Bindings.md)
 - [Layout configuration](docs/wiki/Configuration:-Layout.md)
 - [Dwindle layout](docs/wiki/Configuration:-Dwindle.md)
-- [Depth layout](docs/wiki/Configuration:-Depth.md)
 - [Named workspaces](docs/wiki/Configuration:-Named-Workspaces.md)
 - [Window rules](docs/wiki/Configuration:-Window-Rules.md)
 - [Recent windows](docs/wiki/Configuration:-Recent-Windows.md)

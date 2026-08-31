@@ -110,10 +110,6 @@ return {
             shadow = {
                 color = "#7d0d2d70",
             },
-            tab_indicator = {
-                active_color = "#f38ba8",
-                inactive_color = "#7d0d2d",
-            },
         },
     },
 }

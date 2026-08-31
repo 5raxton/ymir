@@ -141,6 +141,10 @@ jobs:
   release:
     needs: build
     runs-on: docker
+    # The automatic per-run token has write access to the repo, so it can
+    # create the rolling release and upload assets without a manual token.
+    permissions:
+      contents: write
     container:
       image: alpine:latest
       entrypoint: []
@@ -164,7 +168,7 @@ jobs:
 
       - name: Publish rolling release
         env:
-          FORGEJO_TOKEN: ${{ secrets.FORGEJO_TOKEN }}
+          FORGEJO_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           REPO_URL="${{ github.server_url }}/${{ github.repository }}"
           API_BASE="${REPO_URL}/api/v1"

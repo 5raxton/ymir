@@ -41,7 +41,7 @@ jobs:
             fedora)
               dnf install -y \
                 gcc make git pkgconf nodejs clang clang-libs \
-                cairo-devel systemd-devel dbus-devel libdisplay-info-devel \
+                cairo-devel cairo-gobject-devel systemd-devel dbus-devel libdisplay-info-devel \
                 libinput-devel libseat-devel libxkbcommon-devel \
                 mesa-libgbm-devel mesa-libGL-devel mesa-libEGL-devel \
                 pango-devel wayland-devel wayland-protocols-devel \

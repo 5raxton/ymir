@@ -218,6 +218,7 @@ jobs:
           COMMIT_SHA="${{ github.sha }}"
 
           echo "Creating new 'latest' release..."
+          # Forgejo's release API requires the key 'tag_name' (not 'tag').
           RELEASE_JSON=$(curl -sf -X POST \
             -H "Authorization: Bearer $FORGEJO_TOKEN" \
             -H "Content-Type: application/json" \

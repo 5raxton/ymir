@@ -9,7 +9,18 @@ on:
 enable-openid-connect: true
 
 jobs:
+  setup:
+    runs-on: docker
+    container:
+      image: alpine:latest
+      entrypoint: []
+      tty: true
+    steps:
+      - name: trivial
+        run: echo "setup done"
+
   release:
+    needs: setup
     runs-on: docker
     container:
       image: alpine:latest

@@ -399,17 +399,36 @@ build_and_stage_source() {
 # Run
 ###############################################################################
 
-# Stage in a per-user temp dir on the home filesystem rather than /tmp, which
-# is often a small tmpfs that can fill up (and fill the binary is ~10MB+). The
-# tarball is extracted here and installed to /usr/local, so it needs room.
-WORKDIR="${YMIR_TMPDIR:-$(mktemp -d "${TMPDIR:-/tmp}/ymir-install.XXXXXX")}"
-# Fall back to a home-based dir if the default temp location has no room.
-if [[ ! -w "$WORKDIR" ]] || ! touch "$WORKDIR/.probe" 2>/dev/null; then
-    rm -rf "$WORKDIR"
-    WORKDIR="$(mktemp -d "$HOME/.ymir-install.XXXXXX")"
-else
-    rm -f "$WORKDIR/.probe"
-fi
+# Stage on the home filesystem, not /tmp: /tmp is often a small tmpfs that can
+# be mounted with a per-user quota (usrquota) and fill up — writing the ~10MB
+# binary then fails with "Disk quota exceeded" even though space looks free.
+# Verify the staged dir can actually take the binary's worth of bytes before
+# committing to it, and fall back to a home-based dir if it cannot.
+
+pick_workdir() {
+    local base="${YMIR_TMPDIR:-${TMPDIR:-/tmp}}"
+    # Prefer $YMIR_TMPDIR if set; otherwise honor the quota: avoid any temp
+    # mount with a user/group quota and just use $HOME.
+    if [[ -z "${YMIR_TMPDIR:-}" ]] &&
+       mount | awk '$3 == "'"$base"'" && ($6 ~ /usrquota/ || $6 ~ /grpquota/) {found=1} END {exit !found}'; then
+        rm -rf "$WORKDIR" 2>/dev/null || true
+        WORKDIR="$(mktemp -d "$HOME/.ymir-install.XXXXXX")"
+        return
+    fi
+
+    WORKDIR="$(mktemp -d "$base/ymir-install.XXXXXX")"
+    # Write a real multi-megabyte probe: a 0-byte touch succeeds even when the
+    # dir is over its quota, so it can't catch the failure we actually hit.
+    if ! dd if=/dev/zero of="$WORKDIR/.probe" bs=1M count=16 2>/dev/null; then
+        rm -rf "$WORKDIR"
+        WORKDIR="$(mktemp -d "$HOME/.ymir-install.XXXXXX")"
+    else
+        rm -f "$WORKDIR/.probe"
+    fi
+}
+
+WORKDIR=""
+pick_workdir
 trap 'rm -rf "$WORKDIR"' EXIT
 
 if [[ "$MODE" == "source" ]]; then

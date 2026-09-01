@@ -1,3 +1,6 @@
 /target
 *.swp
 *swo
+# Proptest persistence files produced by test runs (can contain spurious seeds from
+# profiling-instrumented runs; not meant to be tracked).
+/proptest-regressions/

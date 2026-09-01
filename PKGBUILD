@@ -47,8 +47,7 @@ makedepends=(
 )
 optdepends=(
     'alacritty: default terminal spawned by the example config'
-    'fuzzel: default launcher spawned by the example config'
-    'kanshi: monitor configuration'
+    'noctalia: desktop shell'
     'pipewire: audio support in portals'
     'wireplumber: audio session manager'
     'xdg-desktop-portal: system portals (required for screenshots and screencasting)'

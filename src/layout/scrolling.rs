@@ -223,6 +223,14 @@ pub struct Column<W: LayoutElement> {
     /// width.
     born_into_dwindle: bool,
 
+    /// When this column is a single-window column that was temporarily extracted out of a dwindle
+    /// column in order to be fullscreened, this holds the id of that source dwindle column.
+    ///
+    /// Fullscreening a window inside a dwindle column moves it to its own column (so that just the
+    /// focused window takes the screen). Unfullscreening re-merges it back into the column named by
+    /// this id. `None` for every other column.
+    fullscreen_source_column: Option<ColumnId>,
+
     /// Animation of the render offset during window swapping.
     move_x_animation: Option<MoveAnimation>,
 
@@ -2259,30 +2267,46 @@ impl<W: LayoutElement> ScrollingSpace<W> {
         let target_col_idx = self.active_column_idx + 1;
         let cur_x = self.column_x(source_col_idx);
 
-        let source_column = &self.columns[self.active_column_idx];
-        if source_column.tiles.len() == 1 {
+        let source_is_dwindle = self.columns[source_col_idx].is_dwindle();
+        if self.columns[source_col_idx].tiles.len() == 1 {
             return;
         }
 
         // In dwindle mode, expel the focused window; otherwise, the bottom-most one.
-        let source_tile_idx = if source_column.is_dwindle() {
-            source_column.active_tile_idx
+        let source_tile_idx = if source_is_dwindle {
+            self.columns[source_col_idx].active_tile_idx
         } else {
-            source_column.tiles.len() - 1
+            self.columns[source_col_idx].tiles.len() - 1
         };
 
-        let mut offset = source_column.render_offset();
-        let prev_off = source_column.tile_offset(source_tile_idx);
+        let mut offset = self.columns[source_col_idx].render_offset();
+        let prev_off = self.columns[source_col_idx].tile_offset(source_tile_idx);
 
         let removed =
             self.remove_tile_by_idx(source_col_idx, source_tile_idx, Transaction::new(), None);
+
+        // Dwindle columns span the whole work area, so expelling keeps that intent: the window
+        // starts a fresh full-width dwindle page to the right (an easy way to begin a new dwindle
+        // horizontally). Scrolling (non-dwindle) columns never force full width: the expelled
+        // window becomes a normal tiled column at the layout's default width (e.g. half a monitor).
+        let (width, is_full_width) = if source_is_dwindle {
+            (removed.width, removed.is_full_width)
+        } else {
+            let width = self
+                .options
+                .layout
+                .default_column_width
+                .map(ColumnWidth::from)
+                .unwrap_or_else(|| ColumnWidth::Fixed(f64::from(removed.tile.window().size().w)));
+            (width, false)
+        };
 
         self.add_tile(
             Some(target_col_idx),
             removed.tile,
             false,
-            removed.width,
-            removed.is_full_width,
+            width,
+            is_full_width,
             Some(self.options.animations.window_movement.0),
         );
 
@@ -3216,15 +3240,80 @@ impl<W: LayoutElement> ScrollingSpace<W> {
             .position(|col| col.contains(window))
             .unwrap();
 
-        if is_fullscreen == self.columns[col_idx].is_pending_fullscreen {
-            return false;
+        // Unfullscreening a window that was temporarily extracted from a dwindle column re-merges
+        // it back into that column, then reports that the fullscreen was cleared.
+        if let Some(source_id) = self.columns[col_idx].fullscreen_source_column {
+            // Drop the marker first; the extracted column is about to be removed.
+            self.columns[col_idx].fullscreen_source_column = None;
+            let RemovedTile { tile, .. } =
+                self.remove_tile_by_idx(col_idx, 0, Transaction::new(), None);
+
+            // The source dwindle column may have moved or been closed while we were fullscreened.
+            let src_idx = self.columns.iter().position(|col| col.id == source_id);
+            match src_idx {
+                Some(src_idx) => {
+                    self.add_tile_to_column(src_idx, None, tile, true);
+                    self.activate_column(src_idx);
+                }
+                None => {
+                    // The dwindle column it came from no longer exists; leave the window as its
+                    // own tiled column at the layout's default width as a safe fallback.
+                    let new_idx = col_idx.min(self.columns.len());
+                    let width = self
+                        .options
+                        .layout
+                        .default_column_width
+                        .map(ColumnWidth::from)
+                        .unwrap_or_else(|| ColumnWidth::Fixed(f64::from(tile.window().size().w)));
+                    self.add_tile(Some(new_idx), tile, true, width, false, None);
+                }
+            }
+            return true;
         }
 
         let mut col = &mut self.columns[col_idx];
 
+        if is_fullscreen == col.is_pending_fullscreen {
+            return false;
+        }
+
         cancel_resize_for_column(&mut self.interactive_resize, col);
 
-        if is_fullscreen && (col.tiles.len() > 1 && !col.is_dwindle()) {
+        if is_fullscreen && col.tiles.len() > 1 && col.is_dwindle() {
+            // A dwindle column spans the entire work area, so a column-wide fullscreen would take
+            // over every window. Instead, extract the requested window into its own column and
+            // fullscreen just that one, remembering the source column for the merge-back on
+            // unfullscreen.
+            let source_id = col.id;
+            let source_col_idx = col_idx;
+            // Resolve the tile being fullscreened: normally this is the focused dwindle tile, but
+            // fall back to matching by window id for explicit per-window requests.
+            let tile_idx = col
+                .tiles
+                .iter()
+                .position(|tile| tile.window().id() == window)
+                .unwrap_or(col.active_tile_idx);
+            let removed =
+                self.remove_tile_by_idx(source_col_idx, tile_idx, Transaction::new(), None);
+
+            let width = self
+                .options
+                .layout
+                .default_column_width
+                .map(ColumnWidth::from)
+                .unwrap_or_else(|| ColumnWidth::Fixed(f64::from(removed.tile.window().size().w)));
+            self.add_tile(
+                Some(source_col_idx + 1),
+                removed.tile,
+                true,
+                width,
+                false,
+                None,
+            );
+            self.columns[source_col_idx + 1].fullscreen_source_column = Some(source_id);
+            col_idx = source_col_idx + 1;
+            col = &mut self.columns[col_idx];
+        } else if is_fullscreen && (col.tiles.len() > 1 && !col.is_dwindle()) {
             // This wasn't the only window in its column; extract it into a separate column.
             self.consume_or_expel_window_right(Some(window));
             col_idx += 1;
@@ -4359,6 +4448,7 @@ impl<W: LayoutElement> Column<W> {
             display_mode,
             dwindle_tree: DwindleTree::new(),
             born_into_dwindle,
+            fullscreen_source_column: None,
             move_x_animation: None,
             move_y_animation: None,
             view_size,

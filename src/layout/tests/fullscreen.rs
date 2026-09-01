@@ -400,6 +400,208 @@ fn unfullscreen_view_offset_not_reset_during_dnd_gesture() {
 }
 
 #[test]
+fn dwindle_fullscreen_only_fullscreens_the_focused_window() {
+    let options = Options {
+        layout: ymir_config::Layout {
+            default_column_display: ymir_ipc::ColumnDisplay::Dwindle,
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+    let layout = check_ops_with_options(
+        options,
+        [
+            Op::AddOutput(0),
+            Op::AddWindow {
+                params: TestWindowParams::new(0),
+            },
+            Op::AddWindow {
+                params: TestWindowParams::new(1),
+            },
+            Op::AddWindow {
+                params: TestWindowParams::new(2),
+            },
+            Op::FullscreenWindow(1),
+            Op::Communicate(1),
+            Op::CompleteAnimations,
+        ],
+    );
+
+    let win = |id: usize| {
+        layout
+            .windows()
+            .find(|(_mon, w)| w.id() == &id)
+            .map(|(_mon, w)| w)
+            .unwrap_or_else(|| panic!("window {id} not found"))
+    };
+
+    // Only the focused window is fullscreen.
+    assert!(win(1).pending_sizing_mode().is_fullscreen());
+    assert!(!win(0).pending_sizing_mode().is_fullscreen());
+    assert!(!win(2).pending_sizing_mode().is_fullscreen());
+
+    // The fullscreened window covers the whole monitor, the others keep their tiled size.
+    assert_eq!(win(1).requested_size(), Some(Size::from((1280, 720))));
+
+    // The dwindle siblings are still tiled half-width.
+    for id in [0, 2] {
+        let size = win(id).requested_size().unwrap();
+        assert!(
+            size.w < 1280,
+            "sibling window {id} should not span the monitor"
+        );
+    }
+}
+
+#[test]
+fn dwindle_fullscreen_remerges_into_dwindle_on_unfullscreen() {
+    let options = Options {
+        layout: ymir_config::Layout {
+            default_column_display: ymir_ipc::ColumnDisplay::Dwindle,
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+    let mut layout = check_ops_with_options(
+        options,
+        [
+            Op::AddOutput(0),
+            Op::AddWindow {
+                params: TestWindowParams::new(0),
+            },
+            Op::AddWindow {
+                params: TestWindowParams::new(1),
+            },
+            Op::AddWindow {
+                params: TestWindowParams::new(2),
+            },
+        ],
+    );
+
+    let ops = [
+        Op::FullscreenWindow(1),
+        Op::Communicate(1),
+        Op::CompleteAnimations,
+    ];
+    check_ops_on_layout(&mut layout, ops);
+
+    let win = |id: usize| {
+        layout
+            .windows()
+            .find(|(_mon, w)| w.id() == &id)
+            .map(|(_mon, w)| w)
+            .unwrap_or_else(|| panic!("window {id} not found"))
+    };
+    assert!(win(1).pending_sizing_mode().is_fullscreen());
+
+    let ops = [
+        Op::FullscreenWindow(1),
+        Op::Communicate(1),
+        Op::CompleteAnimations,
+    ];
+    check_ops_on_layout(&mut layout, ops);
+
+    let win = |id: usize| {
+        layout
+            .windows()
+            .find(|(_mon, w)| w.id() == &id)
+            .map(|(_mon, w)| w)
+            .unwrap_or_else(|| panic!("window {id} not found"))
+    };
+
+    // All three windows are back in the dwindle tree at normal tiled size.
+    for id in [0, 1, 2] {
+        assert!(
+            win(id).pending_sizing_mode().is_normal(),
+            "window {id} should no longer be fullscreen after unfullscreen"
+        );
+    }
+    // All dwindle tiles are tiled half-width again (well under the monitor width).
+    for id in [0, 1, 2] {
+        let size = win(id).requested_size().unwrap();
+        assert!(
+            size.w < 1280,
+            "window {id} should be tiled, not fullscreen width"
+        );
+    }
+}
+
+#[test]
+fn scrolling_expel_creates_a_default_width_column() {
+    let options = Options {
+        layout: ymir_config::Layout {
+            default_column_display: ymir_ipc::ColumnDisplay::Normal,
+            default_column_width: Some(ymir_config::PresetSize::Proportion(0.5)),
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+    let mut layout = check_ops_with_options(
+        options,
+        [
+            Op::AddOutput(0),
+            Op::AddWindow {
+                params: TestWindowParams::new(0),
+            },
+            Op::AddWindow {
+                params: TestWindowParams::new(1),
+            },
+            Op::AddWindow {
+                params: TestWindowParams::new(2),
+            },
+            Op::ConsumeOrExpelWindowLeft { id: None },
+            Op::ExpelWindowFromColumn,
+            Op::CompleteAnimations,
+        ],
+    );
+
+    // The expelled window gets its own column at the layout default (half monitor) width and is
+    // not forced full width.
+    let expelled = layout
+        .windows()
+        .find(|(_mon, w)| w.id() == &2)
+        .map(|(_mon, w)| w.requested_size().unwrap())
+        .unwrap();
+    assert_eq!(expelled.w, 616);
+}
+
+#[test]
+fn dwindle_expel_keeps_a_full_width_column() {
+    let options = Options {
+        layout: ymir_config::Layout {
+            default_column_display: ymir_ipc::ColumnDisplay::Dwindle,
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+    let layout = check_ops_with_options(
+        options,
+        [
+            Op::AddOutput(0),
+            Op::AddWindow {
+                params: TestWindowParams::new(0),
+            },
+            Op::AddWindow {
+                params: TestWindowParams::new(1),
+            },
+            Op::AddWindow {
+                params: TestWindowParams::new(2),
+            },
+            Op::ExpelWindowFromColumn,
+            Op::CompleteAnimations,
+        ],
+    );
+
+    // Dwindle expel intentionally yields a full-width page, not a half-width column.
+    let expelled = layout
+        .windows()
+        .find(|(_mon, w)| w.id() == &2)
+        .map(|(_mon, w)| w.requested_size().unwrap())
+        .unwrap();
+    assert_eq!(expelled.w, 1248);
+}
+
+#[test]
 fn unfullscreen_view_offset_not_reset_during_gesture() {
     let ops = [
         Op::AddOutput(1),

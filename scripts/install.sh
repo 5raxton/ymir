@@ -308,7 +308,15 @@ fetch_and_stage_binary() {
     # Get the newest release (by creation time) that has an asset for this
     # distro+arch, so we always install the newest pre-built binary, even if a
     # 'latest'-style tag happened to lag behind.
-    ASSET_NAME="ymir-${DISTRO}-${ARCH}.tar.gz"
+    #
+    # The CI publishes one binary per distro it builds on (arch, fedora, debian,
+    # opensuse). Ubuntu binaries are built from the Debian container, so look up
+    # the Debian asset for Ubuntu releases.
+    local asset_distro="$DISTRO"
+    if [[ "$asset_distro" == "ubuntu" ]]; then
+        asset_distro="debian"
+    fi
+    ASSET_NAME="ymir-${asset_distro}-${ARCH}.tar.gz"
     ASSET_URL=$(curl -sf -H "Accept: application/json" \
         "$API_BASE/repos/braxton/ymir/releases?limit=20" \
         | grep -o "\"browser_download_url\":\"[^\"]*${ASSET_NAME}\"" \

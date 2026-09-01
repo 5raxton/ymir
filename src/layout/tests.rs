@@ -5404,3 +5404,70 @@ fn dwindle_move_window_climbs_out_of_bottom_row() {
         "win7 must end strictly higher than it started (y {initial_y}->{prev_y})"
     );
 }
+
+/// Windows opening into a workspace switched to the scrolling (normal) layout must be half the
+/// screen width (the configured `default_column_width`), not the full width they'd take in a
+/// dwindle column.
+///
+/// Regression test: a fresh column created with the (dwindle) layout default is born at full
+/// width; switching it to normal must hand its width back to `default_column_width` instead of
+/// leaving it full screen.
+#[test]
+fn scrolling_windows_spawn_at_default_width_not_full_width() {
+    let options = Options {
+        layout: ymir_config::Layout {
+            default_column_display: ymir_ipc::ColumnDisplay::Dwindle,
+            default_column_width: Some(ymir_config::PresetSize::Proportion(0.5)),
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+
+    let mut layout = check_ops_with_options(
+        options,
+        [
+            Op::AddOutput(0),
+            Op::AddWindow {
+                params: TestWindowParams::new(0),
+            },
+            Op::CompleteAnimations,
+        ],
+    );
+
+    // Switch the (dwindle) workspace to the scrolling layout.
+    layout.set_column_display(ymir_ipc::ColumnDisplay::Normal);
+    check_ops_on_layout(&mut layout, [Op::CompleteAnimations]);
+
+    // Spawn a couple more windows into the scrolling workspace.
+    for id in 1..3 {
+        let win = TestWindow::new(TestWindowParams::new(id));
+        layout.add_window(
+            win,
+            AddWindowTarget::Auto,
+            None,
+            None,
+            false,
+            false,
+            ActivateWindow::default(),
+        );
+        check_ops_on_layout(&mut layout, [Op::CompleteAnimations]);
+    }
+
+    // The first (dwindle-born) window expanded to full width; after switching to normal it and
+    // every window spawned since must be ~half the work area, not full width.
+    let widths: Vec<_> = layout
+        .windows()
+        .map(|(_, win)| win.requested_size().unwrap().w)
+        .collect();
+    assert_eq!(widths.len(), 3);
+    for w in &widths {
+        assert!(
+            *w < 1248 - 1,
+            "scrolling window must not take the full work area width, got {w}"
+        );
+        assert!(
+            (*w - 616).abs() < 2,
+            "scrolling window should be half width (616), got {w}"
+        );
+    }
+}

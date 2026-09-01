@@ -214,6 +214,15 @@ pub struct Column<W: LayoutElement> {
     /// [`Self::reorder_tiles_by_dfs`] re-sorts `tiles`/`data` so that value == position.
     dwindle_tree: DwindleTree<usize>,
 
+    /// Whether this column was born directly into dwindle display mode (per the layout default),
+    /// so its width never came from a real scrolling state.
+    ///
+    /// Such a column's width was forced to full (see [`Self::new_with_tile`]). When it is switched
+    /// to the scrolling (normal) display, there is no stored scrolling width to restore, so it
+    /// falls back to the layout's `default_column_width` (e.g. half) instead of staying full
+    /// width.
+    born_into_dwindle: bool,
+
     /// Animation of the render offset during window swapping.
     move_x_animation: Option<MoveAnimation>,
 
@@ -4329,11 +4338,14 @@ impl<W: LayoutElement> Column<W> {
 
         // Dwindle columns span the whole work area so the split tree partitions the entire screen
         // (Hyprland-style), rather than being confined to a narrow scrolling column.
-        if display_mode == ColumnDisplay::Dwindle {
+        let born_into_dwindle = if display_mode == ColumnDisplay::Dwindle {
             width = ColumnWidth::Proportion(1.);
             is_full_width = true;
             preset_width_idx = None;
-        }
+            true
+        } else {
+            false
+        };
 
         let mut rv = Self {
             tiles: vec![],
@@ -4346,6 +4358,7 @@ impl<W: LayoutElement> Column<W> {
             is_pending_fullscreen: false,
             display_mode,
             dwindle_tree: DwindleTree::new(),
+            born_into_dwindle,
             move_x_animation: None,
             move_y_animation: None,
             view_size,
@@ -5780,6 +5793,34 @@ impl<W: LayoutElement> Column<W> {
             self.dwindle_tree = DwindleTree::single(0);
             // Dwindle made the column full-width; hand the width back to the stored value.
             self.is_full_width = false;
+
+            // A column born straight into dwindle never had a real scrolling width: its width
+            // was forced to full in `new_with_tile`. Restore the layout's default scrolling
+            // width (e.g. half) so that windows opening into a scrolling workspace don't all take
+            // the whole screen, while columns that were switched to dwindle and back keep their
+            // stored width.
+            if self.born_into_dwindle && display == ColumnDisplay::Normal {
+                self.width = self
+                    .options
+                    .layout
+                    .default_column_width
+                    .map(ColumnWidth::from)
+                    .unwrap_or_else(|| {
+                        ColumnWidth::Fixed(f64::from(
+                            self.tiles[self.active_tile_idx].window().size().w,
+                        ))
+                    });
+                self.preset_width_idx = self
+                    .options
+                    .layout
+                    .preset_column_widths
+                    .iter()
+                    .position(|preset| self.width == ColumnWidth::from(*preset));
+
+                // The column now has a real scrolling width; keep it across any later dwindle
+                // round-trips instead of resetting it to the default each time.
+                self.born_into_dwindle = false;
+            }
         }
 
         self.display_mode = display;

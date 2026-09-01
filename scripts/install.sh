@@ -399,7 +399,17 @@ build_and_stage_source() {
 # Run
 ###############################################################################
 
-WORKDIR="$(mktemp -d)"
+# Stage in a per-user temp dir on the home filesystem rather than /tmp, which
+# is often a small tmpfs that can fill up (and fill the binary is ~10MB+). The
+# tarball is extracted here and installed to /usr/local, so it needs room.
+WORKDIR="${YMIR_TMPDIR:-$(mktemp -d "${TMPDIR:-/tmp}/ymir-install.XXXXXX")}"
+# Fall back to a home-based dir if the default temp location has no room.
+if [[ ! -w "$WORKDIR" ]] || ! touch "$WORKDIR/.probe" 2>/dev/null; then
+    rm -rf "$WORKDIR"
+    WORKDIR="$(mktemp -d "$HOME/.ymir-install.XXXXXX")"
+else
+    rm -f "$WORKDIR/.probe"
+fi
 trap 'rm -rf "$WORKDIR"' EXIT
 
 if [[ "$MODE" == "source" ]]; then

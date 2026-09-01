@@ -295,6 +295,17 @@ full_install() {
             cp "$app/default-config.lua" "$CONFIG_FILE"
         fi
     fi
+
+    # Earlier releases seeded the config in this same directory as config.kdl
+    # (KDL era) and then config.lua (first Lua iteration). The binary reads only
+    # init.lua now, so prune those dead names instead of leaving them around to
+    # confuse upgrades.
+    for stale in config.kdl config.lua; do
+        if [[ -e "$CONFIG_DIR/$stale" ]]; then
+            log "Removing stale config $CONFIG_DIR/$stale (ymir now reads init.lua)"
+            rm -f -- "$CONFIG_DIR/$stale"
+        fi
+    done
 }
 
 ###############################################################################
@@ -405,6 +416,19 @@ build_and_stage_source() {
 # Verify the staged dir can actually take the binary's worth of bytes before
 # committing to it, and fall back to a home-based dir if it cannot.
 
+clean_stale_workdirs() {
+    # The EXIT trap removes the current staging dir, so anything still matching
+    # our private namespace is the leftover of an interrupted run (SIGKILL,
+    # crash, power loss). Sweep it so updates don't accumulate junk. Only touch
+    # dirs we own, and never sweep an explicitly chosen YMIR_TMPDIR.
+    find "$HOME" -maxdepth 1 -type d -name '.ymir-install.*' \
+        -exec rm -rf -- {} + 2>/dev/null || true
+    if [[ -z "${YMIR_TMPDIR:-}" ]]; then
+        find "${TMPDIR:-/tmp}" -maxdepth 1 -type d -user "$(id -u)" \
+             -name 'ymir-install.*' -exec rm -rf -- {} + 2>/dev/null || true
+    fi
+}
+
 pick_workdir() {
     local base="${YMIR_TMPDIR:-${TMPDIR:-/tmp}}"
     # Prefer $YMIR_TMPDIR if set; otherwise honor the quota: avoid any temp
@@ -419,7 +443,7 @@ pick_workdir() {
     WORKDIR="$(mktemp -d "$base/ymir-install.XXXXXX")"
     # Write a real multi-megabyte probe: a 0-byte touch succeeds even when the
     # dir is over its quota, so it can't catch the failure we actually hit.
-    if ! dd if=/dev/zero of="$WORKDIR/.probe" bs=1M count=16 2>/dev/null; then
+    if ! dd if=/dev/zero of="$WORKDIR/.probe" bs=1M count=16 >/dev/null 2>&1; then
         rm -rf "$WORKDIR"
         WORKDIR="$(mktemp -d "$HOME/.ymir-install.XXXXXX")"
     else
@@ -428,6 +452,7 @@ pick_workdir() {
 }
 
 WORKDIR=""
+clean_stale_workdirs
 pick_workdir
 trap 'rm -rf "$WORKDIR"' EXIT
 

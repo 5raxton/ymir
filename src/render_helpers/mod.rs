@@ -277,7 +277,10 @@ pub fn render_to_dmabuf(
     states: RenderElementStates,
 ) -> anyhow::Result<SyncPoint> {
     let _span = tracy_client::span!();
-    let (size, _scale, _transform) = damage_tracker.mode().try_into().unwrap();
+    let (size, _scale, _transform) = damage_tracker
+        .mode()
+        .try_into()
+        .context("invalid or missing damage tracker output mode")?;
     ensure!(
         dmabuf.width() == size.w as u32 && dmabuf.height() == size.h as u32,
         "invalid buffer size"
@@ -306,7 +309,10 @@ pub fn render_to_shm(
 ) -> anyhow::Result<()> {
     let _span = tracy_client::span!();
     shm::with_buffer_contents_mut(buffer, |shm_buffer, shm_len, buffer_data| {
-        let (size, _scale, _transform) = damage_tracker.mode().try_into().unwrap();
+        let (size, _scale, _transform) = damage_tracker
+            .mode()
+            .try_into()
+            .context("invalid or missing damage tracker output mode")?;
         let fourcc = Fourcc::Xrgb8888;
 
         ensure!(

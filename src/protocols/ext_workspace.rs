@@ -631,7 +631,11 @@ where
 
         match request {
             ext_workspace_handle_v1::Request::Activate => {
-                let actions = protocol_state.instances.get_mut(&self.0).unwrap();
+                // The manager may have been destroyed (removing it from `instances`) while the
+                // handle is still alive; in that case there is nowhere to record the action.
+                let Some(actions) = protocol_state.instances.get_mut(&self.0) else {
+                    return;
+                };
                 actions.push(Action::Activate(workspace));
             }
             ext_workspace_handle_v1::Request::Deactivate => (),
@@ -642,7 +646,9 @@ where
                     .find(|(_, data)| data.instances.contains(&workspace_group))
                     .map(|(output, _)| output.clone())
                 {
-                    let actions = protocol_state.instances.get_mut(&self.0).unwrap();
+                    let Some(actions) = protocol_state.instances.get_mut(&self.0) else {
+                        return;
+                    };
                     actions.push(Action::Assign(workspace, output.downgrade()));
                 }
             }

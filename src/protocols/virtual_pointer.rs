@@ -513,8 +513,11 @@ where
                         return;
                     }
                 };
+                // Saturate to avoid overflowing i32 with untrusted client input (overflow-checks
+                // would otherwise panic here in `discrete * 120`).
+                let discrete = discrete.saturating_mul(120);
                 pointer.mutate_axis_frame(Some(time), |frame| {
-                    frame.value(axis, value).v120(axis, discrete * 120)
+                    frame.value(axis, value).v120(axis, discrete)
                 });
             }
             zwlr_virtual_pointer_v1::Request::Destroy => {}

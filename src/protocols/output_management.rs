@@ -456,7 +456,7 @@ where
                 };
 
                 let Some(current_config) = g_state.current_state.get(output) else {
-                    error!("EnableHead: output missing from current config");
+                    error!("DisableHead: output missing from current config");
                     return;
                 };
 

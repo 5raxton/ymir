@@ -129,7 +129,7 @@ impl Animation {
                 let spring = Spring {
                     from,
                     to,
-                    initial_velocity: self.initial_velocity,
+                    initial_velocity,
                     params: spring.params,
                 };
                 Self::spring(self.clock.clone(), spring)

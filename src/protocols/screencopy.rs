@@ -332,7 +332,13 @@ where
                     return;
                 };
 
-                let buffer_size = output.current_mode().unwrap().size;
+                let Some(mode) = output.current_mode() else {
+                    trace!("screencopy client requested output without a current mode");
+                    let frame = data_init.init(frame, ScreencopyFrameState::Failed);
+                    frame.failed();
+                    return;
+                };
+                let buffer_size = mode.size;
                 let region_loc = Point::from((0, 0));
 
                 (frame, overlay_cursor, buffer_size, region_loc, output)
@@ -361,8 +367,13 @@ where
                 };
 
                 let output_transform = output.current_transform();
-                let output_physical_size =
-                    output_transform.transform_size(output.current_mode().unwrap().size);
+                let Some(mode) = output.current_mode() else {
+                    trace!("screencopy client requested output without a current mode");
+                    let frame = data_init.init(frame, ScreencopyFrameState::Failed);
+                    frame.failed();
+                    return;
+                };
+                let output_physical_size = output_transform.transform_size(mode.size);
                 let output_rect = Rectangle::from_size(output_physical_size);
 
                 let rect = Rectangle::new(Point::from((x, y)), Size::from((width, height)));

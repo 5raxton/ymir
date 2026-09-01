@@ -69,7 +69,7 @@ The split direction is chosen like this:
 1. If a split direction was preselected with `preselect` (below), that direction is used, and the preselection is consumed (it only applies to the *next* window).
 2. Otherwise, the direction follows the current region's shape: wide regions split side-by-side (new window to the right), while tall or square regions stack (new window at the bottom).
 
-New splits start at an equal 50/50 proportion. The engine clamps split ratios to the 10–90% range.
+New splits start at an equal 50/50 proportion. The engine clamps split ratios to the 10-90% range.
 
 ### Dwindle actions
 

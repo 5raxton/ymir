@@ -449,7 +449,7 @@ Set the default height for the new window.
 return {
     window_rules = {
         {
-            -- Open the Firefox picture-in-picture window as floating with 480×270 size.
+            -- Open the Firefox picture-in-picture window as floating with 480x270 size.
             match = {
                 { app_id = "firefox$", title = "^Picture-in-Picture$" },
             },
@@ -1243,7 +1243,7 @@ Other properties apply independently.
 > These are common in game engines and in web apps, e.g. the right click menu in Google Docs or in Electron apps like Discord.
 >
 > - Uses a wl-subsurface instead of an xdg-popup.
-> Common in older apps using GTK 3, notably Firefox still uses these for some menus.
+> Common in older apps using GTK 3, notably Firefox still uses these for some menus.
 > Subsurfaces are an indivisible part of a surface and they aren't usually pop-ups, so it wouldn't make sense for ymir to apply these rules to them.
 >
 > These emulated pop-ups come with other downsides: they cannot reliably extend outside their window, and if the app tries to do that, they will be clipped by rules such as `clip-to-geometry`.
@@ -1281,7 +1281,7 @@ return {
 ```
 
 Keep in mind that the background effect will look right only if the pop-up is shaped like a (rounded) rectangle, and the window correctly sets its Wayland geometry to exclude any shadows.
-For example, GTK 4 pop-ups with pointing arrows (`has-arrow=true` property) are *not* rounded rectangles—the arrow sticks out—so if you enable blur, it will also stick out of the pop-up.
+For example, GTK 4 pop-ups with pointing arrows (`has-arrow=true` property) are *not* rounded rectangles—the arrow sticks out—so if you enable blur, it will also stick out of the pop-up.
 
 | Correct                                             | Wrong                                                                          |
 |-----------------------------------------------------|--------------------------------------------------------------------------------|

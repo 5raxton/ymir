@@ -54,7 +54,7 @@ You can refer to named workspaces by name, e.g. `focus-workspace "browser"`, and
 Here is one way to use workspaces productively.
 
 You might keep your browser on the topmost workspace, then one workspace per project (or a "thing") you're working on.
-On a single workspace you have 1–2 windows that fit inside a monitor that you switch between frequently, and maybe extra windows scrolled outside the view, usually either ones you need rarely, or temporary windows that you quickly close.
+On a single workspace you have 1-2 windows that fit inside a monitor that you switch between frequently, and maybe extra windows scrolled outside the view, usually either ones you need rarely, or temporary windows that you quickly close.
 When you need another permanent window, put it on a new workspace.
 
 You can actively move workspaces up and down as you're working on things to make what you need accessible in one motion.

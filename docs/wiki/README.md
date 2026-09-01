@@ -11,5 +11,6 @@ If you're not already here, check out our new wiki website! https://lab.braxton.
 ---
 
 The documentation is open to contribution, see [Documenting ymir](./Development:-Documenting-ymir.md).
-Please discuss bigger changes in [our Matrix room](https://matrix.to/#/#ymir:matrix.org) first!
-The wiki is generated from files in the `docs/wiki/` folder of the repository, so you can open a pull request modifying it there.
+Please discuss bigger changes in [our Discord server](https://discord.gg/uhNJb7ShQ5) first!
+
+This documentation is hosted in the Forgejo wiki, so changes are made directly to the `braxton/ymir.wiki.git` repository rather than to the main repository.

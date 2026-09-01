@@ -150,7 +150,7 @@ Set `epsilon` to a lower value if the animation "jumps" at the end.
 > [!TIP]
 > The spring *mass* (which you can see in Elastic) is hardcoded to 1.0 and cannot be changed.
 > Instead, change `stiffness` proportionally.
-> E.g. increasing mass by 2× is the same as decreasing stiffness by 2×.
+> E.g. increasing mass by 2x is the same as decreasing stiffness by 2x.
 
 ### Animations
 
@@ -192,7 +192,7 @@ return {
 
 You can write a custom shader for drawing the window during an open animation.
 
-See [this example shader](./examples/open_custom_shader.frag) for a full documentation with several animations to experiment with.
+See [this example shader](https://lab.braxton.onl/braxton/ymir/wiki/raw/examples/open_custom_shader.frag) for a full documentation with several animations to experiment with.
 
 If a custom shader fails to compile, ymir will print a warning and fall back to the default, or previous successfully compiled shader.
 When running ymir as a systemd service, you can see the warnings in the journal: `journalctl -ef /usr/bin/ymir`
@@ -253,7 +253,7 @@ return {
 
 You can write a custom shader for drawing the window during a close animation.
 
-See [this example shader](./examples/close_custom_shader.frag) for a full documentation with several animations to experiment with.
+See [this example shader](https://lab.braxton.onl/braxton/ymir/wiki/raw/examples/close_custom_shader.frag) for a full documentation with several animations to experiment with.
 
 If a custom shader fails to compile, ymir will print a warning and fall back to the default, or previous successfully compiled shader.
 When running ymir as a systemd service, you can see the warnings in the journal: `journalctl -ef /usr/bin/ymir`
@@ -358,7 +358,7 @@ return {
 
 You can write a custom shader for drawing the window during a resize animation.
 
-See [this example shader](./examples/resize_custom_shader.frag) for a full documentation with several animations to experiment with.
+See [this example shader](https://lab.braxton.onl/braxton/ymir/wiki/raw/examples/resize_custom_shader.frag) for a full documentation with several animations to experiment with.
 
 If a custom shader fails to compile, ymir will print a warning and fall back to the default, or previous successfully compiled shader.
 When running ymir as a systemd service, you can see the warnings in the journal: `journalctl -ef /usr/bin/ymir`

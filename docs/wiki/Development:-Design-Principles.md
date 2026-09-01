@@ -92,7 +92,7 @@ Focus rings are drawn fully behind windows by default.
 While this unfortunately messes with window transparency, [which is a common source of confusion](./FAQ.md#why-are-transparent-windows-tinted-why-is-the-borderfocus-ring-showing-up-through-semitransparent-windows), defaulting to drawing focus rings only around windows would be even worse because it has holes inside clientside rounded corners.
 The ideal solution here would be to propose a Wayland protocol for windows to report their corner radius to the compositor (which would generally help for serverside decorations in different compositors).
 
-The default focus ring is quite thick at 4 px to look well with clientside-decorated windows and be obviously noticeable, and the default gaps are also quite big at 16 px to look well with the default focus ring width.
+The default focus ring is quite thick at 4 px to look well with clientside-decorated windows and be obviously noticeable, and the default gaps are also quite big at 16 px to look well with the default focus ring width.
 
 The default input settings like touchpad tap and natural-scroll are what most people expect out of the box.
 

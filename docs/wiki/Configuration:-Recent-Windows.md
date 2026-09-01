@@ -115,7 +115,7 @@ Further limits the size of the previews in order to occupy less space on large m
 
 On smaller monitors, the previews will be primarily limited by `max_scale`, and on larger monitors they will be primarily limited by `max_height`.
 
-The `max_scale` limit is imposed twice: on the final window scale, and on the window height which cannot exceed `monitor height × max scale`.
+The `max_scale` limit is imposed twice: on the final window scale, and on the window height which cannot exceed `monitor height x max scale`.
 
 ```lua
 return {

@@ -98,11 +98,11 @@ First, find which devices you have:
 
 ```
 $ ls -l /dev/dri/
-drwxr-xr-x@       - root 14 мая 07:07 by-path
-crw-rw----@   226,0 root 14 мая 07:07 card0
-crw-rw----@   226,1 root 14 мая 07:07 card1
-crw-rw-rw-@ 226,128 root 14 мая 07:07 renderD128
-crw-rw-rw-@ 226,129 root 14 мая 07:07 renderD129
+drwxr-xr-x@       - root 14 May 07:07 by-path
+crw-rw----@   226,0 root 14 May 07:07 card0
+crw-rw----@   226,1 root 14 May 07:07 card1
+crw-rw-rw-@ 226,128 root 14 May 07:07 renderD128
+crw-rw-rw-@ 226,129 root 14 May 07:07 renderD129
 ```
 
 You will likely have one `render` device and two `card` devices.

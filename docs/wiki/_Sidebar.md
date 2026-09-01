@@ -6,7 +6,7 @@
 * [Floating Windows](./Floating-Windows.md)
 * [Overview](./Overview.md)
 * [Screencasting](./Screencasting.md)
-* [Layer‐Shell Components](./Layer%E2%80%90Shell-Components.md)
+* [Layer-Shell Components](./Layer-Shell-Components.md)
 * [IPC, `ymir msg`](./IPC.md)
 * [Application-Specific Issues](./Application-Issues.md)
 * [Nvidia](./Nvidia.md)

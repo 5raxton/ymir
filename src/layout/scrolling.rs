@@ -2874,7 +2874,7 @@ impl<W: LayoutElement> ScrollingSpace<W> {
                 }
             }
             InsertPosition::InColumn(column_index, tile_index) => {
-                if column_index > self.columns.len() {
+                if column_index >= self.columns.len() {
                     error!("insert hint column index is out of range");
                     return None;
                 }

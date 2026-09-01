@@ -89,17 +89,22 @@ A zoomed-out look at all your workspaces at once. Drag windows between them, gra
 
 ## Getting started
 
-The quickest path is the multi-distro installer (detects Arch, Fedora, Debian/Ubuntu, openSUSE):
+The quickest path is the multi-distro installer (detects Arch, Fedora, Debian/Ubuntu, openSUSE). It supports two modes — **binary** (default) and **source**:
 
 ```sh
-# bash/zsh
+# bash/zsh — binary mode (download the newest pre-built binary for your distro)
 curl -sL https://lab.braxton.onl/braxton/ymir/raw/branch/main/scripts/install.sh | bash
 
-# fish
+# fish — binary mode
 curl -sL https://lab.braxton.onl/braxton/ymir/raw/branch/main/scripts/install.fish | fish
+
+# build from source (newest main) instead of downloading a binary
+curl -sL https://lab.braxton.onl/braxton/ymir/raw/branch/main/scripts/install.sh | bash -s -- --source
 ```
 
-The installer seeds `~/.config/ymir/init.lua` with the default Dwindle config if absent and installs the `ymir.desktop` session entry so **Ymir** appears in your display manager (GDM, SDDM, …). From a bare TTY, start with `ymir-session`. Re-running it pulls the latest `main` and rebuilds — it doubles as a bleeding-edge updater.
+You can also select the mode with `YMIR_MODE=binary|source`, or run a locally-checked-out copy directly (`bash scripts/install.sh --source`).
+
+The installer seeds `~/.config/ymir/init.lua` with the default Dwindle config if absent and installs the `ymir.desktop` session entry so **Ymir** appears in your display manager (GDM, SDDM, …). From a bare TTY, start with `ymir-session`. Re-running it reinstalls the newest ymir — in binary mode it always pulls the newest pre-built release, and in source mode it clones the newest `main` and rebuilds.
 
 Inside a session:
 

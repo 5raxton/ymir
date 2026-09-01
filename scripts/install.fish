@@ -2,8 +2,10 @@
 # ymir installer (fish entry point).
 #
 # This is a thin wrapper around the bash installer, which handles distro
-# detection, runtime dependency install, download of the latest pre-built
-# binary, install of the session .desktop + default config, and updating.
+# detection, runtime/build dependency install, either the download of the
+# newest pre-built binary (default) or a build from source (--source), the
+# install of the session .desktop + default config, and updating.
+# Arguments (e.g. --source or --binary) are forwarded to the bash installer.
 # Keeping the logic in one place avoids drift between the bash and fish
 # versions.
 

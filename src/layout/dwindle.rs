@@ -130,6 +130,58 @@ pub const MIN_RATIO: f64 = 0.1;
 /// Maximum ratio enforced when adjusting a split's ratio interactively.
 pub const MAX_RATIO: f64 = 1.9;
 
+/// Where a newly opened window is placed when no explicit side is preselected.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ForceSplit {
+    /// Pick the axis by the focused leaf's aspect ratio; the new window takes the freed
+    /// bottom/right half (`Second`). With [`DwindleOptions::smart_split`] the split direction
+    /// follows the cursor instead.
+    #[default]
+    Auto,
+    /// Always place the new window in the top/left half (`First`).
+    First,
+    /// Always place the new window in the bottom/right half (`Second`).
+    Second,
+}
+
+/// Configuration that shapes how a dwindle tree slices regions. Kept engine-native so the module
+/// stays import-light and purely unit-testable; the compositor maps its config onto this.
+#[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
+pub struct DwindleOptions {
+    /// Default ratio of a freshly created split (`1.0` is an even split).
+    pub default_split_ratio: f64,
+    /// Favor the newly opened window when splitting (Hyprland's `split_bias`).
+    pub split_bias: bool,
+    /// How the placement of a new window is chosen.
+    pub force_split: ForceSplit,
+    /// Keep each container's split orientation once chosen rather than re-evaluating it by the
+    /// current region aspect ratio on every resize.
+    pub preserve_split: bool,
+    /// Multiplier used when deciding whether to split left/right vs top/bottom by aspect ratio.
+    pub split_width_multiplier: f64,
+    /// Choose the split direction by cursor position.
+    pub smart_split: bool,
+    /// Keep a preselected direction active for all subsequent windows until reset.
+    pub permanent_direction_override: bool,
+}
+
+impl Default for DwindleOptions {
+    fn default() -> Self {
+        Self {
+            default_split_ratio: DEFAULT_RATIO,
+            split_bias: false,
+            force_split: ForceSplit::Auto,
+            preserve_split: false,
+            split_width_multiplier: 1.,
+            smart_split: false,
+            permanent_direction_override: false,
+        }
+    }
+}
+
+/// Clamps a ratio into the allowed `[MIN_RATIO, MAX_RATIO]` range.
+
 impl<T> Node<T> {
     pub fn is_leaf(&self) -> bool {
         matches!(self, Self::Leaf(_))
@@ -156,6 +208,7 @@ pub struct DwindleTree<T> {
     root: Option<Node<T>>,
     active: Option<LeafPath>,
     preselect: Option<SplitSide>,
+    options: DwindleOptions,
 }
 
 impl<T> DwindleTree<T> {
@@ -165,6 +218,7 @@ impl<T> DwindleTree<T> {
             root: None,
             active: None,
             preselect: None,
+            options: DwindleOptions::default(),
         }
     }
 
@@ -174,7 +228,18 @@ impl<T> DwindleTree<T> {
             root: Some(Node::Leaf(value)),
             active: Some(LeafPath::root()),
             preselect: None,
+            options: DwindleOptions::default(),
         }
+    }
+
+    /// Returns a reference to the tree's layout options.
+    pub fn options(&self) -> &DwindleOptions {
+        &self.options
+    }
+
+    /// Replaces the tree's layout options.
+    pub fn set_options(&mut self, options: DwindleOptions) {
+        self.options = options;
     }
 
     /// Returns the number of leaves (windows) in the tree.
@@ -348,24 +413,48 @@ impl<T> DwindleTree<T> {
 
     /// Opens a new window adjacent to the active leaf.
     ///
-    /// The active leaf's region is split per the pending preselection (if any, consumed) or else
-    /// per its current width-to-height ratio. The new leaf becomes the active leaf.
+    /// The active leaf's region is split per the pending preselection (which persists when
+    /// [`DwindleOptions::permanent_direction_override`] is set, else is consumed) or else per the
+    /// configured split preferences. The new leaf becomes the active leaf.
     ///
     /// Returns the path of the newly opened leaf.
     pub fn open_new(&mut self, value: T, region: Size<f64, Logical>) -> LeafPath {
-        let side_override = self.preselect.take();
-        self.open_new_inner(value, side_override, region)
+        let side_override = self.take_preselection_for_open();
+        self.open_new_inner(value, side_override, None, region)
+    }
+
+    /// Like [`Self::open_new`], but uses `cursor` (in content coordinates) to pick the split
+    /// direction when [`DwindleOptions::smart_split`] is enabled.
+    pub fn open_new_at(
+        &mut self,
+        value: T,
+        region: Size<f64, Logical>,
+        cursor: Point<f64, Logical>,
+    ) -> LeafPath {
+        let side_override = self.take_preselection_for_open();
+        self.open_new_inner(value, side_override, Some(cursor), region)
     }
 
     /// Like [`Self::open_new`], with an explicit side override instead of a preset.
     pub fn open_new_on(&mut self, value: T, side: SplitSide, region: Size<f64, Logical>) -> LeafPath {
-        self.open_new_inner(value, Some(side), region)
+        self.open_new_inner(value, Some(side), None, region)
+    }
+
+    /// Takes the pending preselection, keeping it if [`DwindleOptions::permanent_direction_override`]
+    /// is set.
+    fn take_preselection_for_open(&mut self) -> Option<SplitSide> {
+        if self.options.permanent_direction_override {
+            self.preselect
+        } else {
+            self.preselect.take()
+        }
     }
 
     fn open_new_inner(
         &mut self,
         value: T,
         side_override: Option<SplitSide>,
+        cursor: Option<Point<f64, Logical>>,
         region: Size<f64, Logical>,
     ) -> LeafPath {
         if self.root.is_none() {
@@ -383,15 +472,62 @@ impl<T> DwindleTree<T> {
                 let rect = self
                     .active_rect(Rectangle::new(Point::from((0., 0.)), region), 0.)
                     .unwrap_or_else(|| Rectangle::new(Point::from((0., 0.)), region));
-                default_side_for_aspect(rect.size)
+                self.resolve_default_side(rect, cursor)
             }
         };
 
+        // Hyprland's `split_bias`: when the newly opened window gets the `First` half, flip the
+        // default ratio so the *new* window is favoured whenever `default_split_ratio` isn't even.
+        let mut new_ratio = clamp_ratio(self.options.default_split_ratio);
+        if self.options.split_bias && side.child() == Child::First {
+            new_ratio = clamp_ratio(2. - new_ratio);
+        }
+
         let root = self.root.take().unwrap();
-        let (new_root, new_path) = open_leaf_at(root, active.0.as_slice(), side, value);
+        let (new_root, new_path) = open_leaf_at(root, active.0.as_slice(), side, value, new_ratio);
         self.root = Some(new_root);
         self.active = Some(new_path.clone());
         new_path
+    }
+
+    /// Resolves the split side for a new window with no explicit preselection.
+    ///
+    /// Mirrors Hyprland's dwindle `addTarget`:
+    /// * when `smart_split` is on and a cursor is available, the split direction follows the cursor
+    ///   (dividing the active leaf into four triangles);
+    /// * otherwise the axis is chosen by the active leaf's aspect ratio (with
+    ///   [`DwindleOptions::split_width_multiplier`]) and the placement (`First`/`Second`) by
+    ///   [`ForceSplit`]. The default (`Auto`) leaves the new window in the `Second` (bottom/right)
+    ///   half.
+    fn resolve_default_side(
+        &self,
+        active_rect: Rectangle<f64, Logical>,
+        cursor: Option<Point<f64, Logical>>,
+    ) -> SplitSide {
+        if self.options.force_split == ForceSplit::Auto && self.options.smart_split {
+            if let Some(cursor) = cursor {
+                return smart_split_side(active_rect, cursor);
+            }
+        }
+
+        let split_top =
+            active_rect.size.h * self.options.split_width_multiplier > active_rect.size.w;
+        let first_child = match self.options.force_split {
+            ForceSplit::First => true,
+            ForceSplit::Second | ForceSplit::Auto => false,
+        };
+
+        if split_top {
+            if first_child {
+                SplitSide::Top
+            } else {
+                SplitSide::Bottom
+            }
+        } else if first_child {
+            SplitSide::Left
+        } else {
+            SplitSide::Right
+        }
     }
 
     /// Replaces the leaf at `path` with `node`.
@@ -770,28 +906,53 @@ fn split_rect(
     }
 }
 
-/// Picks the default slice side for a region of the given size: wide regions split side-by-side
-/// (new window on the right), while tall or square regions stack (new window at the bottom).
+/// Picks the split side for `cursor` (in `region` coordinates) by dividing the active leaf into
+/// four triangles about its center, mirroring Hyprland's `smart_split`.
 ///
-/// The focused window always keeps the `First` (top-left) half and shrinks into its corner, while
-/// the newly opened window takes the freed-up half, mirroring Hyprland's dwindle (force_split 2).
-fn default_side_for_aspect(size: Size<f64, Logical>) -> SplitSide {
-    if size.w > size.h {
-        SplitSide::Right
+/// A shallow cursor angle (|slope| < height/width) splits side-by-side toward the cursor's half;
+/// a steep angle splits top/bottom toward the cursor's half.
+fn smart_split_side(
+    region: Rectangle<f64, Logical>,
+    cursor: Point<f64, Logical>,
+) -> SplitSide {
+    let center_x = region.loc.x + region.size.w / 2.;
+    let center_y = region.loc.y + region.size.h / 2.;
+    let dx = cursor.x - center_x;
+    let dy = cursor.y - center_y;
+    let proportions = if region.size.w == 0. {
+        1.
     } else {
+        region.size.h / region.size.w
+    };
+    let slope = if dx == 0. {
+        f64::INFINITY * dy.signum()
+    } else {
+        dy / dx
+    };
+    if slope.abs() < proportions {
+        if dx > 0. {
+            SplitSide::Right
+        } else {
+            SplitSide::Left
+        }
+    } else if dy > 0. {
         SplitSide::Bottom
+    } else {
+        SplitSide::Top
     }
 }
 
 /// Recursively opens a new leaf next to the leaf at `path`, rebuilding only the nodes along the
 /// path.
 ///
-/// Returns the new subtree and the path of the newly inserted leaf.
+/// `ratio` is applied to the freshly created split. Returns the new subtree and the path of the
+/// newly inserted leaf.
 fn open_leaf_at<T>(
     node: Node<T>,
     path: &[Child],
     side: SplitSide,
     value: T,
+    ratio: f64,
 ) -> (Node<T>, LeafPath) {
     match (node, path.first()) {
         (Node::Leaf(old), None) => {
@@ -810,7 +971,7 @@ fn open_leaf_at<T>(
             (
                 Node::Split {
                     axis,
-                    ratio: DEFAULT_RATIO,
+                    ratio,
                     first,
                     second,
                 },
@@ -819,11 +980,11 @@ fn open_leaf_at<T>(
         }
         (Node::Leaf(old), Some(_)) => {
             // Path points deeper than the tree goes; clamp to the leaf itself.
-            open_leaf_at(Node::Leaf(old), &[], side, value)
+            open_leaf_at(Node::Leaf(old), &[], side, value, ratio)
         }
         (Node::Split { axis, ratio, first, second }, None) => {
             // Path ended at a split; insert into the first child instead.
-            let (new_first, tail) = open_leaf_at(*first, &[], side, value);
+            let (new_first, tail) = open_leaf_at(*first, &[], side, value, ratio);
             (
                 Node::Split {
                     axis,
@@ -835,7 +996,7 @@ fn open_leaf_at<T>(
             )
         }
         (Node::Split { axis, ratio, first, second }, Some(Child::First)) => {
-            let (new_first, tail) = open_leaf_at(*first, &path[1..], side, value);
+            let (new_first, tail) = open_leaf_at(*first, &path[1..], side, value, ratio);
             (
                 Node::Split {
                     axis,
@@ -847,7 +1008,7 @@ fn open_leaf_at<T>(
             )
         }
         (Node::Split { axis, ratio, first, second }, Some(Child::Second)) => {
-            let (new_second, tail) = open_leaf_at(*second, &path[1..], side, value);
+            let (new_second, tail) = open_leaf_at(*second, &path[1..], side, value, ratio);
             (
                 Node::Split {
                     axis,
@@ -1454,6 +1615,23 @@ impl DwindleColumn {
         self.tree.preselect(side);
     }
 
+    /// Replaces the column's dwindle layout options (split placement, bias, preserve, etc.).
+    pub fn set_options(&mut self, options: DwindleOptions) {
+        self.tree.set_options(options);
+    }
+
+    /// Returns the column's current dwindle layout options.
+    pub fn options(&self) -> &DwindleOptions {
+        self.tree.options()
+    }
+
+    /// Like [`Self::open_new`], but uses `cursor` (in content coordinates) to pick the split
+    /// direction when [`DwindleOptions::smart_split`] is enabled.
+    pub fn open_new_at(&mut self, region: Size<f64, Logical>, cursor: Point<f64, Logical>) {
+        self.tree
+            .open_new_at(self.tree.len(), region, cursor);
+    }
+
     /// Removes (expels) the leaf at `tile_idx`, collapsing its vacated container so the sibling
     /// subtree takes over the whole region.
     ///
@@ -1682,19 +1860,19 @@ mod tests {
 
     #[test]
     fn aspect_based_splitting_mixes_axes() {
-        // Using aspect-based default sides, the region of the active leaf grows wide after the
-        // first split, so the second window splits side-by-side instead of stacking; the new
-        // window always takes the right/bottom half, so DFS order is insertion order:
-        // open_new on square regions produces H{0, V{1, H{2, 3}}}.
+        // Using aspect-based default sides (Hyprland's `split_width_multiplier` semantics), the
+        // active leaf's region drives the split orientation: wide/square regions split
+        // side-by-side, tall regions stack. The new window always takes the right/bottom half, so
+        // DFS order is insertion order: open_new on square regions produces V{0, H{1, V{2, 3}}}.
         let mut tree = DwindleTree::new();
         tree.open_new(0, square());
         tree.open_new(1, square());
         tree.open_new(2, square());
         tree.open_new(3, square());
         assert_eq!(tree.leaves().copied().collect::<Vec<_>>(), vec![0, 1, 2, 3]);
-        assert_axis(&tree, &[Child::First], SplitAxis::Horizontal);
-        assert_axis(&tree, &[Child::Second, Child::First], SplitAxis::Vertical);
-        assert_axis(&tree, &[Child::Second, Child::Second, Child::First], SplitAxis::Horizontal);
+        assert_axis(&tree, &[Child::First], SplitAxis::Vertical);
+        assert_axis(&tree, &[Child::Second, Child::First], SplitAxis::Horizontal);
+        assert_axis(&tree, &[Child::Second, Child::Second, Child::First], SplitAxis::Vertical);
     }
 
     #[test]

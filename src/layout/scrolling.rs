@@ -11,7 +11,7 @@ use ymir_config::{CenterFocusedColumn, PresetSize, Struts};
 use ymir_ipc::{ColumnDisplay, SizeChange, WindowLayout};
 
 use super::closing_window::{ClosingWindow, ClosingWindowRenderElement};
-use super::dwindle::{DwindleColumn, SpatialDir, SplitSide};
+use super::dwindle::{DwindleColumn, DwindleOptions, ForceSplit, SpatialDir, SplitSide};
 use super::monitor::InsertPosition;
 use super::tile::{Tile, TileRenderElement, TileRenderSnapshot};
 use super::workspace::{InteractiveResize, ResolvedSize};
@@ -4516,6 +4516,7 @@ impl<W: LayoutElement> Column<W> {
         self.parent_area = parent_area;
         self.scale = scale;
         self.options = options;
+        self.dwindle_tree.set_options(Self::dwindle_options_from(&self.options.layout));
 
         if update_sizes {
             self.update_tile_sizes(false);
@@ -6090,6 +6091,23 @@ impl<W: LayoutElement> Column<W> {
         }
 
         (!edges.is_empty()).then_some(edges)
+    }
+
+    /// Maps the compositor's dwindle config onto the engine's [`DwindleOptions`].
+    fn dwindle_options_from(layout: &ymir_config::layout::Layout) -> DwindleOptions {
+        DwindleOptions {
+            default_split_ratio: layout.dwindle_default_split_ratio,
+            split_bias: layout.dwindle_split_bias,
+            force_split: match layout.dwindle_force_split {
+                ymir_config::DwindleForceSplit::Auto => ForceSplit::Auto,
+                ymir_config::DwindleForceSplit::First => ForceSplit::First,
+                ymir_config::DwindleForceSplit::Second => ForceSplit::Second,
+            },
+            preserve_split: layout.dwindle_preserve_split,
+            split_width_multiplier: layout.dwindle_split_width_multiplier,
+            smart_split: layout.dwindle_smart_split,
+            permanent_direction_override: layout.dwindle_permanent_direction_override,
+        }
     }
 
     /// The outer region that the dwindle tree partitions between its leaves.

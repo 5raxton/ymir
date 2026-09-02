@@ -64,7 +64,7 @@ impl Default for Layout {
             empty_workspace_above_first: false,
             default_column_display: ColumnDisplay::Normal,
             dwindle_windows_per_column: 8,
-            dwindle_force_split: DwindleForceSplit::Second,
+            dwindle_force_split: DwindleForceSplit::Auto,
             dwindle_split_bias: false,
             dwindle_preserve_split: false,
             dwindle_split_width_multiplier: 1.,

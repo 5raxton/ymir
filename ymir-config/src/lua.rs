@@ -1578,6 +1578,30 @@ fn read_positive_usize(value: &Value, key: &str, errors: &mut Vec<String>) -> Op
     }
 }
 
+/// Reads a `dwindle_force_split` value: an integer `0`, `1`, or `2`.
+fn read_dwindle_force_split(
+    value: &Value,
+    key: &str,
+    errors: &mut Vec<String>,
+) -> Option<DwindleForceSplit> {
+    let i = match value {
+        Value::Integer(i) => *i,
+        _ => {
+            errors.push(format!("`{key}` must be a number, got {}", type_name(value)));
+            return None;
+        }
+    };
+    match i {
+        0 => Some(DwindleForceSplit::Auto),
+        1 => Some(DwindleForceSplit::First),
+        2 => Some(DwindleForceSplit::Second),
+        _ => {
+            errors.push(format!("`{key}` must be 0, 1, or 2, got {i}"));
+            None
+        }
+    }
+}
+
 /// An enum field parsed via `FromStr`.
 fn read_enum<T>(value: &Value, key: &str, errors: &mut Vec<String>) -> Option<T>
 where
@@ -3139,6 +3163,13 @@ fn read_layout_part(value: &Value, key: &str, errors: &mut Vec<String>) -> Optio
             "empty_workspace_above_first" => part.empty_workspace_above_first = read_flag_value(&value),
             "default_column_display" => part.default_column_display = read_enum(&value, &format!("{key}.default_column_display"), errors),
             "dwindle_windows_per_column" => part.dwindle_windows_per_column = read_positive_usize(&value, &format!("{key}.dwindle_windows_per_column"), errors),
+            "dwindle_force_split" => part.dwindle_force_split = read_dwindle_force_split(&value, &format!("{key}.dwindle_force_split"), errors),
+            "dwindle_split_bias" => part.dwindle_split_bias = read_flag_value(&value),
+            "dwindle_preserve_split" => part.dwindle_preserve_split = read_flag_value(&value),
+            "dwindle_split_width_multiplier" => part.dwindle_split_width_multiplier = read_float_or_int(&value, &format!("{key}.dwindle_split_width_multiplier"), errors),
+            "dwindle_default_split_ratio" => part.dwindle_default_split_ratio = read_float_or_int(&value, &format!("{key}.dwindle_default_split_ratio"), errors),
+            "dwindle_smart_split" => part.dwindle_smart_split = read_flag_value(&value),
+            "dwindle_permanent_direction_override" => part.dwindle_permanent_direction_override = read_flag_value(&value),
             "gaps" => part.gaps = read_float_or_int(&value, &format!("{key}.gaps"), errors),
             "struts" => part.struts = read_struts(&value, &format!("{key}.struts"), errors),
             "background_color" => part.background_color = read_color(&value, &format!("{key}.background_color"), errors),

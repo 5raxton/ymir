@@ -119,14 +119,16 @@ pub enum Node<T> {
     },
 }
 
-/// Default visual ratio of a freshly created split's `First` child.
-pub const DEFAULT_RATIO: f64 = 0.5;
+/// Node ratio: visual fraction of the box given to the `First` child is `ratio / 2`, so `1.0`
+/// is an even split. Ratios above `1.0` shrink the `First` child in favour of `Second`, mirroring
+/// Hyprland's dwindle `splitRatio`.
+pub const DEFAULT_RATIO: f64 = 1.0;
 
 /// Minimum ratio enforced when adjusting a split's ratio interactively.
 pub const MIN_RATIO: f64 = 0.1;
 
 /// Maximum ratio enforced when adjusting a split's ratio interactively.
-pub const MAX_RATIO: f64 = 1. - MIN_RATIO;
+pub const MAX_RATIO: f64 = 1.9;
 
 impl<T> Node<T> {
     pub fn is_leaf(&self) -> bool {
@@ -634,7 +636,7 @@ impl<T> DwindleTree<T> {
         let Some(root) = self.root.as_mut() else {
             return false;
         };
-        adjust_ancestor_ratio_impl(root, &path.0, axis, delta_px / usable)
+        adjust_ancestor_ratio_impl(root, &path.0, axis, 2. * delta_px / usable)
     }
 
     /// Moves the divider that the leaf's `edge` lies on, if any.
@@ -745,7 +747,7 @@ fn split_rect(
         SplitAxis::Horizontal => {
             // Clamp so a region smaller than the seam can't produce a negative split size.
             let usable = (rect.size.h - gaps).max(0.);
-            let first_h = (usable * ratio).floor().clamp(0., usable);
+            let first_h = (usable * ratio / 2.).floor().clamp(0., usable);
             let second_h = usable - first_h;
             let first = Rectangle::new(rect.loc, Size::from((rect.size.w, first_h)));
             let second = Rectangle::new(
@@ -756,7 +758,7 @@ fn split_rect(
         }
         SplitAxis::Vertical => {
             let usable = (rect.size.w - gaps).max(0.);
-            let first_w = (usable * ratio).floor().clamp(0., usable);
+            let first_w = (usable * ratio / 2.).floor().clamp(0., usable);
             let second_w = usable - first_w;
             let first = Rectangle::new(rect.loc, Size::from((first_w, rect.size.h)));
             let second = Rectangle::new(
@@ -1314,13 +1316,15 @@ fn adjust_ratio_for_edge_impl<T>(
 
     let first_min = subtree_min(first, *axis, min_w, min_h);
     let second_min = subtree_min(second, *axis, min_w, min_h);
-    let ratio_min = (first_min / usable).max(MIN_RATIO);
-    let ratio_max = (1. - second_min / usable).min(MAX_RATIO);
+    // The First child's share is `ratio / 2`, so the divider pixel position is
+    // `box * ratio / 2`; a 1px drag therefore changes `ratio` by `2 / usable`.
+    let ratio_min = (2. * first_min / usable).max(MIN_RATIO);
+    let ratio_max = (2. * (1. - second_min / usable)).min(MAX_RATIO);
     if ratio_min > ratio_max {
         return false;
     }
 
-    *ratio = (*ratio + delta_px / usable).clamp(ratio_min, ratio_max);
+    *ratio = (*ratio + 2. * delta_px / usable).clamp(ratio_min, ratio_max);
     true
 }
 
@@ -1923,7 +1927,7 @@ mod tests {
         ) else {
             unreachable!();
         };
-        assert_eq!(*ratio, DEFAULT_RATIO + 0.25);
+        assert_eq!(*ratio, DEFAULT_RATIO + 0.5);
 
         // A horizontal drag on B must NOT touch the vertical split (no matching divider to move
         // there), so the vertical ratio is unchanged and the outer horizontal split is adjusted.
@@ -1931,14 +1935,14 @@ mod tests {
         let Node::Split { axis: SplitAxis::Horizontal, ratio, .. } = walk(&tree, &[]) else {
             unreachable!();
         };
-        assert_eq!(*ratio, DEFAULT_RATIO + 0.1);
+        assert_eq!(*ratio, DEFAULT_RATIO + 0.2);
         let Node::Split { axis: SplitAxis::Vertical, ratio, .. } = walk(
             &tree,
             &[Child::Second],
         ) else {
             unreachable!();
         };
-        assert_eq!(*ratio, DEFAULT_RATIO + 0.25);
+        assert_eq!(*ratio, DEFAULT_RATIO + 0.5);
 
         // Resizing C (right/Second child) with the same positive drag also moves the same divider
         // rightward, further growing B (First), so the ratio increases again.
@@ -1951,7 +1955,7 @@ mod tests {
         ) else {
             unreachable!();
         };
-        assert_eq!(*ratio, DEFAULT_RATIO + 0.25 + 0.1);
+        assert_eq!(*ratio, DEFAULT_RATIO + 0.5 + 0.2);
     }
 
     #[test]
@@ -1993,7 +1997,8 @@ mod tests {
         let two = LeafPath(vec![Child::First, Child::Second]);
         let no_min = |_v: &i32| 1.;
 
-        // Inner split is 100 wide, so +10px moves its divider by 0.1.
+        // Inner split is 100 wide, so +10px moves its divider by 0.2 of ratio (its share is
+        // ratio/2, so the pixel-to-ratio factor is 2/usable = 2/100).
         assert!(tree.adjust_ratio_for_edge(&two, ResizeEdge::LEFT, 10., 200., 200., 0., &no_min, &no_min));
         let Node::Split {
             axis: SplitAxis::Vertical,
@@ -2003,9 +2008,9 @@ mod tests {
         else {
             unreachable!();
         };
-        assert_eq!(*ratio, DEFAULT_RATIO + 0.1);
+        assert_eq!(*ratio, DEFAULT_RATIO + 0.2);
 
-        // -20px back down the 100px scale returns it to the default.
+        // -20px back down the 100px scale returns it below the default.
         assert!(tree.adjust_ratio_for_edge(&two, ResizeEdge::LEFT, -20., 200., 200., 0., &no_min, &no_min));
         let Node::Split {
             axis: SplitAxis::Vertical,
@@ -2015,7 +2020,7 @@ mod tests {
         else {
             unreachable!();
         };
-        assert!(approx_eq(*ratio, DEFAULT_RATIO - 0.1));
+        assert!(approx_eq(*ratio, DEFAULT_RATIO - 0.2));
 
         // The root divider (200 wide) was not touched.
         let Node::Split {
@@ -2046,7 +2051,7 @@ mod tests {
         let Node::Split { ratio, .. } = walk(&tree, &[]) else {
             unreachable!();
         };
-        assert_eq!(*ratio, DEFAULT_RATIO + 0.25);
+        assert_eq!(*ratio, DEFAULT_RATIO + 0.5);
 
         // The leaf's other (interior) edge still targets the deeper split, which stayed put.
         let Node::Split { ratio, .. } = walk(&tree, &[Child::First]) else {
@@ -2085,14 +2090,14 @@ mod tests {
         let Node::Split { ratio, .. } = walk(&tree, &[]) else {
             unreachable!();
         };
-        assert_eq!(*ratio, 0.3);
+        assert_eq!(*ratio, 0.6);
 
         // A huge downward drag (growing the First child) stops at the Second child's minimum.
         assert!(tree.adjust_ratio_for_edge(&leaf, ResizeEdge::TOP, 1000., 200., 100., 0., &no_min_w, &min_h));
         let Node::Split { ratio, .. } = walk(&tree, &[]) else {
             unreachable!();
         };
-        assert_eq!(*ratio, 0.7);
+        assert_eq!(*ratio, 1.4);
     }
 
     #[test]

@@ -21,6 +21,26 @@ pub struct Layout {
     /// starts next to it on the strip (an additional dwindle "page"). A larger value grows a
     /// deeper split tree; a smaller one scrolls sideways sooner.
     pub dwindle_windows_per_column: usize,
+    /// How the split side is chosen when a new window is opened in a dwindle column (Hyprland's
+    /// `force_split`).
+    pub dwindle_force_split: DwindleForceSplit,
+    /// Prefer the newly opened window when splitting (Hyprland's `split_bias`).
+    pub dwindle_split_bias: bool,
+    /// Never re-evaluate the split orientation of a dwindle container once set (Hyprland's
+    /// `preserve_split`).
+    pub dwindle_preserve_split: bool,
+    /// Multiplier used when deciding whether to split left/right vs top/bottom by aspect ratio
+    /// (Hyprland's `split_width_multiplier`). Larger values favor top/bottom splits.
+    pub dwindle_split_width_multiplier: f64,
+    /// Default dwindle split resource: 1.0 is an even split (Hyprland's `default_split_ratio`,
+    /// range `[0.1, 1.9]`; values above 1.0 grow the second window's share).
+    pub dwindle_default_split_ratio: f64,
+    /// Use cursor position to pick the split direction inside a dwindle column (Hyprland's
+    /// `smart_split`).
+    pub dwindle_smart_split: bool,
+    /// Keep a preselected direction active for every subsequent window until reset (Hyprland's
+    /// `permanent_direction_override`).
+    pub dwindle_permanent_direction_override: bool,
     pub gaps: f64,
     pub struts: Struts,
     pub background_color: Color,
@@ -44,6 +64,13 @@ impl Default for Layout {
             empty_workspace_above_first: false,
             default_column_display: ColumnDisplay::Normal,
             dwindle_windows_per_column: 8,
+            dwindle_force_split: DwindleForceSplit::Second,
+            dwindle_split_bias: false,
+            dwindle_preserve_split: false,
+            dwindle_split_width_multiplier: 1.,
+            dwindle_default_split_ratio: 1.,
+            dwindle_smart_split: false,
+            dwindle_permanent_direction_override: false,
             gaps: 16.,
             struts: Struts::default(),
             preset_window_heights: vec![
@@ -66,6 +93,12 @@ impl MergeWith<LayoutPart> for Layout {
             insert_hint,
             always_center_single_column,
             empty_workspace_above_first,
+            dwindle_split_bias,
+            dwindle_preserve_split,
+            dwindle_split_width_multiplier,
+            dwindle_default_split_ratio,
+            dwindle_smart_split,
+            dwindle_permanent_direction_override,
             gaps,
         );
 
@@ -77,6 +110,7 @@ impl MergeWith<LayoutPart> for Layout {
             default_column_display,
             struts,
             background_color,
+            dwindle_force_split,
         );
 
         if let Some(x) = part.dwindle_windows_per_column {
@@ -111,6 +145,13 @@ pub struct LayoutPart {
     pub empty_workspace_above_first: Option<Flag>,
     pub default_column_display: Option<ColumnDisplay>,
     pub dwindle_windows_per_column: Option<usize>,
+    pub dwindle_force_split: Option<DwindleForceSplit>,
+    pub dwindle_split_bias: Option<Flag>,
+    pub dwindle_preserve_split: Option<Flag>,
+    pub dwindle_split_width_multiplier: Option<FloatOrInt<0, 65535>>,
+    pub dwindle_default_split_ratio: Option<FloatOrInt<1, 19>>,
+    pub dwindle_smart_split: Option<Flag>,
+    pub dwindle_permanent_direction_override: Option<Flag>,
     pub gaps: Option<FloatOrInt<0, 65535>>,
     pub struts: Option<Struts>,
     pub background_color: Option<Color>,
@@ -152,4 +193,16 @@ pub enum CenterFocusedColumn {
     /// Focusing a column will center it if it doesn't fit on the screen together with the
     /// previously focused column.
     OnOverflow,
+}
+
+/// How the side is chosen when a new window is opened in a dwindle column.
+#[derive(Debug, Default, PartialEq, Eq, Clone, Copy)]
+pub enum DwindleForceSplit {
+    /// Split according to the aspect ratio / cursor position of the focused window.
+    #[default]
+    Auto,
+    /// The new window always takes the top or left half (the `First` child).
+    First,
+    /// The new window always takes the bottom or right half (the `Second` child).
+    Second,
 }

@@ -64,12 +64,58 @@ When a window opens in a dwindle column, the focused leaf's region is sliced int
 - the focused window keeps the first (top-left) half and shrinks into its corner;
 - the newly opened window takes the freed-up half.
 
-The split direction is chosen like this:
+The split direction and placement are controlled by several config options:
 
-1. If a split direction was preselected with `preselect` (below), that direction is used, and the preselection is consumed (it only applies to the *next* window).
-2. Otherwise, the direction follows the current region's shape: wide regions split side-by-side (new window to the right), while tall or square regions stack (new window at the bottom).
+1. If a split direction was preselected with `preselect` (below), that direction is used. If `dwindle_permanent_direction_override` is set, the preselection persists across multiple window opens instead of being consumed.
+2. Otherwise, the direction follows the current region's shape: wide regions split side-by-side (new window to the right), while tall regions stack (new window at the bottom). The threshold between wide and tall is controlled by `dwindle_split_width_multiplier`.
+3. If `dwindle_smart_split` is enabled, the split direction follows the cursor position instead, dividing the active leaf into four triangles about its center.
 
-New splits start at an equal 50/50 proportion. The engine clamps split ratios to the 10-90% range.
+The proportion of each split is controlled by `dwindle_default_split_ratio` (default `1.0`, which gives an even 50/50 split). When `dwindle_split_bias` is enabled, the ratio is flipped for windows placed in the first (top/left) half so the newly opened window always gets the larger share.
+
+### Dwindle configuration options
+
+These options go in the `layout` table of your config:
+
+```lua
+layout = {
+    default_column_display = "dwindle",
+    dwindle_windows_per_column = 8,
+
+    -- Split ratio (default 1.0 = even 50/50 split).
+    -- Values below 1.0 give more space to the first (focused) window;
+    -- values above 1.0 give more space to the newly opened window.
+    dwindle_default_split_ratio = 1.0,
+
+    -- Favor the newly opened window when splitting (default false).
+    -- When enabled, the ratio is flipped for windows placed in the first
+    -- (top/left) half so the new window always gets the larger share.
+    dwindle_split_bias = false,
+
+    -- Where to place new windows (default "auto").
+    -- "auto" picks the placement by the active leaf's aspect ratio.
+    -- "first" always places the new window in the top/left half.
+    -- "second" always places the new window in the bottom/right half.
+    dwindle_force_split = "auto",
+
+    -- Preserve each container's split orientation once chosen (default true).
+    dwindle_preserve_split = true,
+
+    -- Multiplier for the aspect-ratio threshold that decides left/right vs
+    -- top/bottom splitting (default 1.0). Increase to prefer side-by-side
+    -- splitting; decrease to prefer stacking.
+    dwindle_split_width_multiplier = 1.0,
+
+    -- Choose the split direction by cursor position (default false).
+    -- When enabled, the split follows the mouse pointer instead of the
+    -- aspect ratio.
+    dwindle_smart_split = false,
+
+    -- Keep a preselected direction active for all subsequent windows until
+    -- reset (default false). When enabled, the preselect set via keybind
+    -- or IPC persists across window opens instead of being consumed.
+    dwindle_permanent_direction_override = false,
+}
+```
 
 ### Dwindle actions
 

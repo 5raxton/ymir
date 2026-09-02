@@ -14,6 +14,14 @@ return {
         default_column_display = "dwindle",
         background_color = "#003300",
 
+        dwindle_default_split_ratio = 1.0,
+        dwindle_split_bias = false,
+        dwindle_force_split = "auto",
+        dwindle_preserve_split = true,
+        dwindle_split_width_multiplier = 1.0,
+        dwindle_smart_split = false,
+        dwindle_permanent_direction_override = false,
+
         preset_column_widths = {
             { proportion = 0.33333 },
             { proportion = 0.5 },
@@ -171,6 +179,24 @@ return {
     layout = {
         -- Make all new columns scrollable by default.
         default_column_display = "normal",
+    },
+}
+```
+
+### Dwindle options
+
+These options control dwindle-specific behavior. See the [Dwindle](./Configuration:-Dwindle.md) page for full details.
+
+```lua
+return {
+    layout = {
+        dwindle_default_split_ratio = 1.0,
+        dwindle_split_bias = false,
+        dwindle_force_split = "auto",
+        dwindle_preserve_split = true,
+        dwindle_split_width_multiplier = 1.0,
+        dwindle_smart_split = false,
+        dwindle_permanent_direction_override = false,
     },
 }
 ```

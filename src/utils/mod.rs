@@ -202,7 +202,9 @@ pub fn floor_logical_in_physical_max1(scale: f64, logical: f64) -> f64 {
 pub fn output_size(output: &Output) -> Size<f64, Logical> {
     let output_scale = output.current_scale().fractional_scale();
     let output_transform = output.current_transform();
-    let output_mode = output.current_mode().unwrap();
+    let Some(output_mode) = output.current_mode() else {
+        return Size::from((1., 1.));
+    };
     let logical_size = output_mode.size.to_f64().to_logical(output_scale);
     output_transform.transform_size(logical_size)
 }

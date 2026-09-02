@@ -202,11 +202,16 @@ impl Animation {
         deceleration_rate: f64,
         threshold: f64,
     ) -> Self {
+        // deceleration_rate must be > 1 for ln() to be positive.
+        let deceleration_rate = deceleration_rate.max(1.001);
+
         let duration_s = if initial_velocity == 0. {
             0.
         } else {
             let coeff = 1000. * deceleration_rate.ln();
-            (-coeff * threshold / initial_velocity.abs()).ln() / coeff
+            let raw = (-coeff * threshold / initial_velocity.abs()).ln() / coeff;
+            // Guard against NaN from degenerate inputs.
+            if !raw.is_finite() { 0. } else { raw }
         };
         let duration = Duration::from_secs_f64(duration_s);
 

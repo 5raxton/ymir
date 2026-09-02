@@ -203,7 +203,11 @@ impl Blur {
         );
 
         renderer.with_profiled_context(gpu_span_location!("Blur::render"), |gl| unsafe {
-            while gl.GetError() != ffi::NO_ERROR {}
+            for _ in 0..16 {
+                if gl.GetError() == ffi::NO_ERROR {
+                    break;
+                }
+            }
 
             gl.Disable(ffi::BLEND);
             gl.Disable(ffi::SCISSOR_TEST);

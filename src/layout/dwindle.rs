@@ -120,8 +120,8 @@ pub enum Node<T> {
 }
 
 /// Node ratio: visual fraction of the box given to the `First` child is `ratio / 2`, so `1.0`
-/// is an even split. Ratios above `1.0` shrink the `First` child in favour of `Second`, mirroring
-/// Hyprland's dwindle `splitRatio`.
+/// is an even split. Ratios above `1.0` grow the `First` child at the expense of `Second`
+/// (mirroring Hyprland's dwindle `splitRatio`), so a ratio of `0.5` and `1.5` are mirror images.
 pub const DEFAULT_RATIO: f64 = 1.0;
 
 /// Minimum ratio enforced when adjusting a split's ratio interactively.
@@ -919,6 +919,17 @@ fn smart_split_side(
     let center_y = region.loc.y + region.size.h / 2.;
     let dx = cursor.x - center_x;
     let dy = cursor.y - center_y;
+    // The cursor exactly over the region's center has no well-defined half; fall back to the
+    // aspect-ratio default (a tall region splits top/bottom, a wide one side-by-side), placing the
+    // new window in the `Second` (bottom/right) half as Hyprland's `Auto` placement does.
+    if dx == 0. && dy == 0. {
+        return if region.size.h > region.size.w {
+            SplitSide::Bottom
+        } else {
+            SplitSide::Right
+        };
+    }
+
     let proportions = if region.size.w == 0. {
         1.
     } else {
@@ -2638,6 +2649,12 @@ mod tests {
             assert_eq!(
                 smart_split_side(wide, Point::from((50., 10.))),
                 SplitSide::Top
+            );
+            // Exactly at the center has no well-defined half; falls back to the aspect-ratio
+            // default for a wide region: right-side placement.
+            assert_eq!(
+                smart_split_side(wide, Point::from((50., 25.))),
+                SplitSide::Right
             );
         }
 

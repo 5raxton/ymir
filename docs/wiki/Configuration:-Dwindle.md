@@ -70,7 +70,7 @@ The split direction and placement are controlled by several config options:
 2. Otherwise, the direction follows the current region's shape: wide regions split side-by-side (new window to the right), while tall regions stack (new window at the bottom). The threshold between wide and tall is controlled by `dwindle_split_width_multiplier`.
 3. If `dwindle_smart_split` is enabled, the split direction follows the cursor position instead, dividing the active leaf into four triangles about its center.
 
-The proportion of each split is controlled by `dwindle_default_split_ratio` (default `1.0`, which gives an even 50/50 split). When `dwindle_split_bias` is enabled, the ratio is flipped for windows placed in the first (top/left) half so the newly opened window always gets the larger share.
+The proportion of each split is controlled by `dwindle_default_split_ratio` (default `1.0`, which gives an even 50/50 split). By default the ratio applies to the top/left (focused) half, so values above `1.0` give the focused window more space. Enabling `dwindle_split_bias` flips the ratio (`2 - ratio`) for windows placed in the first (top/left) half so the ratio instead applies to the newly opened window, whichever half it lands in (a no-op at the default `1.0`).
 
 ### Dwindle configuration options
 
@@ -82,20 +82,25 @@ layout = {
     dwindle_windows_per_column = 8,
 
     -- Split ratio (default 1.0 = even 50/50 split).
-    -- Values below 1.0 give more space to the first (focused) window;
-    -- values above 1.0 give more space to the newly opened window.
+    -- The ratio is split/2 of the region given to the first (top/left, i.e. the
+    -- focused) half: values below 1.0 give more space to the newly opened
+    -- window (placed in the bottom/right half); values above 1.0 give more
+    -- space to the focused window.
     dwindle_default_split_ratio = 1.0,
 
     -- Favor the newly opened window when splitting (default false).
-    -- When enabled, the ratio is flipped for windows placed in the first
-    -- (top/left) half so the new window always gets the larger share.
+    -- This mirrors Hyprland's split_bias: without it, the split ratio applies
+    -- to the top/left (focused) half; with it, the ratio is flipped
+    -- (2 - ratio) for windows placed in the first (top/left) half so the
+    -- ratio instead applies to the newly opened window, whichever half it
+    -- lands in. With the default 1.0 ratio (50/50) this has no visible effect.
     dwindle_split_bias = false,
 
-    -- Where to place new windows (default "auto").
-    -- "auto" picks the placement by the active leaf's aspect ratio.
-    -- "first" always places the new window in the top/left half.
-    -- "second" always places the new window in the bottom/right half.
-    dwindle_force_split = "auto",
+    -- Where to place new windows (default 0 = auto).
+    -- 0 ("auto") picks the placement by the active leaf's aspect ratio.
+    -- 1 ("first") always places the new window in the top/left half.
+    -- 2 ("second") always places the new window in the bottom/right half.
+    dwindle_force_split = 0,
 
     -- Preserve each container's split orientation once chosen (default true).
     dwindle_preserve_split = true,

@@ -32,8 +32,9 @@ pub struct Layout {
     /// Multiplier used when deciding whether to split left/right vs top/bottom by aspect ratio
     /// (Hyprland's `split_width_multiplier`). Larger values favor top/bottom splits.
     pub dwindle_split_width_multiplier: f64,
-    /// Default dwindle split resource: 1.0 is an even split (Hyprland's `default_split_ratio`,
-    /// range `[0.1, 1.9]`; values above 1.0 grow the second window's share).
+    /// Default dwindle split ratio: 1.0 is an even split (Hyprland's `default_split_ratio`, range
+    /// `[0.1, 1.9]`; the ratio is split/2 of the region given to the first, top/left half, so
+    /// values above 1.0 grow the first window's share).
     pub dwindle_default_split_ratio: f64,
     /// Use cursor position to pick the split direction inside a dwindle column (Hyprland's
     /// `smart_split`).

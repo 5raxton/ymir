@@ -16,7 +16,7 @@ return {
 
         dwindle_default_split_ratio = 1.0,
         dwindle_split_bias = false,
-        dwindle_force_split = "auto",
+        dwindle_force_split = 0,
         dwindle_preserve_split = true,
         dwindle_split_width_multiplier = 1.0,
         dwindle_smart_split = false,
@@ -192,7 +192,7 @@ return {
     layout = {
         dwindle_default_split_ratio = 1.0,
         dwindle_split_bias = false,
-        dwindle_force_split = "auto",
+        dwindle_force_split = 0,
         dwindle_preserve_split = true,
         dwindle_split_width_multiplier = 1.0,
         dwindle_smart_split = false,

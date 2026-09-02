@@ -989,6 +989,7 @@ impl<W: LayoutElement> Layout<W> {
         is_full_width: bool,
         is_floating: bool,
         activate: ActivateWindow,
+        cursor: Option<Point<f64, Logical>>,
     ) -> Option<&Output> {
         let scrolling_height = height.map(SizeChange::from);
         let id = window.id().clone();
@@ -1065,6 +1066,7 @@ impl<W: LayoutElement> Layout<W> {
                     scrolling_width,
                     is_full_width,
                     is_floating,
+                    cursor,
                 );
 
                 if activate.map_smart(|| false) {
@@ -1148,6 +1150,7 @@ impl<W: LayoutElement> Layout<W> {
                     is_full_width,
                     is_floating,
                     None,
+                    cursor,
                 );
 
                 // Set the default height for scrolling windows.
@@ -3504,6 +3507,7 @@ impl<W: LayoutElement> Layout<W> {
                 removed.is_full_width,
                 removed.is_floating,
                 None,
+                None,
             );
             if activate.map_smart(|| false) {
                 *active_monitor_idx = new_idx;
@@ -4378,6 +4382,7 @@ impl<W: LayoutElement> Layout<W> {
                             move_.is_full_width,
                             false,
                             None,
+                            None,
                         );
                     }
                     InsertPosition::InColumn(column_idx, tile_idx) => {
@@ -4388,6 +4393,7 @@ impl<W: LayoutElement> Layout<W> {
                             move_.tile,
                             true,
                             allow_to_activate_workspace,
+                            None,
                         );
                     }
                     InsertPosition::Floating => {
@@ -4433,6 +4439,7 @@ impl<W: LayoutElement> Layout<W> {
                             move_.is_full_width,
                             true,
                             None,
+                            None,
                         );
                     }
                 }
@@ -4474,6 +4481,7 @@ impl<W: LayoutElement> Layout<W> {
                     move_.width,
                     move_.is_full_width,
                     move_.is_floating,
+                    None,
                     None,
                 );
             }

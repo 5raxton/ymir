@@ -527,6 +527,7 @@ impl<W: LayoutElement> Monitor<W> {
         width: ColumnWidth,
         is_full_width: bool,
         is_floating: bool,
+        cursor: Option<Point<f64, Logical>>,
     ) {
         // Currently, everything a workspace sets on a Tile is the same across all workspaces of a
         // monitor. So we can use any workspace, not necessarily the exact target workspace.
@@ -541,6 +542,7 @@ impl<W: LayoutElement> Monitor<W> {
             is_full_width,
             is_floating,
             None,
+            cursor,
         );
     }
 
@@ -585,6 +587,7 @@ impl<W: LayoutElement> Monitor<W> {
         is_full_width: bool,
         is_floating: bool,
         anim: Option<ymir_config::Animation>,
+        cursor: Option<Point<f64, Logical>>,
     ) {
         let (mut workspace_idx, target) = self.resolve_add_window_target(target);
 
@@ -598,6 +601,7 @@ impl<W: LayoutElement> Monitor<W> {
             is_full_width,
             is_floating,
             anim,
+            cursor,
         );
 
         // After adding a new window, workspace becomes this output's own.
@@ -629,10 +633,11 @@ impl<W: LayoutElement> Monitor<W> {
         activate: bool,
         // FIXME: Refactor ActivateWindow enum to make this better.
         allow_to_activate_workspace: bool,
+        cursor: Option<Point<f64, Logical>>,
     ) {
         let workspace = &mut self.workspaces[workspace_idx];
 
-        workspace.add_tile_to_column(column_idx, tile_idx, tile, activate);
+        workspace.add_tile_to_column(column_idx, tile_idx, tile, activate, cursor);
 
         // After adding a new window, workspace becomes this output's own.
         if workspace.name().is_none() {
@@ -881,6 +886,7 @@ impl<W: LayoutElement> Monitor<W> {
             removed.is_full_width,
             removed.is_floating,
             Some(config),
+            None,
         );
 
         if self.workspace_switch.is_none() {

@@ -210,6 +210,16 @@ impl CompositorHandler for State {
                     } else {
                         AddWindowTarget::Auto
                     };
+                    // For dwindle smart_split, capture the cursor position within the output that
+                    // a newly spawned window will open into, so the tree can split toward the
+                    // pointer.
+                    let cursor = self
+                        .ymir
+                        .seat
+                        .get_pointer()
+                        .map(|p| p.current_location())
+                        .and_then(|pos| self.ymir.output_under(pos).map(|(_, p)| p));
+
                     let output = self.ymir.layout.add_window(
                         mapped,
                         target,
@@ -218,6 +228,7 @@ impl CompositorHandler for State {
                         is_full_width,
                         is_floating,
                         activate,
+                        cursor,
                     );
                     let output = output.cloned();
 

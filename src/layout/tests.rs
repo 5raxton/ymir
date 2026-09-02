@@ -911,6 +911,7 @@ impl Op {
                     false,
                     is_floating,
                     ActivateWindow::default(),
+                    None,
                 );
             }
             Op::AddWindowNextTo {
@@ -980,6 +981,7 @@ impl Op {
                     false,
                     is_floating,
                     ActivateWindow::default(),
+                    None,
                 );
             }
             Op::AddWindowToNamedWorkspace {
@@ -1054,6 +1056,7 @@ impl Op {
                     false,
                     is_floating,
                     ActivateWindow::default(),
+                    None,
                 );
             }
             Op::CloseWindow(id) => {
@@ -2829,6 +2832,7 @@ fn numeric_workspace_tags_apply_layout_to_default_workspaces() {
         false,
         false,
         ActivateWindow::default(),
+        None,
     );
     layout.add_window(
         TestWindow::new(TestWindowParams::new(1)),
@@ -2838,6 +2842,7 @@ fn numeric_workspace_tags_apply_layout_to_default_workspaces() {
         false,
         false,
         ActivateWindow::default(),
+        None,
     );
 
     let requested: Vec<Size<i32, Logical>> = layout
@@ -5449,6 +5454,7 @@ fn scrolling_windows_spawn_at_default_width_not_full_width() {
             false,
             false,
             ActivateWindow::default(),
+            None,
         );
         check_ops_on_layout(&mut layout, [Op::CompleteAnimations]);
     }

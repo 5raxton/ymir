@@ -951,6 +951,7 @@ impl<W: LayoutElement> ScrollingSpace<W> {
         tile_idx: Option<usize>,
         tile: Tile<W>,
         activate: bool,
+        cursor: Option<Point<f64, Logical>>,
     ) -> usize {
         let prev_next_x = self.column_x(col_idx + 1);
 
@@ -969,7 +970,7 @@ impl<W: LayoutElement> ScrollingSpace<W> {
                     .clone(),
             )
         };
-        let new_tile_idx = target_column.add_tile_at(tile_idx, tile);
+        let new_tile_idx = target_column.add_tile_at(tile_idx, tile, cursor);
         self.data[col_idx].update(target_column);
 
         if is_dwindle {
@@ -2078,7 +2079,7 @@ impl<W: LayoutElement> ScrollingSpace<W> {
                 Some(self.options.animations.window_movement.0),
             );
             let new_tile_idx =
-                self.add_tile_to_column(target_column_idx, None, tile, source_tile_was_active);
+                self.add_tile_to_column(target_column_idx, None, tile, source_tile_was_active, None);
 
             let target_column = &mut self.columns[target_column_idx];
             offset -= target_column.render_offset();
@@ -2182,7 +2183,7 @@ impl<W: LayoutElement> ScrollingSpace<W> {
                 Transaction::new(),
                 Some(self.options.animations.window_movement.0),
             );
-            self.add_tile_to_column(target_column_idx, None, tile, source_tile_was_active);
+            self.add_tile_to_column(target_column_idx, None, tile, source_tile_was_active, None);
 
             let target_column = &mut self.columns[target_column_idx];
             offset += prev_off - target_column.tile_offset(target_column.tiles.len() - 1);
@@ -2239,7 +2240,7 @@ impl<W: LayoutElement> ScrollingSpace<W> {
         let prev_off = self.columns[source_column_idx].tile_offset(0);
 
         let removed = self.remove_tile_by_idx(source_column_idx, 0, Transaction::new(), None);
-        let new_tile_idx = self.add_tile_to_column(target_column_idx, None, removed.tile, false);
+        let new_tile_idx = self.add_tile_to_column(target_column_idx, None, removed.tile, false, None);
 
         let target_column = &mut self.columns[target_column_idx];
         offset += prev_off - target_column.tile_offset(new_tile_idx);
@@ -2382,6 +2383,7 @@ impl<W: LayoutElement> ScrollingSpace<W> {
                 Some(target_tile_idx),
                 source_removed.tile,
                 false,
+                None,
             );
 
             let RemovedTile {
@@ -2410,6 +2412,7 @@ impl<W: LayoutElement> ScrollingSpace<W> {
                     Some(source_tile_idx),
                     target_tile,
                     false,
+                    None,
                 );
             }
         }
@@ -2536,7 +2539,7 @@ impl<W: LayoutElement> ScrollingSpace<W> {
         incoming.reverse();
 
         for tile in incoming {
-            self.add_tile_to_column(0, None, tile, false);
+            self.add_tile_to_column(0, None, tile, false, None);
         }
 
         if let Some(id) = prev_active_id {
@@ -3243,7 +3246,7 @@ impl<W: LayoutElement> ScrollingSpace<W> {
             let src_idx = self.columns.iter().position(|col| col.id == source_id);
             match src_idx {
                 Some(src_idx) => {
-                    self.add_tile_to_column(src_idx, None, tile, true);
+                    self.add_tile_to_column(src_idx, None, tile, true, None);
                     self.activate_column(src_idx);
                 }
                 None => {
@@ -4453,7 +4456,7 @@ impl<W: LayoutElement> Column<W> {
 
         let pending_sizing_mode = tile.window().pending_sizing_mode();
 
-        rv.add_tile_at(0, tile);
+        rv.add_tile_at(0, tile, None);
 
         match pending_sizing_mode {
             SizingMode::Normal => (),
@@ -4803,7 +4806,12 @@ impl<W: LayoutElement> Column<W> {
         self.activate_idx(idx);
     }
 
-    fn add_tile_at(&mut self, idx: usize, mut tile: Tile<W>) -> usize {
+    fn add_tile_at(
+        &mut self,
+        idx: usize,
+        mut tile: Tile<W>,
+        cursor: Option<Point<f64, Logical>>,
+    ) -> usize {
         tile.update_config(self.view_size, self.scale, self.options.clone());
 
         // Inserting a tile pushes down all tiles below it, but also in always-centering mode it
@@ -4814,7 +4822,7 @@ impl<W: LayoutElement> Column<W> {
         }
 
         if self.is_dwindle() {
-            return self.add_tile_to_dwindle(tile, prev_offsets);
+            return self.add_tile_to_dwindle(tile, prev_offsets, cursor);
         }
 
         self.is_pending_fullscreen = false;
@@ -4842,6 +4850,7 @@ impl<W: LayoutElement> Column<W> {
         &mut self,
         tile: Tile<W>,
         prev_offsets: Vec<Point<f64, Logical>>,
+        cursor: Option<Point<f64, Logical>>,
     ) -> usize {
         let old_len = self.tiles.len();
 
@@ -4851,7 +4860,11 @@ impl<W: LayoutElement> Column<W> {
 
         self.data.push(TileData::new(&tile, WindowHeight::auto_1()));
         self.tiles.push(tile);
-        self.dwindle_tree.open_new(region);
+        if let Some(cursor) = cursor {
+            self.dwindle_tree.open_new_at(region, cursor);
+        } else {
+            self.dwindle_tree.open_new(region);
+        }
         let order = self.reorder_tiles_by_dfs();
 
         // open_new() made the new leaf active; its value is now its DFS position.

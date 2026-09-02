@@ -1185,6 +1185,13 @@ mod tests {
                 empty_workspace_above_first: false,
                 default_column_display: Normal,
                 dwindle_windows_per_column: 4,
+                dwindle_force_split: Auto,
+                dwindle_split_bias: false,
+                dwindle_preserve_split: true,
+                dwindle_split_width_multiplier: 1.0,
+                dwindle_default_split_ratio: 1.0,
+                dwindle_smart_split: false,
+                dwindle_permanent_direction_override: false,
                 gaps: 8.0,
                 struts: Struts {
                     left: FloatOrInt(

@@ -66,7 +66,7 @@ impl Default for Layout {
             dwindle_windows_per_column: 8,
             dwindle_force_split: DwindleForceSplit::Auto,
             dwindle_split_bias: false,
-            dwindle_preserve_split: false,
+            dwindle_preserve_split: true,
             dwindle_split_width_multiplier: 1.,
             dwindle_default_split_ratio: 1.,
             dwindle_smart_split: false,

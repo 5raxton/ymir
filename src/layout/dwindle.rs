@@ -2558,4 +2558,103 @@ mod tests {
             }
         }
     }
+
+        #[test]
+        fn force_split_first_places_new_window_in_first_half() {
+            let mut tree = DwindleTree::single(1);
+            tree.set_options(DwindleOptions {
+                force_split: ForceSplit::First,
+                ..DwindleOptions::default()
+            });
+            tree.open_new(2, wide());
+            // Wide region would normally place the new window in the Right (Second) half, but
+            // ForceSplit::First overrides placement to the Left (First) half.
+            assert_eq!(tree.leaf(&LeafPath(vec![Child::First])), Some(&2));
+            assert_eq!(tree.leaf(&LeafPath(vec![Child::Second])), Some(&1));
+        }
+
+        #[test]
+        fn force_split_second_places_new_window_in_second_half() {
+            let mut tree = DwindleTree::single(1);
+            tree.set_options(DwindleOptions {
+                force_split: ForceSplit::Second,
+                ..DwindleOptions::default()
+            });
+            tree.open_new(2, wide());
+            assert_eq!(tree.leaf(&LeafPath(vec![Child::First])), Some(&1));
+            assert_eq!(tree.leaf(&LeafPath(vec![Child::Second])), Some(&2));
+        }
+
+        #[test]
+        fn split_bias_flips_default_ratio_for_first_child() {
+            // With split_bias on and a default ratio favouring Second (1.5), a window placed in the
+            // First half must be given the flipped ratio (2 - 1.5 = 0.5) so it gets the bigger share.
+            let mut tree = DwindleTree::single(1);
+            tree.set_options(DwindleOptions {
+                split_bias: true,
+                default_split_ratio: 1.5,
+                ..DwindleOptions::default()
+            });
+            tree.preselect(SplitSide::Left);
+            tree.open_new(2, square());
+            let Node::Split { ratio, .. } = walk(&tree, &[]) else {
+                panic!("expected a split");
+            };
+            assert_eq!(*ratio, 0.5);
+
+            // Without split_bias the default ratio is left untouched for a First placement.
+            let mut plain = DwindleTree::single(1);
+            plain.set_options(DwindleOptions {
+                split_bias: false,
+                default_split_ratio: 1.5,
+                ..DwindleOptions::default()
+            });
+            plain.preselect(SplitSide::Left);
+            plain.open_new(2, square());
+            let Node::Split { ratio, .. } = walk(&plain, &[]) else {
+                panic!("expected a split");
+            };
+            assert_eq!(*ratio, 1.5);
+        }
+
+        #[test]
+        fn smart_split_side_follows_cursor_around_center() {
+            let wide =
+                Rectangle::from_loc_and_size(Point::from((0., 0.)), Size::from((100., 50.)));
+            // Right half: |dx| small relative to the wide box.
+            assert_eq!(
+                smart_split_side(wide, Point::from((80., 25.))),
+                SplitSide::Right
+            );
+            assert_eq!(
+                smart_split_side(wide, Point::from((20., 25.))),
+                SplitSide::Left
+            );
+            // Center column: tall enough to switch to top/bottom.
+            assert_eq!(
+                smart_split_side(wide, Point::from((50., 40.))),
+                SplitSide::Bottom
+            );
+            assert_eq!(
+                smart_split_side(wide, Point::from((50., 10.))),
+                SplitSide::Top
+            );
+        }
+
+        #[test]
+        fn permanent_direction_override_keeps_preselection() {
+            let mut tree = DwindleTree::single(1);
+            tree.set_options(DwindleOptions {
+                permanent_direction_override: true,
+                ..DwindleOptions::default()
+            });
+            tree.preselect(SplitSide::Left);
+            tree.open_new(2, square());
+            // The preselection is NOT consumed while permanent_direction_override is set.
+            assert_eq!(tree.pending_preselection(), Some(SplitSide::Left));
+            tree.open_new(3, square());
+            // Still placing windows in the First (left) half.
+            assert_eq!(tree.leaf(&LeafPath(vec![Child::First, Child::First])), Some(&3));
+            assert_eq!(tree.pending_preselection(), Some(SplitSide::Left));
+        }
 }

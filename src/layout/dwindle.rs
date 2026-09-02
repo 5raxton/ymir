@@ -1389,6 +1389,226 @@ impl SpatialDir {
     }
 }
 
+/// High-level index-based façade over a [`DwindleTree`] whose leaf values are tile indices.
+///
+/// This is the "adapter" that scrolling layout code holds. It hides the tree's internal
+/// path vocabulary (`LeafPath`, `Child`) behind operations that speak in tile indices, so the
+/// scrollable-layout module never touches the recursive tree representation directly. The leaf at
+/// position `i` always holds value `i` (the "value == position" invariant), re-established
+/// whenever a mutation rebalances the tree.
+#[derive(Debug)]
+pub struct DwindleColumn {
+    tree: DwindleTree<usize>,
+}
+
+impl DwindleColumn {
+    /// Creates an empty column.
+    pub fn new() -> Self {
+        Self {
+            tree: DwindleTree::new(),
+        }
+    }
+
+    /// Creates a column with a single (active) leaf holding tile index `0`.
+    pub fn single() -> Self {
+        Self {
+            tree: DwindleTree::single(0),
+        }
+    }
+
+    /// Returns whether the column has no leaves.
+    pub fn is_empty(&self) -> bool {
+        self.tree.is_empty()
+    }
+
+    /// Returns the number of leaves (windows) in the column.
+    pub fn len(&self) -> usize {
+        self.tree.len()
+    }
+
+    /// Returns the value (tile index) currently focused by the tree, if any.
+    pub fn active_value(&self) -> Option<usize> {
+        self.tree.active_value().copied()
+    }
+
+    /// Opens a new window (leaf) adjacent to the focused leaf, using the pending preselection (if
+    /// any) or the focused leaf's region aspect ratio. The new leaf becomes active.
+    ///
+    /// The new leaf is temporarily valued `len`, then `reorder` re-establishes value == position.
+    /// Returns nothing; callers push the tile first, then call [`Self::reorder`].
+    pub fn open_new(&mut self, region: Size<f64, Logical>) {
+        self.tree.open_new(self.tree.len(), region);
+    }
+
+    /// Like [`Self::open_new`], but forces the split side instead of using any preselection.
+    pub fn open_new_on(&mut self, side: SplitSide, region: Size<f64, Logical>) {
+        self.tree.open_new_on(self.tree.len(), side, region);
+    }
+
+    /// Sets a one-shot directional override for the next [`Self::open_new`].
+    pub fn preselect(&mut self, side: SplitSide) {
+        self.tree.preselect(side);
+    }
+
+    /// Removes (expels) the leaf at `tile_idx`, collapsing its vacated container so the sibling
+    /// subtree takes over the whole region.
+    ///
+    /// Returns the removed tile index, or `None` if `tile_idx` was out of range. Afterwards the
+    /// remaining leaves are renumbered so value == position.
+    pub fn expel_at(&mut self, tile_idx: usize) -> Option<usize> {
+        let paths = self.tree.leaf_paths();
+        let path = paths.get(tile_idx)?.clone();
+        let removed = self.tree.expel(&path)?;
+        self.tree.reindex(|value, i| *value = i);
+        Some(removed)
+    }
+
+    /// Sets the active leaf to the leaf at `tile_idx` (in depth-first order).
+    pub fn set_active_at(&mut self, tile_idx: usize) -> bool {
+        let paths = self.tree.leaf_paths();
+        let Some(path) = paths.get(tile_idx) else {
+            return false;
+        };
+        self.tree.set_active(path)
+    }
+
+    /// Returns the leaf values (tile indices) in depth-first order, i.e. the permutation of
+    /// `0..len` that maps pre-sort positions to the reordered tile list.
+    pub fn dfs_order(&self) -> Vec<usize> {
+        self.tree.leaves().copied().collect()
+    }
+
+    /// Re-numbers every leaf so that value == position (depth-first order). Use after any tree
+    /// mutation to restore the invariant.
+    pub fn reindex(&mut self) {
+        self.tree.reindex(|value, i| *value = i);
+    }
+
+    /// Returns the leaf rectangles partitioning `content`, keyed by leaf value (tile index), in
+    /// depth-first order.
+    pub fn leaf_rects(
+        &self,
+        content: Rectangle<f64, Logical>,
+        gaps: f64,
+    ) -> Vec<(usize, Rectangle<f64, Logical>)> {
+        self.tree
+            .rects_by_value(content, gaps)
+            .into_iter()
+            .map(|(v, rect)| (*v, rect))
+            .collect()
+    }
+
+    /// Returns the rectangle occupied by the leaf at `tile_idx`, if any.
+    pub fn leaf_rect(
+        &self,
+        tile_idx: usize,
+        content: Rectangle<f64, Logical>,
+        gaps: f64,
+    ) -> Option<Rectangle<f64, Logical>> {
+        self.leaf_rects(content, gaps)
+            .into_iter()
+            .find(|(v, _)| *v == tile_idx)
+            .map(|(_, rect)| rect)
+    }
+
+    /// Finds the tile index spatially adjacent to the leaf at `tile_idx` in `dir`, if any.
+    ///
+    /// This is the index-based twin of [`DwindleTree::spatial_neighbor`]; it resolves the neighbor
+    /// path and reports the tile index that occupies it.
+    pub fn spatial_neighbor_idx(
+        &self,
+        tile_idx: usize,
+        dir: SpatialDir,
+        content: Rectangle<f64, Logical>,
+        gaps: f64,
+    ) -> Option<usize> {
+        let paths = self.tree.leaf_paths();
+        let from = paths.get(tile_idx)?;
+        let neighbor = self.tree.spatial_neighbor(from, dir, content, gaps)?;
+        paths.iter().position(|p| p == &neighbor)
+    }
+
+    /// Returns the tile index whose leaf rectangle contains `pos`, falling back to the leaf whose
+    /// center is nearest to `pos` if the point sits in a seam between leaves.
+    pub fn leaf_idx_at_point(
+        &self,
+        pos: Point<f64, Logical>,
+        content: Rectangle<f64, Logical>,
+        gaps: f64,
+    ) -> Option<usize> {
+        let rects = self.leaf_rects(content, gaps);
+        if let Some((v, _)) = rects.iter().find(|(_, r)| r.contains(pos)) {
+            return Some(*v);
+        }
+        rects
+            .iter()
+            .map(|(v, r)| {
+                let center = Point::<f64, Logical>::from((r.loc.x + r.size.w / 2., r.loc.y + r.size.h / 2.));
+                let d = ((pos.x - center.x).powi(2) + (pos.y - center.y).powi(2)).sqrt();
+                (d, *v)
+            })
+            .min_by(|(a, _), (b, _)| a.total_cmp(b))
+            .map(|(_, v)| v)
+    }
+
+    /// Adjusts the ratio of the split whose interior edge lies on the `edge` of the leaf at
+    /// `tile_idx`, following the pointer by `delta_px`. Returns whether a divider was moved.
+    pub fn adjust_ratio_for_edge(
+        &mut self,
+        tile_idx: usize,
+        edge: ResizeEdge,
+        delta_px: f64,
+        usable_w: f64,
+        usable_h: f64,
+        gaps: f64,
+        min_w: &impl Fn(&usize) -> f64,
+        min_h: &impl Fn(&usize) -> f64,
+    ) -> bool {
+        let paths = self.tree.leaf_paths();
+        let Some(path) = paths.get(tile_idx) else {
+            return false;
+        };
+        self.tree.adjust_ratio_for_edge(
+            path, edge, delta_px, usable_w, usable_h, gaps, min_w, min_h,
+        )
+    }
+
+    /// Flips the split orientation of the container directly holding the leaf at `tile_idx`.
+    /// Returns whether a split was flipped.
+    pub fn toggle_split_at(&mut self, tile_idx: usize) -> bool {
+        let paths = self.tree.leaf_paths();
+        let Some(path) = paths.get(tile_idx) else {
+            return false;
+        };
+        self.tree.toggle_split(path)
+    }
+
+    /// Moves the leaf (window) at `tile_idx` to the head of the tree, keeping focus on it. Returns
+    /// whether a move took place. Afterwards the leaves are renumbered so value == position.
+    pub fn promote_at(&mut self, tile_idx: usize) -> bool {
+        let paths = self.tree.leaf_paths();
+        let Some(path) = paths.get(tile_idx) else {
+            return false;
+        };
+        if self.tree.promote(path) {
+            // Keep the focus on the moved window, which now sits in the first leaf.
+            if let Some(head) = self.tree.first_leaf_path() {
+                self.tree.set_active(&head);
+            }
+            self.tree.reindex(|value, i| *value = i);
+            true
+        } else {
+            false
+        }
+    }
+}
+
+impl Default for DwindleColumn {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -11,7 +11,7 @@ use ymir_config::{CenterFocusedColumn, PresetSize, Struts};
 use ymir_ipc::{ColumnDisplay, SizeChange, WindowLayout};
 
 use super::closing_window::{ClosingWindow, ClosingWindowRenderElement};
-use super::dwindle::{DwindleTree, LeafPath, SpatialDir, SplitSide};
+use super::dwindle::{DwindleColumn, SpatialDir, SplitSide};
 use super::monitor::InsertPosition;
 use super::tile::{Tile, TileRenderElement, TileRenderSnapshot};
 use super::workspace::{InteractiveResize, ResolvedSize};
@@ -212,7 +212,7 @@ pub struct Column<W: LayoutElement> {
     ///
     /// Leaf values are tile indices (into [`Self::tiles`]). Whenever the tree mutates,
     /// [`Self::reorder_tiles_by_dfs`] re-sorts `tiles`/`data` so that value == position.
-    dwindle_tree: DwindleTree<usize>,
+    dwindle_tree: DwindleColumn,
 
     /// Whether this column was born directly into dwindle display mode (per the layout default),
     /// so its width never came from a real scrolling state.
@@ -1232,15 +1232,10 @@ impl<W: LayoutElement> ScrollingSpace<W> {
         let prev_offsets: Vec<Point<f64, Logical>> =
             column.tile_offsets().take(column.tiles.len()).collect();
 
-        let leaf_paths = column.dwindle_tree.leaf_paths();
-        let path = leaf_paths
-            .get(tile_idx)
-            .expect("dwindle tree and tiles are out of sync")
-            .clone();
         let removed_value = column
             .dwindle_tree
-            .expel(&path)
-            .expect("failed to expel a leaf path returned by leaf_paths()");
+            .expel_at(tile_idx)
+            .expect("dwindle tree and tiles are out of sync");
         debug_assert_eq!(removed_value, tile_idx);
 
         let tile = column.tiles.remove(tile_idx);
@@ -1258,7 +1253,6 @@ impl<W: LayoutElement> ScrollingSpace<W> {
         // have moved its path so the tree's `active` no longer resolves. Restore both invariants:
         // renumber the leaves in DFS order so that value == position, then point the tree's active
         // leaf at the window that keeps focus (mirroring the non-dwindle focus-after-delete logic).
-        column.dwindle_tree.reindex(|value, i| *value = i);
         let post_len = column.tiles.len();
         if tile_idx < column.active_tile_idx {
             // A tile above the focused one was removed; the focused tile keeps focus.
@@ -1271,12 +1265,9 @@ impl<W: LayoutElement> ScrollingSpace<W> {
                 column.active_tile_idx = tile_idx;
             }
         }
-        let paths = column.dwindle_tree.leaf_paths();
-        column.dwindle_tree.set_active(
-            paths
-                .get(column.active_tile_idx)
-                .expect("dwindle tree and tiles are out of sync"),
-        );
+        column
+            .dwindle_tree
+            .set_active_at(column.active_tile_idx);
         column.tiles[column.active_tile_idx].ensure_alpha_animates_to_1();
         column.debug_assert_dwindle_invariant();
 
@@ -2741,7 +2732,7 @@ impl<W: LayoutElement> ScrollingSpace<W> {
         self.columns
             .iter()
             .filter(|col| col.is_dwindle())
-            .all(|col| col.dwindle_tree.leaf_paths().len() == col.tiles.len())
+            .all(|col| col.dwindle_tree.len() == col.tiles.len())
     }
 
     fn columns_mut(&mut self) -> impl Iterator<Item = (&mut Column<W>, f64)> + '_ {
@@ -4446,7 +4437,7 @@ impl<W: LayoutElement> Column<W> {
             is_pending_maximized: false,
             is_pending_fullscreen: false,
             display_mode,
-            dwindle_tree: DwindleTree::new(),
+            dwindle_tree: DwindleColumn::new(),
             born_into_dwindle,
             fullscreen_source_column: None,
             move_x_animation: None,
@@ -4796,13 +4787,7 @@ impl<W: LayoutElement> Column<W> {
         }
 
         if self.is_dwindle() {
-            let path = self
-                .dwindle_tree
-                .leaf_paths()
-                .get(idx)
-                .expect("activate_idx index is out of sync with the dwindle tree")
-                .clone();
-            self.dwindle_tree.set_active(&path);
+            self.dwindle_tree.set_active_at(idx);
         }
 
         self.active_tile_idx = idx;
@@ -4865,11 +4850,11 @@ impl<W: LayoutElement> Column<W> {
 
         self.data.push(TileData::new(&tile, WindowHeight::auto_1()));
         self.tiles.push(tile);
-        self.dwindle_tree.open_new(old_len, region);
+        self.dwindle_tree.open_new(region);
         let order = self.reorder_tiles_by_dfs();
 
         // open_new() made the new leaf active; its value is now its DFS position.
-        self.active_tile_idx = *self.dwindle_tree.active_value().unwrap();
+        self.active_tile_idx = self.dwindle_tree.active_value().unwrap();
         let new_tile_idx = self.active_tile_idx;
 
         self.update_tile_sizes(true);
@@ -4914,8 +4899,6 @@ impl<W: LayoutElement> Column<W> {
         let usable_w = content.size.w - gaps;
         let usable_h = content.size.h - gaps;
 
-        let path = self.dwindle_tree.leaf_paths()[tile_idx].clone();
-
         let min_sizes: Vec<Size<f64, Logical>> = self
             .tiles
             .iter()
@@ -4936,7 +4919,7 @@ impl<W: LayoutElement> Column<W> {
                 ResizeEdge::RIGHT
             };
             self.dwindle_tree.adjust_ratio_for_edge(
-                &path,
+                tile_idx,
                 edge,
                 delta.x,
                 usable_w.max(1.),
@@ -4954,7 +4937,7 @@ impl<W: LayoutElement> Column<W> {
                 ResizeEdge::BOTTOM
             };
             self.dwindle_tree.adjust_ratio_for_edge(
-                &path,
+                tile_idx,
                 edge,
                 delta.y,
                 usable_w.max(1.),
@@ -5359,19 +5342,16 @@ impl<W: LayoutElement> Column<W> {
             return false;
         }
 
-        let paths = self.dwindle_tree.leaf_paths();
-        let active = paths[self.active_tile_idx].clone();
         let gaps = self.options.layout.gaps;
-        let Some(neighbor) =
-            self.dwindle_tree
-                .spatial_neighbor(&active, dir, self.dwindle_content_rect(), gaps)
-        else {
+        let Some(neighbor) = self.dwindle_tree.spatial_neighbor_idx(
+            self.active_tile_idx,
+            dir,
+            self.dwindle_content_rect(),
+            gaps,
+        ) else {
             return false;
         };
-        let Some(idx) = paths.iter().position(|p| p == &neighbor) else {
-            return false;
-        };
-        self.activate_idx(idx)
+        self.activate_idx(neighbor)
     }
 
     fn focus_top(&mut self) {
@@ -5450,8 +5430,6 @@ impl<W: LayoutElement> Column<W> {
             return false;
         }
 
-        let paths = self.dwindle_tree.leaf_paths();
-        let active = paths[idx].clone();
         let gaps = self.options.layout.gaps;
         let content = self.dwindle_content_rect();
 
@@ -5464,7 +5442,7 @@ impl<W: LayoutElement> Column<W> {
         // point one pixel beyond the edge, which lands in the seam between windows.
         let Some(dest_neighbor) = self
             .dwindle_tree
-            .spatial_neighbor(&active, dir, content, gaps)
+            .spatial_neighbor_idx(idx, dir, content, gaps)
         else {
             // No window occupies that direction; nothing to swap with.
             return false;
@@ -5474,56 +5452,39 @@ impl<W: LayoutElement> Column<W> {
         // with that point rather than a point in the seam; after removal the leaf still covers it.
         let focal: Point<f64, Logical> = self
             .dwindle_tree
-            .leaf_rects(content, gaps)
-            .into_iter()
-            .find(|(p, _)| p == &dest_neighbor)
-            .map(|(_, r)| Point::from((r.loc.x + r.size.w / 2., r.loc.y + r.size.h / 2.)))
+            .leaf_rect(dest_neighbor, content, gaps)
+            .map(|r| {
+                Point::<f64, Logical>::from((r.loc.x + r.size.w / 2., r.loc.y + r.size.h / 2.))
+            })
             .unwrap_or_default();
 
         // Remove the focused window from the tree and from the tile list, collapsing its slot.
-        let _ = self.dwindle_tree.expel(&active);
+        let _ = self.dwindle_tree.expel_at(idx);
         let tile = self.tiles.remove(idx);
         self.data.remove(idx);
-        // The remaining leaf values are stale after expel; restore the value == position invariant.
-        self.dwindle_tree.reindex(|value, i| *value = i);
 
         // The neighbor may have moved to a different path after the expel rebalanced the tree;
         // locate it again by the point of its old center (any leaf sitting there is the one the
         // moved window should split).
-        let post_rects = self.dwindle_tree.leaf_rects(content, gaps);
-        let dest: Option<LeafPath> = post_rects
-            .iter()
-            .find(|(_, r)| r.contains(focal))
-            .map(|(p, _)| p)
-            .or_else(|| {
-                post_rects
-                    .iter()
-                    .map(|(p, r)| {
-                        let d = ((focal.x - (r.loc.x + r.size.w / 2.)).powi(2)
-                            + (focal.y - (r.loc.y + r.size.h / 2.)).powi(2))
-                        .sqrt();
-                        (d, p)
-                    })
-                    .min_by(|(a, _), (b, _)| a.total_cmp(b))
-                    .map(|(_, p)| p)
-            })
-            .cloned();
-
-        // Re-insert the moved window by splitting the destination leaf on the movement's side.
-        let side = dir.as_split_side();
-        let Some(dest) = dest else {
+        let Some(dest) = self
+            .dwindle_tree
+            .leaf_idx_at_point(focal, content, gaps)
+        else {
             // Cannot happen for len >= 2, but guard anyway.
             return false;
         };
-        self.dwindle_tree.set_active(&dest);
+
+        // Re-insert the moved window by splitting the destination leaf on the movement's side.
+        let side = dir.as_split_side();
+        self.dwindle_tree.set_active_at(dest);
         let post_len = self.tiles.len();
         self.data.push(TileData::new(&tile, WindowHeight::auto_1()));
         self.tiles.push(tile);
-        self.dwindle_tree.open_new_on(post_len, side, content.size);
+        self.dwindle_tree.open_new_on(side, content.size);
         let order = self.reorder_tiles_by_dfs();
 
         // open_new_on() made the new leaf active; follow the moved window (value == its DFS slot).
-        self.active_tile_idx = *self.dwindle_tree.active_value().unwrap();
+        self.active_tile_idx = self.dwindle_tree.active_value().unwrap();
 
         self.update_tile_sizes(true);
 
@@ -5880,7 +5841,7 @@ impl<W: LayoutElement> Column<W> {
             self.become_dwindle();
         } else if self.is_dwindle() && display != ColumnDisplay::Dwindle {
             // Leaving dwindle: the tree is dropped and normal geometry takes over.
-            self.dwindle_tree = DwindleTree::single(0);
+            self.dwindle_tree = DwindleColumn::single();
             // Dwindle made the column full-width; hand the width back to the stored value.
             self.is_full_width = false;
 
@@ -5938,20 +5899,16 @@ impl<W: LayoutElement> Column<W> {
     }
 
     fn become_dwindle(&mut self) {
-        let mut tree = DwindleTree::new();
-        for i in 0..self.tiles.len() {
-            tree.open_new_on(i, SplitSide::Bottom, Size::default());
+        let mut column = DwindleColumn::new();
+        for _ in 0..self.tiles.len() {
+            column.open_new_on(SplitSide::Bottom, Size::default());
         }
 
         // A bottom-up chain yields a right-leaning tree whose DFS order is insertion order, so
         // values already equal positions; make sure the focused window stays focused.
-        let active = self.active_tile_idx;
-        let paths = tree.leaf_paths();
-        if active < paths.len() {
-            tree.set_active(&paths[active]);
-        }
+        column.set_active_at(self.active_tile_idx);
 
-        self.dwindle_tree = tree;
+        self.dwindle_tree = column;
 
         // Dwindle columns span the whole work area, like a Hyprland workspace tree. The stored
         // width is kept so switching back to the scrollable layout restores it.
@@ -6169,7 +6126,7 @@ impl<W: LayoutElement> Column<W> {
     fn debug_assert_dwindle_invariant(&self) {
         if self.is_dwindle() {
             debug_assert_eq!(
-                self.dwindle_tree.leaf_paths().len(),
+                self.dwindle_tree.len(),
                 self.tiles.len(),
                 "dwindle tree and tiles are out of sync"
             );
@@ -6184,11 +6141,11 @@ impl<W: LayoutElement> Column<W> {
     /// `len - 1` being the last pre-sort entry). Callers use it to pair up pre-sort offsets with
     /// the tiles that moved to different positions.
     fn reorder_tiles_by_dfs(&mut self) -> Vec<usize> {
-        let order: Vec<usize> = self.dwindle_tree.leaves().copied().collect();
+        let order: Vec<usize> = self.dwindle_tree.dfs_order();
         debug_assert_eq!(order.len(), self.tiles.len());
         Self::apply_permutation(&mut self.tiles, &order);
         Self::apply_permutation(&mut self.data, &order);
-        self.dwindle_tree.reindex(|value, i| *value = i);
+        self.dwindle_tree.reindex();
         self.debug_assert_dwindle_invariant();
         order
     }
@@ -6200,12 +6157,7 @@ impl<W: LayoutElement> Column<W> {
             return;
         }
 
-        let paths = self.dwindle_tree.leaf_paths();
-        if self.active_tile_idx >= paths.len() {
-            return;
-        }
-
-        if self.dwindle_tree.toggle_split(&paths[self.active_tile_idx]) {
+        if self.dwindle_tree.toggle_split_at(self.active_tile_idx) {
             self.update_tile_sizes(true);
         }
         self.debug_assert_dwindle_invariant();
@@ -6217,13 +6169,9 @@ impl<W: LayoutElement> Column<W> {
             return;
         }
 
-        let paths = self.dwindle_tree.leaf_paths();
-        let path = paths[self.active_tile_idx].clone();
-        if self.dwindle_tree.promote(&path) {
-            // The focused window's value now sits in the first leaf; keep the focus on it.
-            self.dwindle_tree.set_active(&paths[0]);
+        if self.dwindle_tree.promote_at(self.active_tile_idx) {
             self.reorder_tiles_by_dfs();
-            self.active_tile_idx = *self.dwindle_tree.active_value().unwrap();
+            self.active_tile_idx = self.dwindle_tree.active_value().unwrap();
             self.update_tile_sizes(true);
         }
     }
@@ -6303,7 +6251,7 @@ impl<W: LayoutElement> Column<W> {
         if self.display_mode == ColumnDisplay::Dwindle {
             assert_eq!(self.dwindle_tree.len(), self.tiles.len());
             assert_eq!(
-                *self.dwindle_tree.active_value().unwrap(),
+                self.dwindle_tree.active_value().unwrap(),
                 self.active_tile_idx
             );
             return;

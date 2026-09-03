@@ -180,8 +180,6 @@ impl Default for DwindleOptions {
     }
 }
 
-/// Clamps a ratio into the allowed `[MIN_RATIO, MAX_RATIO]` range.
-
 impl<T> Node<T> {
     pub fn is_leaf(&self) -> bool {
         matches!(self, Self::Leaf(_))
@@ -1288,6 +1286,7 @@ fn adjust_ratio_impl<T>(node: &mut Node<T>, path: &[Child], delta: f64) -> bool 
     }
 }
 
+/// Clamps a ratio into the allowed `[MIN_RATIO, MAX_RATIO]` range.
 fn clamp_ratio(ratio: f64) -> f64 {
     ratio.clamp(MIN_RATIO, MAX_RATIO)
 }
@@ -1746,6 +1745,7 @@ impl DwindleColumn {
 
     /// Adjusts the ratio of the split whose interior edge lies on the `edge` of the leaf at
     /// `tile_idx`, following the pointer by `delta_px`. Returns whether a divider was moved.
+    #[allow(clippy::too_many_arguments)]
     pub fn adjust_ratio_for_edge(
         &mut self,
         tile_idx: usize,
@@ -2630,8 +2630,7 @@ mod tests {
 
         #[test]
         fn smart_split_side_follows_cursor_around_center() {
-            let wide =
-                Rectangle::from_loc_and_size(Point::from((0., 0.)), Size::from((100., 50.)));
+            let wide = Rectangle::new(Point::from((0., 0.)), Size::from((100., 50.)));
             // Right half: |dx| small relative to the wide box.
             assert_eq!(
                 smart_split_side(wide, Point::from((80., 25.))),

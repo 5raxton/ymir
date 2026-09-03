@@ -519,6 +519,7 @@ impl<W: LayoutElement> Monitor<W> {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn add_window(
         &mut self,
         window: W,
@@ -624,6 +625,7 @@ impl<W: LayoutElement> Monitor<W> {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn add_tile_to_column(
         &mut self,
         workspace_idx: usize,
@@ -855,10 +857,12 @@ impl<W: LayoutElement> Monitor<W> {
         };
         let window = window.clone();
 
-        let mut old_render_pos = workspace
+        let Some(mut old_render_pos) = workspace
             .tiles_with_render_positions()
             .find_map(|(tile, offset, _visible)| (tile.window().id() == &window).then_some(offset))
-            .unwrap();
+        else {
+            return;
+        };
 
         let transaction = Transaction::new();
         let removed = workspace.remove_tile(&window, transaction);
@@ -905,10 +909,12 @@ impl<W: LayoutElement> Monitor<W> {
                 self.workspace_size_with_gap(1.).h * (source_workspace_idx as f64 - new_idx as f64);
         }
 
-        let (tile, new_render_pos) = self.workspaces[new_idx]
+        let Some((tile, new_render_pos)) = self.workspaces[new_idx]
             .tiles_with_render_positions_mut(false)
             .find(|(tile, _)| tile.window().id() == &window)
-            .unwrap();
+        else {
+            return;
+        };
         tile.animate_move_from_with_config(old_render_pos - new_render_pos, config);
         tile.set_anim_y_between_workspaces();
     }
@@ -938,20 +944,24 @@ impl<W: LayoutElement> Monitor<W> {
             } else {
                 ActivateWindow::No
             };
-            self.move_to_workspace(None, idx, activate);
+            self.move_to_workspace(None, new_idx, activate);
             return;
         }
 
         let Some(id) = workspace.scrolling().active_column().map(Column::id) else {
             return;
         };
-        let mut old_render_pos = workspace
+        let Some(mut old_render_pos) = workspace
             .scrolling()
             .columns_with_render_positions()
             .find_map(|(col, pos)| (col.id() == id).then_some(pos))
-            .unwrap();
+        else {
+            return;
+        };
 
-        let column = workspace.remove_active_column().unwrap();
+        let Some(column) = workspace.remove_active_column() else {
+            return;
+        };
 
         // Animate vertical movement between workspaces.
         old_render_pos.y +=
@@ -967,12 +977,16 @@ impl<W: LayoutElement> Monitor<W> {
         let new_id = self.workspaces[new_idx].id();
         self.add_column(new_idx, column, activate, Some(config));
 
-        let new_idx = self.idx_of_ws(new_id).unwrap();
-        let (column, new_render_pos) = self.workspaces[new_idx]
+        let Some(new_idx) = self.idx_of_ws(new_id) else {
+            return;
+        };
+        let Some((column, new_render_pos)) = self.workspaces[new_idx]
             .scrolling_mut()
             .columns_with_render_positions_mut()
             .find(|(col, _pos)| col.id() == id)
-            .unwrap();
+        else {
+            return;
+        };
         column.animate_move_from_with_config(old_render_pos - new_render_pos, config);
         column.set_anim_y_between_workspaces();
     }
@@ -1304,46 +1318,67 @@ impl<W: LayoutElement> Monitor<W> {
             return;
         }
 
-        let mut new_idx = new_idx.clamp(0, self.workspaces.len() - 1);
+        let new_idx = new_idx.clamp(0, self.workspaces.len() - 1);
         if old_idx == new_idx {
             return;
         }
 
+        let orig_active = self.active_workspace_idx;
+
         let ws = self.workspaces.remove(old_idx);
         self.workspaces.insert(new_idx, ws);
 
+        // Whether we insert a fresh empty workspace above the first one to preserve the
+        // `empty_workspace_above_first` invariant. Inserting at the top shifts every index,
+        // including the active one, by one.
+        let mut top_inserted = false;
+
         if new_idx > old_idx {
             if new_idx == self.workspaces.len() - 1 {
-                // Insert a new empty workspace.
+                // Insert a new empty workspace at the bottom.
                 self.add_workspace_bottom();
             }
 
             if self.options.layout.empty_workspace_above_first && old_idx == 0 {
                 self.add_workspace_top();
-                new_idx += 1;
+                top_inserted = true;
             }
         } else {
             if old_idx == self.workspaces.len() - 1 {
-                // Insert a new empty workspace.
+                // Insert a new empty workspace at the bottom.
                 self.add_workspace_bottom();
             }
 
             if self.options.layout.empty_workspace_above_first && new_idx == 0 {
                 self.add_workspace_top();
-                new_idx += 1;
+                top_inserted = true;
             }
         }
 
-        // Only refocus the workspace if it was already focused
-        if self.active_workspace_idx == old_idx {
-            self.active_workspace_idx = new_idx;
-        // If the workspace order was switched so that the current workspace moved down the
-        // workspace stack, focus correctly
-        } else if new_idx <= self.active_workspace_idx && old_idx > self.active_workspace_idx {
-            self.active_workspace_idx += 1;
-        } else if new_idx >= self.active_workspace_idx && old_idx < self.active_workspace_idx {
-            self.active_workspace_idx = self.active_workspace_idx.saturating_sub(1);
-        }
+        // Refocus the correct workspace. The manual `remove`/`insert` above does not adjust
+        // `active_workspace_idx` (only `add_workspace_*` does, and only for the top insertion),
+        // so compute the final active index from the original one here, accounting for any top
+        // shift. This avoids double-counting the top insertion's effect on `active_workspace_idx`.
+        let shifted = usize::from(top_inserted);
+        let new_active = if orig_active == old_idx {
+            // The moved workspace was the active one; it lands at `new_idx + shifted`.
+            new_idx + shifted
+        } else if new_idx > old_idx {
+            // Moved a workspace down/right; workspaces in (old_idx, new_idx] shift up by one.
+            if orig_active > old_idx && orig_active <= new_idx {
+                orig_active - 1 + shifted
+            } else {
+                orig_active + shifted
+            }
+        } else {
+            // Moved a workspace up/left; workspaces in [new_idx, old_idx) shift down by one.
+            if orig_active >= new_idx && orig_active < old_idx {
+                orig_active + 1 + shifted
+            } else {
+                orig_active + shifted
+            }
+        };
+        self.active_workspace_idx = new_active;
 
         self.workspace_switch = None;
 

@@ -4186,6 +4186,38 @@ fn move_window_to_empty_workspace_above_first() {
 }
 
 #[test]
+fn move_active_workspace_to_top_ewaf() {
+    let options = Options {
+        layout: ymir_config::Layout {
+            empty_workspace_above_first: true,
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+    let mut layout = check_ops_with_options(
+        options,
+        [
+            Op::AddOutput(1),
+            Op::AddWindow {
+                params: TestWindowParams::new(1),
+            },
+        ],
+    );
+    layout.move_workspace_to_idx(None, 0);
+    let MonitorSet::Normal { monitors, active_monitor_idx, .. } = &layout.monitor_set else {
+        panic!("expected normal monitor set");
+    };
+    let monitor = &monitors[*active_monitor_idx];
+    // The windowed (originally active) workspace must remain active after being moved to the top,
+    // landing at index 1 because index 0 is reserved for the empty workspace above the first.
+    assert_eq!(monitor.active_workspace_idx, 1);
+    assert!(monitor.workspaces[1].has_windows());
+    assert_eq!(monitor.workspaces[0].name, None);
+    assert!(!monitor.workspaces[0].has_windows());
+    layout.verify_invariants();
+}
+
+#[test]
 fn move_window_to_different_output() {
     let ops = [
         Op::AddWindow {

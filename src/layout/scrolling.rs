@@ -2955,7 +2955,7 @@ impl<W: LayoutElement> ScrollingSpace<W> {
         let final_view_offset = self.view_offset.target();
         let view_off = Point::from((-final_view_offset, 0.));
 
-        let (tile, tile_off) = col.tiles().nth(col.active_tile_idx).unwrap();
+        let (tile, tile_off) = col.tiles().nth(col.active_tile_idx)?;
 
         let window_pos = view_off + tile_off + tile.window_loc();
         let window_size = tile.window_size();
@@ -3198,7 +3198,7 @@ impl<W: LayoutElement> ScrollingSpace<W> {
 
         let col = &mut self.columns[self.active_column_idx];
 
-        let available_width = working_w - gap - width_taken - col.extra_size().w;
+        let available_width = working_w + gap - width_taken - col.extra_size().w;
         if available_width <= 0. {
             // Nowhere to expand.
             return;
@@ -5330,6 +5330,9 @@ impl<W: LayoutElement> Column<W> {
     }
 
     fn focus_index(&mut self, index: u8) {
+        if self.tiles.is_empty() {
+            return;
+        }
         let idx = min(usize::from(index.saturating_sub(1)), self.tiles.len() - 1);
         self.activate_idx(idx);
     }

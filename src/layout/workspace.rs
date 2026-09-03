@@ -1363,18 +1363,22 @@ impl<W: LayoutElement> Workspace<W> {
             // The window is in the scrolling layout and we're requesting an unfullscreen. If it is
             // indeed fullscreen (i.e. this isn't a duplicate unfullscreen request), then we may
             // need to unfullscreen into floating.
-            let col = self
+            let Some(col) = self
                 .scrolling
                 .columns()
                 .find(|col| col.contains(window))
-                .unwrap();
+            else {
+                return;
+            };
 
             // When going from fullscreen to maximized, don't consider restore_to_floating yet.
             if col.is_pending_fullscreen() && !col.is_pending_maximized() {
-                let (tile, _) = col
+                let Some((tile, _)) = col
                     .tiles()
                     .find(|(tile, _)| tile.window().id() == window)
-                    .unwrap();
+                else {
+                    return;
+                };
                 if tile.restore_to_floating {
                     // Unfullscreen and float in one call so it has a chance to notice and request a
                     // (0, 0) size, rather than the scrolling column size.
@@ -1384,31 +1388,37 @@ impl<W: LayoutElement> Workspace<W> {
             }
         }
 
-        let tile = self
+        let Some(tile) = self
             .scrolling
             .tiles()
             .find(|tile| tile.window().id() == window)
-            .unwrap();
+        else {
+            return;
+        };
         let was_normal = tile.window().pending_sizing_mode().is_normal();
 
         self.scrolling.set_fullscreen(window, is_fullscreen);
 
         // When going from normal to fullscreen, remember if we should unfullscreen to floating.
-        let tile = self
+        let Some(tile) = self
             .scrolling
             .tiles_mut()
             .find(|tile| tile.window().id() == window)
-            .unwrap();
+        else {
+            return;
+        };
         if was_normal && !tile.window().pending_sizing_mode().is_normal() {
             tile.restore_to_floating = restore_to_floating;
         }
     }
 
     pub fn toggle_fullscreen(&mut self, window: &W::Id) {
-        let tile = self
+        let Some(tile) = self
             .tiles()
             .find(|tile| tile.window().id() == window)
-            .unwrap();
+        else {
+            return;
+        };
         let current = tile.window().pending_sizing_mode().is_fullscreen();
         self.set_fullscreen(window, !current);
     }
@@ -1493,10 +1503,12 @@ impl<W: LayoutElement> Workspace<W> {
             return;
         };
 
-        let (_, render_pos, _) = self
+        let Some((_, render_pos, _)) = self
             .tiles_with_render_positions()
             .find(|(tile, _, _)| *tile.window().id() == id)
-            .unwrap();
+        else {
+            return;
+        };
 
         if self.floating.has_window(&id) {
             let removed = self.floating.remove_tile(&id);
@@ -1599,10 +1611,14 @@ impl<W: LayoutElement> Workspace<W> {
         } else {
             // If the target tile isn't floating, set its stored floating position.
             let tile = if let Some(id) = id {
-                self.scrolling
+                let Some(tile) = self
+                    .scrolling
                     .tiles_mut()
                     .find(|tile| tile.window().id() == id)
-                    .unwrap()
+                else {
+                    return;
+                };
+                tile
             } else if let Some(tile) = self.scrolling.active_tile_mut() {
                 tile
             } else {

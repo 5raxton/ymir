@@ -536,7 +536,7 @@ fn scrolling_expel_creates_a_default_width_column() {
         },
         ..Default::default()
     };
-    let mut layout = check_ops_with_options(
+    let layout = check_ops_with_options(
         options,
         [
             Op::AddOutput(0),

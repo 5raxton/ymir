@@ -178,7 +178,6 @@ impl MoveGrab {
 
         let mut delta = self.new_location - self.last_location;
         let mut relative_delta = self.relative_delta.take().unwrap_or(delta);
-        self.last_location = self.new_location;
 
         // Try to recognize the gesture.
         if self.gesture == GestureState::Recognizing {
@@ -222,15 +221,17 @@ impl MoveGrab {
         match self.gesture {
             GestureState::Recognizing => return true,
             GestureState::Move => {
-                // The window may have been destroyed mid-grab. End the move cleanly so the
-                // layout-side Starting/Moving state is released.
+                // The window may have been destroyed mid-grab. Return false so the grab is
+                // released; `on_ungrab` ends the layout-side Move state.
                 if !self.window.alive() {
-                    data.ymir.layout.interactive_move_end(&self.window);
                     return false;
                 }
 
-                let Some((output, pos_within_output)) = data.ymir.output_under(self.last_location)
+                let Some((output, pos_within_output)) = data.ymir.output_under(self.new_location)
                 else {
+                    // The cursor has left all outputs. Keep the grab and the accumulated delta:
+                    // `last_location` is not advanced, so the whole off-screen movement is
+                    // applied once the cursor re-enters an output.
                     return true;
                 };
                 let output = output.clone();
@@ -244,6 +245,7 @@ impl MoveGrab {
                     pos_within_output,
                 );
                 if ongoing {
+                    self.last_location = self.new_location;
                     // FIXME: only redraw the previous and the new output.
                     data.ymir.queue_redraw_all();
                     return true;

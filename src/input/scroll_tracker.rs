@@ -15,6 +15,11 @@ impl ScrollTracker {
     }
 
     pub fn accumulate(&mut self, amount: f64) -> i8 {
+        // A zero tick would divide by zero below; a NaN amount would poison the accumulator.
+        if self.tick == 0. || !amount.is_finite() {
+            return 0;
+        }
+
         let changed_direction = (self.last > 0. && amount < 0.) || (self.last < 0. && amount > 0.);
         if changed_direction {
             self.acc = 0.

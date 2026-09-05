@@ -20,6 +20,13 @@ impl RubberBand {
     }
 
     pub fn clamp(&self, min: f64, max: f64, x: f64) -> f64 {
+        // `f64::clamp` panics on NaN input; the scroll/pointer deltas feeding this can in
+        // principle produce a NaN, so bail out with a finite fallback instead of crashing the
+        // compositor.
+        if !x.is_finite() || !min.is_finite() || !max.is_finite() {
+            return if x < min { min } else { max };
+        }
+
         let clamped = x.clamp(min, max);
         let sign = if x < clamped { -1. } else { 1. };
         let diff = (x - clamped).abs();
@@ -30,6 +37,10 @@ impl RubberBand {
     pub fn clamp_derivative(&self, min: f64, max: f64, x: f64) -> f64 {
         if min <= x && x <= max {
             return 1.;
+        }
+
+        if !x.is_finite() || !min.is_finite() || !max.is_finite() {
+            return 0.;
         }
 
         let clamped = x.clamp(min, max);

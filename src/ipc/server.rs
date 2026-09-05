@@ -30,6 +30,10 @@ use smithay::reexports::rustix::fs::unlink;
 use smithay::utils::SERIAL_COUNTER;
 use smithay::wayland::shell::wlr_layer::{KeyboardInteractivity, Layer};
 
+/// Upper bound (in bytes) for a single IPC request payload, protecting the compositor
+/// from a client that streams data without ever terminating the request with a newline.
+const MAX_REQUEST_BYTES: usize = 1 << 20;
+
 use crate::backend::IpcOutputMap;
 use crate::input::pick_window_grab::PickWindowGrab;
 use crate::layout::workspace::WorkspaceId;
@@ -191,6 +195,9 @@ async fn handle_client(ctx: ClientCtx, stream: Async<'static, UnixStream>) -> an
     loop {
         // Don't keep buf around to avoid clients wasting RAM by filling it with bogus data.
         let mut buf = Vec::new();
+        // Cap a single request at 1 MiB so a misbehaving client that never sends a newline
+        // can't make us buffer an unbounded amount of data.
+        let mut read = (&mut read).take((MAX_REQUEST_BYTES + 1) as u64);
         let res = read.read_until(b'\n', &mut buf).await;
         match res {
             Ok(0) => return Ok(()),
@@ -210,6 +217,11 @@ async fn handle_client(ctx: ClientCtx, stream: Async<'static, UnixStream>) -> an
 
         let reply = match request {
             Ok(request) => process(&ctx, request).await,
+            // A request that hit the size cap (no newline within `MAX_REQUEST_BYTES`) is
+            // reported distinctly instead of being fed to the JSON parser.
+            Err(err) if buf.last() != Some(&b'\n') => {
+                Err(format!("request exceeded {MAX_REQUEST_BYTES} bytes limit: {err}"))
+            }
             Err(err) => Err(err),
         };
 
@@ -331,7 +343,9 @@ async fn process(ctx: &ClientCtx, request: Request) -> Reply {
         Request::KeyboardLayouts => {
             let state = ctx.event_stream_state.borrow();
             let layout = state.keyboard_layouts.keyboard_layouts.clone();
-            let layout = layout.expect("keyboard layouts should be set at startup");
+            let Some(layout) = layout else {
+                return Err(String::from("keyboard layouts not initialized"));
+            };
             Response::KeyboardLayouts(layout)
         }
         Request::FocusedWindow => {
@@ -571,7 +585,10 @@ impl State {
         let mut state = server.event_stream_state.borrow_mut();
         let state = &mut state.keyboard_layouts;
 
-        if state.keyboard_layouts.as_ref().unwrap().current_idx == idx {
+        let Some(layouts) = state.keyboard_layouts.as_ref() else {
+            return;
+        };
+        if layouts.current_idx == idx {
             return;
         }
 

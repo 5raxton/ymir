@@ -87,10 +87,13 @@ impl SpatialMovementGrab {
                 // Check if the gesture moved far enough to decide. Threshold copied from GTK 4.
                 if c.x * c.x + c.y * c.y >= 8. * 8. {
                     if c.x.abs() > c.y.abs() {
-                        self.gesture = GestureState::ViewOffset;
+                        // Begin the layout-side gesture first; only flip our gesture state once
+                        // it actually started. Otherwise `on_ungrab` would end a gesture that
+                        // never began (mismatched begin/end on the layout side).
                         if let Some((ws_idx, ws)) = layout.find_workspace_by_id(self.workspace_id) {
                             if ws.current_output() == Some(&self.output) {
                                 layout.view_offset_gesture_begin(&self.output, Some(ws_idx), false);
+                                self.gesture = GestureState::ViewOffset;
                                 layout.view_offset_gesture_update(-c.x, timestamp, false)
                             } else {
                                 None
@@ -99,8 +102,8 @@ impl SpatialMovementGrab {
                             None
                         }
                     } else {
-                        self.gesture = GestureState::WorkspaceSwitch;
                         layout.workspace_switch_gesture_begin(&self.output, false);
+                        self.gesture = GestureState::WorkspaceSwitch;
                         layout.workspace_switch_gesture_update(-c.y, timestamp, false)
                     }
                 } else {

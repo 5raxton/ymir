@@ -3964,9 +3964,20 @@ impl<W: LayoutElement> Layout<W> {
         let pointer_offset_within_window =
             start_pos_within_output - tile_pos - window_offset.upscale(zoom);
         let window_size = tile.window_size().upscale(zoom);
+        // A zero-sized window (window_size.w or h == 0) would make the divisions below
+        // yield NaN (0/0), which `f64::clamp` panics on. Fall back to the window's center
+        // ratio in that case.
         let pointer_ratio_within_window = (
-            f64::clamp(pointer_offset_within_window.x / window_size.w, 0., 1.),
-            f64::clamp(pointer_offset_within_window.y / window_size.h, 0., 1.),
+            if window_size.w > 0. {
+                f64::clamp(pointer_offset_within_window.x / window_size.w, 0., 1.)
+            } else {
+                0.5
+            },
+            if window_size.h > 0. {
+                f64::clamp(pointer_offset_within_window.y / window_size.h, 0., 1.)
+            } else {
+                0.5
+            },
         );
 
         self.interactive_move = Some(InteractiveMoveState::Starting {

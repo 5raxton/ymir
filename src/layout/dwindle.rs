@@ -879,13 +879,16 @@ fn split_rect(
 ) {
     match axis {
         SplitAxis::Horizontal => {
-            // Clamp so a region smaller than the seam can't produce a negative split size.
+            // Clamp so a region smaller than the seam can't produce a negative split size or a
+            // second child that escapes the region.
             let usable = (rect.size.h - gaps).max(0.);
             let first_h = (usable * ratio / 2.).floor().clamp(0., usable);
-            let second_h = usable - first_h;
+            let second_h = (usable - first_h).max(0.);
+            let second_y = (rect.loc.y + first_h + gaps)
+                .min(rect.loc.y + rect.size.h - second_h);
             let first = Rectangle::new(rect.loc, Size::from((rect.size.w, first_h)));
             let second = Rectangle::new(
-                Point::from((rect.loc.x, rect.loc.y + first_h + gaps)),
+                Point::from((rect.loc.x, second_y)),
                 Size::from((rect.size.w, second_h)),
             );
             (first, second)
@@ -893,10 +896,12 @@ fn split_rect(
         SplitAxis::Vertical => {
             let usable = (rect.size.w - gaps).max(0.);
             let first_w = (usable * ratio / 2.).floor().clamp(0., usable);
-            let second_w = usable - first_w;
+            let second_w = (usable - first_w).max(0.);
+            let second_x = (rect.loc.x + first_w + gaps)
+                .min(rect.loc.x + rect.size.w - second_w);
             let first = Rectangle::new(rect.loc, Size::from((first_w, rect.size.h)));
             let second = Rectangle::new(
-                Point::from((rect.loc.x + first_w + gaps, rect.loc.y)),
+                Point::from((second_x, rect.loc.y)),
                 Size::from((second_w, rect.size.h)),
             );
             (first, second)

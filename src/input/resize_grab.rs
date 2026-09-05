@@ -20,6 +20,8 @@ use crate::utils::get_monotonic_time;
 pub struct ResizeGrab {
     start_data: AnyStartData<State>,
     window: Window,
+    /// The initiating pointer button, if this grab was started by the pointer.
+    start_button: Option<u32>,
 
     // Accumulated and applied in frame().
     new_location: Point<f64, Logical>,
@@ -29,9 +31,13 @@ impl ResizeGrab {
     pub fn new(start_data: AnyStartData<State>, window: Window) -> Self {
         let location = start_data.location();
 
+        let start_button = (!start_data.is_touch())
+            .then(|| start_data.unwrap_pointer().button);
+
         Self {
             start_data,
             window,
+            start_button,
             new_location: location,
         }
     }
@@ -92,8 +98,15 @@ impl PointerGrab<State> for ResizeGrab {
     ) {
         handle.button(data, event);
 
-        if handle.current_pressed().is_empty() {
-            // No more buttons are pressed, release the grab.
+        // Release the grab when the button that initiated it is released, matching
+        // MoveGrab. Checking `current_pressed().is_empty()` instead would keep resizing
+        // until *every* pressed button is released, which makes the resize keep moving
+        // unexpectedly when the user pressed a second button during the resize.
+        if let Some(button) = self.start_button {
+            if !handle.current_pressed().contains(&button) {
+                handle.unset_grab(self, data, event.serial, event.time, true);
+            }
+        } else if handle.current_pressed().is_empty() {
             handle.unset_grab(self, data, event.serial, event.time, true);
         }
     }

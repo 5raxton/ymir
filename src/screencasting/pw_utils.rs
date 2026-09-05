@@ -450,7 +450,7 @@ impl PipeWire {
                     } else {
                         // Guard against a zero/unknown framerate from PipeWire (which would be an
                         // integer division by zero panic). Fall back to our own refresh rate.
-                        Duration::from_micros(u64::from(inner.refresh.max(1).min(1000)) * 1000)
+                        Duration::from_micros(u64::from(inner.refresh.clamp(1, 1000)) * 1000)
                     };
                     inner.min_time_between_frames = min_frame_time;
 

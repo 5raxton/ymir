@@ -155,23 +155,27 @@ impl TouchOverviewGrab {
                 let Some(window) = self.window.as_ref() else {
                     return false;
                 };
-                // The window may have been destroyed mid-grab. End the move cleanly.
+                // The window may have been destroyed mid-grab. Return false so the grab is
+                // released; `on_ungrab` ends the layout-side Move state.
                 if !window.alive() {
-                    layout.interactive_move_end(window);
                     return false;
                 }
-                if let Some((output, pos_within_output)) = data.ymir.output_under(self.new_location)
-                {
-                    let output = output.clone();
-                    data.ymir.layout.interactive_move_update(
-                        window,
-                        delta,
-                        output,
-                        pos_within_output,
-                    )
-                } else {
-                    false
-                }
+
+                let Some((output, pos_within_output)) =
+                    data.ymir.output_under(self.new_location)
+                else {
+                    // The cursor left all outputs. Keep the grab and preserve the delta for the
+                    // next frame instead of ending the move or dropping the movement.
+                    self.last_location = self.new_location - delta;
+                    return true;
+                };
+                let output = output.clone();
+                data.ymir.layout.interactive_move_update(
+                    window,
+                    delta,
+                    output,
+                    pos_within_output,
+                )
             }
         };
 
@@ -228,7 +232,9 @@ impl TouchOverviewGrab {
                 layout.workspace_switch_gesture_end(Some(false));
             }
             GestureState::InteractiveMove => {
-                layout.interactive_move_end(self.window.as_ref().unwrap());
+                if let Some(window) = self.window.as_ref() {
+                    layout.interactive_move_end(window);
+                }
             }
         };
 

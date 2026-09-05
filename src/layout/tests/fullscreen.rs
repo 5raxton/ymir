@@ -566,7 +566,7 @@ fn scrolling_expel_creates_a_default_width_column() {
 }
 
 #[test]
-fn dwindle_expel_keeps_a_full_width_column() {
+fn dwindle_expel_creates_half_width_columns() {
     let options = Options {
         layout: ymir_config::Layout {
             default_column_display: ymir_ipc::ColumnDisplay::Dwindle,
@@ -592,13 +592,15 @@ fn dwindle_expel_keeps_a_full_width_column() {
         ],
     );
 
-    // Dwindle expel intentionally yields a full-width page, not a half-width column.
+    // Expelling from dwindle takes the column out of the full-width tree: it becomes a normal
+    // column at the layout's default width (half the work area) with the expelled window as a
+    // visible sibling, instead of a full-width off-screen page.
     let expelled = layout
         .windows()
         .find(|(_mon, w)| w.id() == &2)
         .map(|(_mon, w)| w.requested_size().unwrap())
         .unwrap();
-    assert_eq!(expelled.w, 1248);
+    assert_eq!(expelled.w, 616);
 }
 
 #[test]

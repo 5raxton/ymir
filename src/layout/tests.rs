@@ -13,6 +13,7 @@ use ymir_config::{
 use super::*;
 
 mod animations;
+mod dwindle_regressions;
 mod fullscreen;
 
 impl<W: LayoutElement> Default for Layout<W> {

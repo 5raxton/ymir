@@ -1799,6 +1799,31 @@ impl DwindleColumn {
             false
         }
     }
+
+    /// Swaps the leaf values (tile indices) at `a_idx` and `b_idx`, preserving the tree structure,
+    /// and keeps the tree's focus on the leaf that now holds the value formerly at `a_idx` (the
+    /// moved window).
+    ///
+    /// Unlike an expel-and-reinsert, this never rebuilds or rebalances the tree, so unrelated
+    /// windows keep their positions. Returns whether a swap took place.
+    pub fn swap_at(&mut self, a_idx: usize, b_idx: usize) -> bool {
+        let paths = self.tree.leaf_paths();
+        let Some(a) = paths.get(a_idx) else {
+            return false;
+        };
+        let Some(b) = paths.get(b_idx) else {
+            return false;
+        };
+        let a = a.clone();
+        let b = b.clone();
+        if a == b {
+            return false;
+        }
+        self.tree.swap_leaves(&a, &b);
+        // The moved window (old value at `a`) now lives at leaf `b`; follow it there.
+        self.tree.set_active(&b);
+        true
+    }
 }
 
 impl Default for DwindleColumn {

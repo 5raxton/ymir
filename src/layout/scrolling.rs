@@ -2277,30 +2277,43 @@ impl<W: LayoutElement> ScrollingSpace<W> {
         let removed =
             self.remove_tile_by_idx(source_col_idx, source_tile_idx, Transaction::new(), None);
 
-        // Dwindle columns span the whole work area, so expelling keeps that intent: the window
-        // starts a fresh full-width dwindle page to the right (an easy way to begin a new dwindle
-        // horizontally). Scrolling (non-dwindle) columns never force full width: the expelled
-        // window becomes a normal tiled column at the layout's default width (e.g. half a monitor).
-        let (width, is_full_width) = if source_is_dwindle {
-            (removed.width, removed.is_full_width)
-        } else {
-            let width = self
-                .options
-                .layout
-                .default_column_width
-                .map(ColumnWidth::from)
-                .unwrap_or_else(|| ColumnWidth::Fixed(f64::from(removed.tile.window().size().w)));
-            (width, false)
-        };
+        // Dwindle is an exclusive full-screen tree with no room for a sibling column on the tape,
+        // so expelling from it would push the window off-screen. Instead, take the (remaining)
+        // dwindle column back out of dwindle mode: it becomes a normal column at the layout's
+        // default width (e.g. half a monitor) and the expelled window opens a fresh normal column
+        // to its right, mirroring what consume/expel does for scrolling columns everywhere else.
+        if source_is_dwindle {
+            let col = &mut self.columns[source_col_idx];
+            col.set_column_display(ColumnDisplay::Normal);
+            col.update_tile_sizes(true);
+            self.data[source_col_idx].update(col);
+        }
+
+        // Scrolling (non-dwindle) columns never force full width: the expelled window becomes a
+        // normal tiled column at the layout's default width (e.g. half a monitor) too.
+        let width = self
+            .options
+            .layout
+            .default_column_width
+            .map(ColumnWidth::from)
+            .unwrap_or_else(|| ColumnWidth::Fixed(f64::from(removed.tile.window().size().w)));
 
         self.add_tile(
             Some(target_col_idx),
             removed.tile,
             false,
             width,
-            is_full_width,
+            false,
             Some(self.options.animations.window_movement.0),
         );
+
+        // A window expelled from a dwindle column inherits the workspace's dwindle default when its
+        // new column is created, which would make it a full-width page and push it off-screen all
+        // over again. Take the new column straight back out of dwindle mode so it sits side-by-side
+        // with the (now normal) source column.
+        if source_is_dwindle {
+            self.set_column_display_at(target_col_idx, ColumnDisplay::Normal);
+        }
 
         offset.x += cur_x - self.column_x(target_col_idx);
 
@@ -2492,9 +2505,24 @@ impl<W: LayoutElement> ScrollingSpace<W> {
             col_idx
         };
 
+        // Dwindle is an exclusive full-screen page with no other columns around it, but a
+        // leftover view offset from the pre-consolidation column layout would shift the whole page
+        // off-screen (and stay stuck on the next switch). Re-anchor the view exactly like a fresh
+        // dwindle workspace does, so the page fills the work area again.
+        let dwindle_anchor = if display == ColumnDisplay::Dwindle {
+            self.view_offset = ViewOffset::Static(0.);
+            Some(self.compute_new_view_offset_for_column(None, idx, None))
+        } else {
+            None
+        };
+
         let col = &mut self.columns[idx];
-        self.data[idx].update(col);
         col.update_tile_sizes(true);
+        self.data[idx].update(col);
+
+        if let Some(new_view_offset) = dwindle_anchor {
+            self.view_offset = ViewOffset::Static(new_view_offset);
+        }
 
         // Disable fullscreen if needed.
         if !matches!(col.display_mode, ColumnDisplay::Dwindle) && col.tiles.len() > 1 {
@@ -5433,14 +5461,14 @@ impl<W: LayoutElement> Column<W> {
         true
     }
 
-    /// Moves the focused leaf in the dwindle tree in direction `dir`, re-splitting the tree so the
-    /// window is placed directly in that direction from its current position.
+    /// Moves the focused leaf in the dwindle tree in direction `dir` by swapping it with the leaf
+    /// sharing a real divider with it in that direction.
     ///
-    /// This mirrors Hyprland's dwindle move: the window is removed from the tree and re-inserted by
-    /// splitting whichever leaf now occupies the space just beyond its edge in `dir`. The split
-    /// axis is forced to match the movement (up/down stack, left/right sit side-by-side) and the
-    /// window is placed on the corresponding side, so a directional move never slides a window
-    /// diagonally. Returns true on success.
+    /// This mirrors Hyprland's dwindle move: the window trades places with the leaf directly
+    /// across its edge in `dir`. Unlike an expel-and-reinsert, the tree structure (and therefore
+    /// every unrelated window's spot) is preserved, no matter how many windows the tree holds: a
+    /// window never teleports to a rebuilt, rebalanced spot elsewhere on the screen. Returns true
+    /// on success.
     fn move_dwindle_direction(&mut self, dir: SpatialDir) -> bool {
         let idx = self.active_tile_idx;
         if !self.is_dwindle() || self.tiles.len() < 2 {
@@ -5457,7 +5485,7 @@ impl<W: LayoutElement> Column<W> {
         // This is gap-aware (the divider is exactly `gaps` away) and requires perpendicular
         // overlap, so a move always follows the divider and never jumps diagonally, unlike a focal
         // point one pixel beyond the edge, which lands in the seam between windows.
-        let Some(dest_neighbor) = self
+        let Some(dest) = self
             .dwindle_tree
             .spatial_neighbor_idx(idx, dir, content, gaps)
         else {
@@ -5465,42 +5493,10 @@ impl<W: LayoutElement> Column<W> {
             return false;
         };
 
-        // Re-insertion splits the leaf holding the destination neighbor's center. Focus the hole
-        // with that point rather than a point in the seam; after removal the leaf still covers it.
-        let focal: Point<f64, Logical> = self
-            .dwindle_tree
-            .leaf_rect(dest_neighbor, content, gaps)
-            .map(|r| {
-                Point::<f64, Logical>::from((r.loc.x + r.size.w / 2., r.loc.y + r.size.h / 2.))
-            })
-            .unwrap_or_default();
+        // Swap the focused window with that neighbor, keeping tree focus on the moved window.
+        self.dwindle_tree.swap_at(idx, dest);
 
-        // Remove the focused window from the tree and from the tile list, collapsing its slot.
-        let _ = self.dwindle_tree.expel_at(idx);
-        let tile = self.tiles.remove(idx);
-        self.data.remove(idx);
-
-        // The neighbor may have moved to a different path after the expel rebalanced the tree;
-        // locate it again by the point of its old center (any leaf sitting there is the one the
-        // moved window should split).
-        let Some(dest) = self
-            .dwindle_tree
-            .leaf_idx_at_point(focal, content, gaps)
-        else {
-            // Cannot happen for len >= 2, but guard anyway.
-            return false;
-        };
-
-        // Re-insert the moved window by splitting the destination leaf on the movement's side.
-        let side = dir.as_split_side();
-        self.dwindle_tree.set_active_at(dest);
-        let post_len = self.tiles.len();
-        self.data.push(TileData::new(&tile, WindowHeight::auto_1()));
-        self.tiles.push(tile);
-        self.dwindle_tree.open_new_on(side, content.size);
         let order = self.reorder_tiles_by_dfs();
-
-        // open_new_on() made the new leaf active; follow the moved window (value == its DFS slot).
         self.active_tile_idx = self.dwindle_tree.active_value().unwrap();
 
         self.update_tile_sizes(true);
@@ -5508,19 +5504,12 @@ impl<W: LayoutElement> Column<W> {
         let new_offsets: Vec<Point<f64, Logical>> =
             self.tile_offsets().take(self.tiles.len()).collect();
 
-        // Animate each tile from its pre-move offset to its new position. `order` maps the final
-        // position back to the pre-reorder slot; the moved window is the one pushed last (slot
-        // `post_len`), which corresponds to pre-move slot `idx`. The kept tiles keep their relative
-        // order, so a pre-reorder slot `s` was at pre-move slot `s` (if `s < idx`) or `s + 1`.
+        // `order` maps each final tile position back to its pre-reorder slot. The swap only
+        // reorders the tree's values, so the pre-reorder slot is also the pre-move slot: tiles
+        // that did not move animate nothing, while the two swapped windows slide to each other's
+        // spots.
         for (i, (tile, new_offset)) in self.tiles.iter_mut().zip(new_offsets).enumerate() {
-            let old_slot = order[i];
-            let old_idx = if old_slot == post_len {
-                idx
-            } else if old_slot < idx {
-                old_slot
-            } else {
-                old_slot + 1
-            };
+            let old_idx = order[i];
             let delta = prev_offsets[old_idx] - new_offset;
             if delta != Point::default() {
                 tile.animate_move_from(delta);

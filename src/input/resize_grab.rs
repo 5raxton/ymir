@@ -31,7 +31,8 @@ impl ResizeGrab {
     pub fn new(start_data: AnyStartData<State>, window: Window) -> Self {
         let location = start_data.location();
 
-        let start_button = (!start_data.is_touch())
+        let start_button = start_data
+            .is_pointer()
             .then(|| start_data.unwrap_pointer().button);
 
         Self {

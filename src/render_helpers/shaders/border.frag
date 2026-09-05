@@ -228,7 +228,10 @@ vec4 gradient_color(vec2 coords) {
     if ((grad_vec.x < 0.0 && 0.0 <= grad_vec.y) || (0.0 <= grad_vec.x && grad_vec.y < 0.0))
         coords.x -= grad_width;
 
-    float frac = dot(coords, grad_vec) / dot(grad_vec, grad_vec);
+    float denom = dot(grad_vec, grad_vec);
+    // A zero-size gradient area (or a degenerate angle) yields a zero gradient vector;
+    // guard the division so `frac` can't become NaN.
+    float frac = denom > 0.0 ? dot(coords, grad_vec) / denom : 0.0;
 
     if (grad_vec.y < 0.0)
         frac += 1.0;

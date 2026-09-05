@@ -443,7 +443,11 @@ where
         }
 
         let state = state.screencopy_state();
-        let queue = state.queues.get_mut(manager).unwrap();
+        let Some(queue) = state.queues.get_mut(manager) else {
+            // The queue may have been cleaned up by a delayed `destroyed()` (see the comments in
+            // `ZwlrScreencopyManagerHandler::destroyed`). Nothing left to do.
+            return;
+        };
         queue.pending_frames.insert(frame);
     }
 
@@ -595,7 +599,11 @@ where
         // By this point the frame should've been either copied or failed or pushed to the queue,
         // so remove it from pending frames.
         let state = state.screencopy_state();
-        let queue = state.queues.get_mut(manager).unwrap();
+        let Some(queue) = state.queues.get_mut(manager) else {
+            // The queue may have been cleaned up by a delayed `destroyed()` (see the comments in
+            // `ZwlrScreencopyManagerHandler::destroyed`). Nothing left to do.
+            return;
+        };
         queue.pending_frames.remove(frame);
         if queue.is_empty() && !manager.is_alive() {
             state.queues.remove(manager);

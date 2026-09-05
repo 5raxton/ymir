@@ -725,8 +725,14 @@ impl Ymir {
             }
         }
 
-        let dbus = &self.dbus.as_ref().unwrap();
-        let server = dbus.conn_screen_cast.as_ref().unwrap().object_server();
+        let Some(dbus) = &self.dbus else {
+            // No DBus connection (e.g. it failed to start); the stream has been disconnected
+            // above, so there's nothing left to clean up.
+            return;
+        };
+        let Some(server) = dbus.conn_screen_cast.as_ref().map(|c| c.object_server()) else {
+            return;
+        };
         let path = format!("/org/gnome/Mutter/ScreenCast/Session/u{}", session_id.get());
         if let Ok(iface) = server.interface::<_, mutter_screen_cast::Session>(path) {
             let _span = tracy_client::span!("invoking Session::stop");

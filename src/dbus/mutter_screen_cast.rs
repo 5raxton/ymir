@@ -119,12 +119,19 @@ impl ScreenCast {
 
         let session_id = CastSessionId::next();
         let path = format!("/org/gnome/Mutter/ScreenCast/Session/u{}", session_id.get());
-        let path = OwnedObjectPath::try_from(path).unwrap();
+        let Ok(path) = OwnedObjectPath::try_from(path) else {
+            return Err(fdo::Error::Failed("failed to build session path".to_owned()));
+        };
 
         let session = Session::new(session_id, self.ipc_outputs.clone(), self.to_ymir.clone());
         match server.at(&path, session.clone()).await {
             Ok(true) => {
-                let iface = server.interface(&path).await.unwrap();
+                let Ok(iface) = server.interface(&path).await else {
+                    // The interface vanished right after being registered; treat as failure.
+                    return Err(fdo::Error::Failed(
+                        "failed to retrieve session interface".to_owned(),
+                    ));
+                };
                 self.sessions.lock().unwrap().push((session, iface));
             }
             Ok(false) => return Err(fdo::Error::Failed("session path already exists".to_owned())),
@@ -166,7 +173,10 @@ impl Session {
             return;
         }
 
-        Session::closed(&ctxt).await.unwrap();
+        if let Err(err) = Session::closed(&ctxt).await {
+            // The client may have already disconnected; that's fine.
+            debug!("error emitting Session::closed: {err:?}");
+        }
 
         if let Err(err) = self.to_ymir.send(ScreenCastToYmir::StopCast {
             session_id: self.id,
@@ -176,13 +186,17 @@ impl Session {
 
         let streams = mem::take(&mut *self.streams.lock().unwrap());
         for (_, iface) in streams.iter() {
-            server
+            if let Err(err) = server
                 .remove::<Stream, _>(iface.signal_emitter().path())
                 .await
-                .unwrap();
+            {
+                debug!("error removing Stream interface: {err:?}");
+            }
         }
 
-        server.remove::<Session, _>(ctxt.path()).await.unwrap();
+        if let Err(err) = server.remove::<Session, _>(ctxt.path()).await {
+            debug!("error removing Session interface: {err:?}");
+        }
     }
 
     async fn record_monitor(
@@ -207,7 +221,9 @@ impl Session {
 
         let stream_id = CastStreamId::next();
         let path = format!("/org/gnome/Mutter/ScreenCast/Stream/u{}", stream_id.get());
-        let path = OwnedObjectPath::try_from(path).unwrap();
+        let Ok(path) = OwnedObjectPath::try_from(path) else {
+            return Err(fdo::Error::Failed("failed to build stream path".to_owned()));
+        };
 
         let cursor_mode = properties.cursor_mode.unwrap_or_default();
 
@@ -221,7 +237,11 @@ impl Session {
         );
         match server.at(&path, stream.clone()).await {
             Ok(true) => {
-                let iface = server.interface(&path).await.unwrap();
+                let Ok(iface) = server.interface(&path).await else {
+                    return Err(fdo::Error::Failed(
+                        "failed to retrieve stream interface".to_owned(),
+                    ));
+                };
                 self.streams.lock().unwrap().push((stream, iface));
             }
             Ok(false) => return Err(fdo::Error::Failed("stream path already exists".to_owned())),
@@ -244,7 +264,9 @@ impl Session {
 
         let stream_id = CastStreamId::next();
         let path = format!("/org/gnome/Mutter/ScreenCast/Stream/u{}", stream_id.get());
-        let path = OwnedObjectPath::try_from(path).unwrap();
+        let Ok(path) = OwnedObjectPath::try_from(path) else {
+            return Err(fdo::Error::Failed("failed to build stream path".to_owned()));
+        };
 
         let cursor_mode = properties.cursor_mode.unwrap_or_default();
 
@@ -260,7 +282,11 @@ impl Session {
         );
         match server.at(&path, stream.clone()).await {
             Ok(true) => {
-                let iface = server.interface(&path).await.unwrap();
+                let Ok(iface) = server.interface(&path).await else {
+                    return Err(fdo::Error::Failed(
+                        "failed to retrieve stream interface".to_owned(),
+                    ));
+                };
                 self.streams.lock().unwrap().push((stream, iface));
             }
             Ok(false) => return Err(fdo::Error::Failed("stream path already exists".to_owned())),

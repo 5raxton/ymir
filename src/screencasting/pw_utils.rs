@@ -210,13 +210,13 @@ macro_rules! make_params {
         let mut b1 = Vec::new();
         let mut b2 = Vec::new();
 
-        let o1 = make_video_params($formats, $size, $refresh, false);
+        let o1 = make_video_params($formats, $size, $refresh, false)?;
         let pod1 = make_pod(&mut b1, o1);
 
         let mut p1;
         let mut p2;
         $params = if $alpha {
-            let o2 = make_video_params($formats, $size, $refresh, true);
+            let o2 = make_video_params($formats, $size, $refresh, true)?;
             p2 = [pod1, make_pod(&mut b2, o2)];
             &mut p2[..]
         } else {
@@ -442,12 +442,23 @@ impl PipeWire {
                     };
 
                     let max_frame_rate = format.max_framerate();
-                    let min_frame_time = Duration::from_micros(
-                        1_000_000 * u64::from(max_frame_rate.denom) / u64::from(max_frame_rate.num),
-                    );
+                    let min_frame_time = if max_frame_rate.num != 0 {
+                        Duration::from_micros(
+                            1_000_000 * u64::from(max_frame_rate.denom)
+                                / u64::from(max_frame_rate.num),
+                        )
+                    } else {
+                        // Guard against a zero/unknown framerate from PipeWire (which would be an
+                        // integer division by zero panic). Fall back to our own refresh rate.
+                        Duration::from_micros(u64::from(inner.refresh.max(1).min(1000)) * 1000)
+                    };
                     inner.min_time_between_frames = min_frame_time;
 
-                    let object = pod.as_object().unwrap();
+                    let Ok(object) = pod.as_object() else {
+                        warn!("format pod is not an object");
+                        stop_cast();
+                        return;
+                    };
                     let Some(prop_modifier) =
                         object.find_prop(spa::utils::Id(FormatProperties::VideoModifier.0))
                     else {
@@ -509,20 +520,34 @@ impl PipeWire {
                         let mut b1 = Vec::new();
                         let mut b2 = Vec::new();
 
-                        let o1 = make_video_params(
+                        let o1 = match make_video_params(
                             &fixated_format,
                             format_size,
                             inner.refresh,
                             format_has_alpha,
-                        );
+                        ) {
+                            Ok(o) => o,
+                            Err(err) => {
+                                warn!("error making video params: {err:?}");
+                                stop_cast();
+                                return;
+                            }
+                        };
                         let pod1 = make_pod(&mut b1, o1);
 
-                        let o2 = make_video_params(
+                        let o2 = match make_video_params(
                             &formats,
                             format_size,
                             inner.refresh,
                             format_has_alpha,
-                        );
+                        ) {
+                            Ok(o) => o,
+                            Err(err) => {
+                                warn!("error making video params: {err:?}");
+                                stop_cast();
+                                return;
+                            }
+                        };
                         let mut params = [pod1, make_pod(&mut b2, o2)];
 
                         if let Err(err) = stream.update_params(&mut params) {
@@ -729,14 +754,29 @@ impl PipeWire {
                         };
 
                         let plane_count = dmabuf.num_planes();
-                        assert_eq!((*spa_buffer).n_datas as usize, plane_count);
+                        if (*spa_buffer).n_datas as usize != plane_count {
+                            // PipeWire allocated a buffer layout we didn't expect (different
+                            // modifier/plane count than our probe). Treat it as unrecoverable for
+                            // this cast instead of panicking.
+                            warn!(
+                                %stream_id,
+                                "buffer has {} planes, expected {plane_count}; stopping cast",
+                                (*spa_buffer).n_datas as usize
+                            );
+                            stop_cast();
+                            return;
+                        }
 
                         for (i, (fd, (stride, offset))) in
                             zip(dmabuf.handles(), zip(dmabuf.strides(), dmabuf.offsets()))
                                 .enumerate()
                         {
                             let spa_data = (*spa_buffer).datas.add(i);
-                            assert!((*spa_data).type_ & (1 << DataType::DmaBuf.as_raw()) > 0);
+                            if (*spa_data).type_ & (1 << DataType::DmaBuf.as_raw()) == 0 {
+                                warn!(%stream_id, "buffer plane {i} is not a DMA-BUF; stopping cast");
+                                stop_cast();
+                                return;
+                            }
 
                             (*spa_data).type_ = DataType::DmaBuf.as_raw();
 
@@ -787,7 +827,10 @@ impl PipeWire {
                     unsafe {
                         let spa_buffer = (*buffer).buffer;
                         let spa_data = (*spa_buffer).datas;
-                        assert!((*spa_buffer).n_datas > 0);
+                        if (*spa_buffer).n_datas == 0 {
+                            warn!(%stream_id, "remove_buffer with no planes");
+                            return;
+                        }
 
                         let fd = (*spa_data).fd;
                         inner.dmabufs.remove(&fd);
@@ -946,7 +989,7 @@ impl Cast {
         let now = get_monotonic_time();
         let duration = target_time.saturating_sub(now);
         let timer = Timer::from_duration(duration);
-        let token = self
+        let token = match self
             .event_loop
             .insert_source(timer, move |_, _, state| {
                 // Guard against output disconnecting before the timer has a chance to run.
@@ -955,8 +998,16 @@ impl Cast {
                 }
 
                 TimeoutAction::Drop
-            })
-            .unwrap();
+            }) {
+            Ok(token) => token,
+            Err(err) => {
+                // Can't schedule the redraw timer. Fall back to the caller driving the next
+                // redraw; this is a degenerate, rare case (source exhaustion) and must not
+                // crash.
+                warn!("error inserting redraw timer: {err:?}");
+                return;
+            }
+        };
         self.scheduled_redraw = Some(token);
     }
 
@@ -1052,7 +1103,8 @@ impl Cast {
                 trace!("scheduling buffer to queue");
                 let stream_id = self.stream_id;
                 let source = Generic::new(sync_fd, Interest::READ, Mode::OneShot);
-                self.event_loop
+                if let Err(err) = self
+                    .event_loop
                     .insert_source(source, move |_, _, state| {
                         for cast in &mut state.ymir.casting.casts {
                             if cast.stream_id == stream_id {
@@ -1062,7 +1114,12 @@ impl Cast {
 
                         Ok(PostAction::Remove)
                     })
-                    .unwrap();
+                {
+                    warn!("error inserting buffer sync source: {err:?}");
+                    // Fall back to queueing immediately; the sync point is satisfied by the
+                    // sender side in the common case.
+                    self.queue_completed_buffers();
+                }
             }
         }
     }
@@ -1268,7 +1325,7 @@ fn make_video_params(
     size: Size<u32, Physical>,
     refresh: u32,
     alpha: bool,
-) -> pod::Object {
+) -> anyhow::Result<pod::Object> {
     let format = if alpha {
         VideoFormat::BGRA
     } else {
@@ -1288,13 +1345,22 @@ fn make_video_params(
 
     trace!("offering: {formats:?}");
 
+    let Some(&default_modifier) = formats.first() else {
+        // The renderer doesn't offer the fourcc we need for this cast. Without at least one
+        // modifier we can't build a valid format pod (and indexing `formats[0]` below used to
+        // panic on an empty list).
+        return Err(anyhow::anyhow!(
+            "renderer offers no {fourcc:?} modifier for the cast format"
+        ));
+    };
+
     let dont_fixate = if formats.len() > 1 {
         PropertyFlags::DONT_FIXATE
     } else {
         PropertyFlags::empty()
     };
 
-    pod::object!(
+    Ok(pod::object!(
         SpaTypes::ObjectParamFormat,
         ParamType::EnumFormat,
         pod::property!(FormatProperties::MediaType, Id, MediaType::Video),
@@ -1306,7 +1372,7 @@ fn make_video_params(
             value: pod::Value::Choice(ChoiceValue::Long(Choice(
                 ChoiceFlags::empty(),
                 ChoiceEnum::Enum {
-                    default: formats[0],
+                    default: default_modifier,
                     alternatives: formats,
                 }
             )))
@@ -1339,7 +1405,7 @@ fn make_video_params(
                 denom: 1000
             }
         ),
-    )
+    ))
 }
 
 fn make_pod(buffer: &mut Vec<u8>, object: pod::Object) -> &Pod {

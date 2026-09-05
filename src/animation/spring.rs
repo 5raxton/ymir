@@ -1,5 +1,11 @@
 use std::time::Duration;
 
+/// Cap on the settle time of a spring in seconds. Guards against degenerate
+/// spring configs (`stiffness == 0`, `damping_ratio == 0`, or pathological
+/// `epsilon` values) that would otherwise animate forever or produce a NaN in
+/// `Duration::from_secs_f64` (which panics).
+const MAX_DURATION_S: f64 = 30.;
+
 #[derive(Debug, Clone, Copy)]
 pub struct SpringParams {
     pub damping: f64,
@@ -18,9 +24,15 @@ pub struct Spring {
 
 impl SpringParams {
     pub fn new(damping_ratio: f64, stiffness: f64, epsilon: f64) -> Self {
-        let damping_ratio = damping_ratio.max(0.);
-        let stiffness = stiffness.max(0.);
-        let epsilon = epsilon.max(0.);
+        // Reject NaN/Inf outright (the config parser accepts arbitrary f64s, and a NaN
+        // `damping_ratio` would poison `critical_damping` and produce a NaN `damping`,
+        // which then panics `duration()`'s `Duration::from_secs_f64`).
+        let damping_ratio = if damping_ratio.is_finite() { damping_ratio.max(0.) } else { 0. };
+        let stiffness = if stiffness.is_finite() { stiffness.max(0.) } else { 0. };
+        let epsilon = if epsilon.is_finite() { epsilon.max(0.) } else { 0. };
+
+        // epsilon must be positive for `ln()` in `duration()` to be meaningful.
+        let epsilon = if epsilon > 0. { epsilon } else { 0.0001 };
 
         let mass = 1.;
         let critical_damping = 2. * (mass * stiffness).sqrt();
@@ -47,14 +59,27 @@ impl Spring {
     /// Computes and returns the duration until the spring is at rest.
     pub fn duration(&self) -> Duration {
         const DELTA: f64 = 0.001;
+        // Cap the settle time so that degenerate configs (e.g. `stiffness == 0` or
+        // `damping_ratio == 0`, both currently accepted by the config parser) can never
+        // produce a duration-before-start `is_done()` that keeps an animation or the
+        // compositor's redraw loop running forever. `Duration::MAX` used here previously
+        // made `is_done()` unreachable, so any spring built with those params would
+        // animate forever. Cap at a generous upper bound (~30 s) instead.
 
         let beta = self.params.damping / (2. * self.params.mass);
 
-        if beta.abs() <= f64::EPSILON || beta < 0. {
-            return Duration::MAX;
+        if !beta.is_finite() || beta <= 0. || !self.params.epsilon.is_finite() || self.params.epsilon <= 0.
+        {
+            // Degenerate/unstable spring: settle immediately rather than animate forever
+            // or crash.
+            return Duration::ZERO;
         }
 
         if (self.to - self.from).abs() <= f64::EPSILON {
+            return Duration::ZERO;
+        }
+
+        if !self.to.is_finite() || !self.from.is_finite() || !self.initial_velocity.is_finite() {
             return Duration::ZERO;
         }
 
@@ -64,20 +89,25 @@ impl Spring {
         // their amplitudes also depend on the initial velocity and the polynomial factor
         // of the critically damped case, so the ansatz alone can undershoot the real
         // settling time. It still makes a good seed for the Newton refinement below.
-        let mut x0 = -self.params.epsilon.ln() / beta;
+        let mut x0 = (-self.params.epsilon.ln() / beta).clamp(0., MAX_DURATION_S);
 
         // Newton's root finding for the value crossing `to ± epsilon`.
         // https://en.wikipedia.org/wiki/Newton%27s_method
         let mut y0 = self.oscillate(x0);
         let m = (self.oscillate(x0 + DELTA) - y0) / DELTA;
 
-        let mut x1 = (self.to - y0 + m * x0) / m;
+        let mut x1 = if m != 0. && m.is_finite() {
+            (self.to - y0 + m * x0) / m
+        } else {
+            x0
+        };
         let mut y1 = self.oscillate(x1);
 
         let mut i = 0;
         while (self.to - y1).abs() > self.params.epsilon {
             if i > 1000 {
-                return Duration::ZERO;
+                // Failed to converge; snap to the cap so `is_done()` eventually fires.
+                return Self::secs_capped(x0);
             }
 
             x0 = x1;
@@ -85,29 +115,56 @@ impl Spring {
 
             let m = (self.oscillate(x0 + DELTA) - y0) / DELTA;
 
-            x1 = (self.to - y0 + m * x0) / m;
+            x1 = if m != 0. && m.is_finite() {
+                (self.to - y0 + m * x0) / m
+            } else {
+                x0
+            };
             y1 = self.oscillate(x1);
 
             // Some springs have numerical stability issues...
             if !y1.is_finite() {
-                return Duration::from_secs_f64(x0);
+                return Self::secs_capped(x0);
             }
 
             i += 1;
+
+            // x1 can diverge to NaN/negative/Inf even while y1 stays finite (e.g. for
+            // underdamped springs with certain ratios). Guard so we never feed an invalid
+            // value into `Duration::from_secs_f64`, which panics.
+            if !x1.is_finite() || x1 < 0. || x1 > MAX_DURATION_S {
+                return Self::secs_capped(x0);
+            }
         }
 
-        Duration::from_secs_f64(x1)
+        Self::secs_capped(x1)
+    }
+
+    /// Safely converts a seconds value into a `Duration` without panicking on
+    /// NaN/negative/Inf inputs.
+    fn secs_capped(secs: f64) -> Duration {
+        if secs.is_finite() && secs >= 0. {
+            Duration::from_secs_f64(secs.min(MAX_DURATION_S))
+        } else {
+            Duration::ZERO
+        }
     }
 
     /// Computes and returns the duration until the spring reaches its target position.
     pub fn clamped_duration(&self) -> Option<Duration> {
         let beta = self.params.damping / (2. * self.params.mass);
 
-        if beta.abs() <= f64::EPSILON || beta < 0. {
-            return Some(Duration::MAX);
+        if !beta.is_finite() || beta <= 0. || !self.params.epsilon.is_finite() || self.params.epsilon <= 0.
+        {
+            // Degenerate/unstable spring: settle immediately rather than animate forever.
+            return Some(Duration::ZERO);
         }
 
         if (self.to - self.from).abs() <= f64::EPSILON {
+            return Some(Duration::ZERO);
+        }
+
+        if !self.to.is_finite() || !self.from.is_finite() || !self.initial_velocity.is_finite() {
             return Some(Duration::ZERO);
         }
 

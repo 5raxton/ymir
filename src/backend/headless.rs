@@ -154,7 +154,10 @@ impl Headless {
     }
 
     pub fn import_dmabuf(&mut self, _dmabuf: &Dmabuf) -> bool {
-        unimplemented!()
+        // The headless backend has no dmabuf import path. Returning `false` lets the
+        // compositor fall back to a software (shm) copy instead of crashing on clients
+        // that commit dmabuf buffers.
+        false
     }
 
     pub fn ipc_outputs(&self) -> Arc<Mutex<IpcOutputMap>> {

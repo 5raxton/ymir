@@ -209,6 +209,13 @@ impl Blur {
                 }
             }
 
+            // Save the current framebuffer binding. We render into our own FBOs here and must
+            // restore the caller's binding before returning, otherwise every subsequent draw in
+            // the frame (the caller's element, plus everything above it) would rasterize into
+            // framebuffer 0 instead of the frame's actual target.
+            let mut previous_fbo = 0i32;
+            gl.GetIntegerv(ffi::DRAW_FRAMEBUFFER_BINDING, &mut previous_fbo as *mut _);
+
             gl.Disable(ffi::BLEND);
             gl.Disable(ffi::SCISSOR_TEST);
 
@@ -340,8 +347,13 @@ impl Blur {
 
             gl.DisableVertexAttribArray(program.attrib_vert as u32);
 
-            gl.BindFramebuffer(ffi::FRAMEBUFFER, 0);
             gl.DeleteFramebuffers(fbos.len() as _, fbos.as_ptr());
+
+            // Restore the state we changed so the caller's render pipeline is untouched.
+            gl.BindFramebuffer(ffi::FRAMEBUFFER, previous_fbo as u32);
+            gl.Enable(ffi::BLEND);
+            gl.BlendFunc(ffi::ONE, ffi::ONE_MINUS_SRC_ALPHA);
+            gl.Enable(ffi::SCISSOR_TEST);
         })?;
 
         Ok(self.textures[0].clone())
